@@ -10,7 +10,7 @@ pub struct WorldScale {
     /// Output resolution (width, height)
     pub resolution: (u32, u32),
     /// Target detail level for generation quality
-    pub detail_level: DetailLevel,
+    pub _detail_level: DetailLevel,
 }
 
 impl WorldScale {
@@ -19,7 +19,7 @@ impl WorldScale {
         Self {
             physical_size_km,
             resolution,
-            detail_level,
+            _detail_level: detail_level,
         }
     }
 
@@ -29,7 +29,7 @@ impl WorldScale {
     }
 
     /// Get how many pixels represent one kilometer
-    pub fn pixels_per_km(&self) -> f64 {
+    pub fn _pixels_per_km(&self) -> f64 {
         self.resolution.0.max(self.resolution.1) as f64 / self.physical_size_km
     }
 
@@ -50,11 +50,11 @@ impl WorldScale {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum DetailLevel {
     /// Fast generation with basic features only
-    Preview,
+    _Preview,
     /// Balanced quality and performance
     Standard,
     /// High detail with more complex features (slower)
-    High,
+    _High,
 }
 
 /// Trait for types that can derive scale-appropriate parameters
@@ -79,7 +79,7 @@ mod tests {
         assert!((scale.meters_per_pixel() - 10.0).abs() < 0.1);
 
         // Should be 100 pixels per km
-        assert!((scale.pixels_per_km() - 100.0).abs() < 0.1);
+        assert!((scale._pixels_per_km() - 100.0).abs() < 0.1);
 
         assert_eq!(scale.total_cells(), 500_000);
     }

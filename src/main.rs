@@ -1,10 +1,13 @@
 // sim-prototype/src/main.rs
 
-mod render;
-mod scale;
-mod sim;
-mod tui;
-mod worldgen;
+pub mod climate;
+pub mod convergence;
+pub mod dimensional;
+pub mod render;
+pub mod scale;
+pub mod sim;
+pub mod tui;
+pub mod worldgen;
 
 use clap::Parser;
 use render::ascii_render;

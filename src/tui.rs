@@ -405,7 +405,7 @@ fn render_terrain_with_water(
             // Check if this is the cursor position
             let is_cursor = show_cursor && row_idx == cursor_y && col_idx == cursor_x;
 
-            let (symbol, color, style) = if is_cursor {
+            let (symbol, _color, style) = if is_cursor {
                 // Cursor: bright white dot with dark background
                 (
                     '●',
@@ -435,15 +435,19 @@ fn render_terrain_with_water(
                 };
 
                 // Render water if present, otherwise terrain
-                if app.show_water && water_depth > 0.005 {
+                // Use scale-aware water visualization thresholds based on evaporation_threshold
+                let base_threshold = app.simulation.water_system.evaporation_threshold;
+                if app.show_water && water_depth > base_threshold {
                     // Enhanced water visualization with flow arrows prioritized across all depths
                     let arrow = velocity_to_arrow(water_velocity);
                     let has_significant_flow = arrow != ' ' && arrow != '·';
 
+                    // Scale all water depth thresholds proportionally to the evaporation threshold
+                    // Use more conservative multipliers for better visual gradation
                     let (water_symbol, water_color, bg_color) = match water_depth {
-                        x if x > 0.2 => ('■', Color::White, Color::Blue), // Very deep pools - white on blue
-                        x if x > 0.1 => ('≋', Color::LightBlue, Color::Blue), // Deep flowing water - light blue on blue
-                        x if x > 0.05 => {
+                        x if x > base_threshold * 8.0 => ('■', Color::White, Color::Blue), // Very deep pools - white on blue
+                        x if x > base_threshold * 6.0 => ('≋', Color::LightBlue, Color::Blue), // Deep flowing water - light blue on blue
+                        x if x > base_threshold * 4.0 => {
                             // Medium water - show flow direction arrows where meaningful
                             if has_significant_flow {
                                 (arrow, Color::White, Color::Cyan) // Flow arrows in medium water - white on cyan
@@ -451,8 +455,8 @@ fn render_terrain_with_water(
                                 ('~', Color::White, Color::Cyan) // Static medium water - white on cyan
                             }
                         }
-                        x if x > 0.02 => ('·', Color::Blue, Color::LightBlue), // Shallow water - blue on light blue
-                        x if x > 0.01 => ('░', Color::Cyan, Color::LightCyan), // Light moisture - cyan on light cyan
+                        x if x > base_threshold * 2.5 => ('·', Color::Blue, Color::LightBlue), // Shallow water - blue on light blue
+                        x if x > base_threshold * 1.5 => ('░', Color::Cyan, Color::LightCyan), // Light moisture - cyan on light cyan
                         _ => ('▒', Color::Gray, Color::White), // Trace moisture - gray on white
                     };
                     (
@@ -493,6 +497,7 @@ fn render_minimap_with_viewport(
     viewport: &Viewport,
     minimap_width: usize,
     minimap_height: usize,
+    evaporation_threshold: f32,
 ) -> Vec<Line<'static>> {
     let world_height = heightmap.len();
     let world_width = if world_height > 0 {
@@ -552,26 +557,27 @@ fn render_minimap_with_viewport(
                 )
             } else if in_viewport {
                 // Highlight viewport area - show water if present, otherwise terrain
-                let (display_symbol, fg_color, bg_color) = if show_water && water_depth > 0.005 {
-                    let symbol = match water_depth {
-                        x if x > 0.2 => '■',
-                        x if x > 0.1 => '≋',
-                        x if x > 0.05 => '~',
-                        x if x > 0.02 => '·',
-                        x if x > 0.01 => '░',
-                        _ => '▒',
+                let (display_symbol, fg_color, bg_color) =
+                    if show_water && water_depth > evaporation_threshold {
+                        let symbol = match water_depth {
+                            x if x > evaporation_threshold * 8.0 => '■',
+                            x if x > evaporation_threshold * 6.0 => '≋',
+                            x if x > evaporation_threshold * 4.0 => '~',
+                            x if x > evaporation_threshold * 2.5 => '·',
+                            x if x > evaporation_threshold * 1.5 => '░',
+                            _ => '▒',
+                        };
+                        (symbol, Color::White, Color::Gray) // Keep viewport highlighting visible
+                    } else {
+                        let symbol = match height_val {
+                            x if x < 0.2 => '·',
+                            x if x < 0.4 => '~',
+                            x if x < 0.6 => '-',
+                            x if x < 0.8 => '^',
+                            _ => '▲',
+                        };
+                        (symbol, Color::White, Color::Gray) // Keep viewport highlighting visible
                     };
-                    (symbol, Color::White, Color::Gray) // Keep viewport highlighting visible
-                } else {
-                    let symbol = match height_val {
-                        x if x < 0.2 => '·',
-                        x if x < 0.4 => '~',
-                        x if x < 0.6 => '-',
-                        x if x < 0.8 => '^',
-                        _ => '▲',
-                    };
-                    (symbol, Color::White, Color::Gray) // Keep viewport highlighting visible
-                };
                 (
                     display_symbol,
                     fg_color,
@@ -579,14 +585,20 @@ fn render_minimap_with_viewport(
                 )
             } else {
                 // Normal mini-map - show water if present, otherwise terrain
-                if show_water && water_depth > 0.005 {
+                if show_water && water_depth > evaporation_threshold {
                     // Get velocity for flow direction (minimap doesn't need arrows, but could show flow intensity)
                     let (water_symbol, water_color, bg_color) = match water_depth {
-                        x if x > 0.2 => ('■', Color::White, Color::Blue),
-                        x if x > 0.1 => ('≋', Color::LightBlue, Color::Blue),
-                        x if x > 0.05 => ('~', Color::White, Color::Cyan),
-                        x if x > 0.02 => ('·', Color::Blue, Color::LightBlue),
-                        x if x > 0.01 => ('░', Color::Cyan, Color::LightCyan),
+                        x if x > evaporation_threshold * 8.0 => ('■', Color::White, Color::Blue),
+                        x if x > evaporation_threshold * 6.0 => {
+                            ('≋', Color::LightBlue, Color::Blue)
+                        }
+                        x if x > evaporation_threshold * 4.0 => ('~', Color::White, Color::Cyan),
+                        x if x > evaporation_threshold * 2.5 => {
+                            ('·', Color::Blue, Color::LightBlue)
+                        }
+                        x if x > evaporation_threshold * 1.5 => {
+                            ('░', Color::Cyan, Color::LightCyan)
+                        }
                         _ => ('▒', Color::Gray, Color::White),
                     };
                     (
@@ -683,6 +695,7 @@ pub fn ui(f: &mut Frame, app: &mut TuiApp) {
         &app.viewport,
         20, // minimap width
         12, // minimap height
+        app.simulation.water_system.evaporation_threshold,
     );
 
     let minimap_paragraph = Paragraph::new(minimap_lines)
@@ -722,8 +735,8 @@ pub fn ui(f: &mut Frame, app: &mut TuiApp) {
     f.render_widget(legend_paragraph, sidebar_chunks[1]);
 
     // Status bar with navigation info, terrain data, and simulation controls
-    let world_width = app.simulation.heightmap[0].len();
-    let world_height = app.simulation.heightmap.len();
+    let _world_width = app.simulation.heightmap[0].len();
+    let _world_height = app.simulation.heightmap.len();
     let (elevation, terrain_type, symbol) = app.get_cursor_terrain_info();
     let total_water = app.simulation.water.get_total_water();
 
