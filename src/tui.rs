@@ -84,6 +84,84 @@ impl Viewport {
 
         visible
     }
+
+    /// Extract visible portion of water layer for rendering with zoom support
+    pub fn extract_visible_water(
+        &self,
+        water_layer: &crate::sim::WaterLayer,
+        zoom_level: u32,
+    ) -> Vec<Vec<f32>> {
+        let world_height = water_layer.depth.len();
+        let world_width = if world_height > 0 {
+            water_layer.depth[0].len()
+        } else {
+            0
+        };
+
+        let start_y = self.world_y.max(0) as usize;
+        let start_x = self.world_x.max(0) as usize;
+
+        let mut visible = Vec::new();
+
+        for view_y in 0..self.view_height {
+            let mut row = Vec::new();
+
+            for view_x in 0..self.view_width {
+                // Calculate world coordinates based on zoom level
+                let world_x = start_x + (view_x * zoom_level as usize);
+                let world_y = start_y + (view_y * zoom_level as usize);
+
+                // Sample from water depth (with bounds checking)
+                if world_y < world_height && world_x < world_width {
+                    row.push(water_layer.depth[world_y][world_x]);
+                } else {
+                    row.push(0.0); // Default value for out-of-bounds
+                }
+            }
+            visible.push(row);
+        }
+
+        visible
+    }
+
+    /// Extract visible portion of water velocity for flow direction arrows
+    pub fn extract_visible_water_velocity(
+        &self,
+        water_layer: &crate::sim::WaterLayer,
+        zoom_level: u32,
+    ) -> Vec<Vec<crate::sim::Vec2>> {
+        let world_height = water_layer.velocity.len();
+        let world_width = if world_height > 0 {
+            water_layer.velocity[0].len()
+        } else {
+            0
+        };
+
+        let start_y = self.world_y.max(0) as usize;
+        let start_x = self.world_x.max(0) as usize;
+
+        let mut visible = Vec::new();
+
+        for view_y in 0..self.view_height {
+            let mut row = Vec::new();
+
+            for view_x in 0..self.view_width {
+                // Calculate world coordinates based on zoom level
+                let world_x = start_x + (view_x * zoom_level as usize);
+                let world_y = start_y + (view_y * zoom_level as usize);
+
+                // Sample from water velocity (with bounds checking)
+                if world_y < world_height && world_x < world_width {
+                    row.push(water_layer.velocity[world_y][world_x].clone());
+                } else {
+                    row.push(crate::sim::Vec2::zero()); // Default value for out-of-bounds
+                }
+            }
+            visible.push(row);
+        }
+
+        visible
+    }
 }
 
 /// TUI application state
@@ -91,7 +169,9 @@ pub struct TuiApp {
     pub simulation: Simulation,
     pub viewport: Viewport,
     pub should_quit: bool,
-    pub zoom_level: u32, // 1 = 1:1, 2 = 1:2, 4 = 1:4, etc.
+    pub zoom_level: u32,  // 1 = 1:1, 2 = 1:2, 4 = 1:4, etc.
+    pub paused: bool,     // Whether simulation is paused
+    pub show_water: bool, // Whether to visualize water layer
 }
 
 impl TuiApp {
@@ -103,7 +183,9 @@ impl TuiApp {
             simulation,
             viewport,
             should_quit: false,
-            zoom_level: 1, // Start at 1:1 zoom
+            zoom_level: 1,    // Start at 1:1 zoom
+            paused: false,    // Start with simulation running
+            show_water: true, // Start with water visualization enabled
         }
     }
 
@@ -224,6 +306,31 @@ impl TuiApp {
                     self.zoom_level *= 2; // Zoom out (1:1 -> 1:2 -> 1:4)
                 }
             }
+            // Simulation controls
+            KeyCode::Char(' ') => {
+                self.paused = !self.paused; // Toggle pause/resume
+            }
+            KeyCode::Char('r') => {
+                if !self.paused {
+                    self.simulation.tick(); // Manual single step when running
+                }
+            }
+            KeyCode::Char('t') => {
+                if self.paused {
+                    self.simulation.tick(); // Manual tick when paused
+                }
+            }
+            KeyCode::Char('v') => {
+                self.show_water = !self.show_water; // Toggle water visualization
+            }
+            // Add water at cursor position for testing
+            KeyCode::Char('f') => {
+                let cursor_x =
+                    (self.viewport.world_x + (self.viewport.view_width as i32 / 2)) as usize;
+                let cursor_y =
+                    (self.viewport.world_y + (self.viewport.view_height as i32 / 2)) as usize;
+                self.simulation.add_water_at(cursor_x, cursor_y, 0.1);
+            }
             _ => {}
         }
     }
@@ -240,8 +347,34 @@ impl TuiApp {
     }
 }
 
-/// Render the visible terrain using ASCII characters with colors and cursor
-fn render_terrain_ascii(
+/// Convert velocity vector to directional arrow character
+fn velocity_to_arrow(velocity: &crate::sim::Vec2) -> char {
+    let magnitude = velocity.magnitude();
+    if magnitude < 0.01 {
+        return ' '; // No significant flow
+    }
+
+    // Determine primary direction based on dominant component
+    let angle = velocity.y.atan2(velocity.x);
+    let angle_degrees = angle.to_degrees();
+
+    // Convert to 8-directional arrows
+    match angle_degrees {
+        a if a >= -22.5 && a < 22.5 => '→',    // East
+        a if a >= 22.5 && a < 67.5 => '↗',     // Northeast
+        a if a >= 67.5 && a < 112.5 => '↑',    // North
+        a if a >= 112.5 && a < 157.5 => '↖',   // Northwest
+        a if a >= 157.5 || a < -157.5 => '←',  // West
+        a if a >= -157.5 && a < -112.5 => '↙', // Southwest
+        a if a >= -112.5 && a < -67.5 => '↓',  // South
+        a if a >= -67.5 && a < -22.5 => '↘',   // Southeast
+        _ => '·',                              // Fallback
+    }
+}
+
+/// Render the visible terrain with optional water overlay using ASCII characters with colors and cursor
+fn render_terrain_with_water(
+    app: &TuiApp,
     visible_heightmap: &[Vec<f32>],
     show_cursor: bool,
     cursor_x: usize,
@@ -249,10 +382,26 @@ fn render_terrain_ascii(
 ) -> Vec<Line<'static>> {
     let mut lines = Vec::new();
 
+    // Extract visible water data if showing water
+    let (visible_water, visible_velocity) = if app.show_water {
+        (
+            Some(
+                app.viewport
+                    .extract_visible_water(&app.simulation.water, app.zoom_level),
+            ),
+            Some(
+                app.viewport
+                    .extract_visible_water_velocity(&app.simulation.water, app.zoom_level),
+            ),
+        )
+    } else {
+        (None, None)
+    };
+
     for (row_idx, row) in visible_heightmap.iter().enumerate() {
         let mut spans = Vec::new();
 
-        for (col_idx, &val) in row.iter().enumerate() {
+        for (col_idx, &terrain_val) in row.iter().enumerate() {
             // Check if this is the cursor position
             let is_cursor = show_cursor && row_idx == cursor_y && col_idx == cursor_x;
 
@@ -264,19 +413,68 @@ fn render_terrain_ascii(
                     Style::default().fg(Color::White).bg(Color::Black),
                 )
             } else {
-                // Normal terrain
-                let (terrain_symbol, terrain_color) = match val {
-                    x if x < 0.2 => ('.', Color::Blue),   // Deep water
-                    x if x < 0.4 => ('~', Color::Cyan),   // Shallow water/coastline
-                    x if x < 0.6 => ('-', Color::Green),  // Plains/flatlands
-                    x if x < 0.8 => ('^', Color::Yellow), // Hills/foothills
-                    _ => ('▲', Color::Red),               // Mountains/peaks
+                // Get water depth and velocity at this position if water overlay is enabled
+                let water_depth = if let Some(water_data) = &visible_water {
+                    if row_idx < water_data.len() && col_idx < water_data[row_idx].len() {
+                        water_data[row_idx][col_idx]
+                    } else {
+                        0.0
+                    }
+                } else {
+                    0.0
                 };
-                (
-                    terrain_symbol,
-                    terrain_color,
-                    Style::default().fg(terrain_color),
-                )
+
+                let water_velocity = if let Some(velocity_data) = &visible_velocity {
+                    if row_idx < velocity_data.len() && col_idx < velocity_data[row_idx].len() {
+                        &velocity_data[row_idx][col_idx]
+                    } else {
+                        &crate::sim::Vec2::zero()
+                    }
+                } else {
+                    &crate::sim::Vec2::zero()
+                };
+
+                // Render water if present, otherwise terrain
+                if app.show_water && water_depth > 0.005 {
+                    // Enhanced water visualization with flow arrows prioritized across all depths
+                    let arrow = velocity_to_arrow(water_velocity);
+                    let has_significant_flow = arrow != ' ' && arrow != '·';
+
+                    let (water_symbol, water_color, bg_color) = match water_depth {
+                        x if x > 0.2 => ('■', Color::White, Color::Blue), // Very deep pools - white on blue
+                        x if x > 0.1 => ('≋', Color::LightBlue, Color::Blue), // Deep flowing water - light blue on blue
+                        x if x > 0.05 => {
+                            // Medium water - show flow direction arrows where meaningful
+                            if has_significant_flow {
+                                (arrow, Color::White, Color::Cyan) // Flow arrows in medium water - white on cyan
+                            } else {
+                                ('~', Color::White, Color::Cyan) // Static medium water - white on cyan
+                            }
+                        }
+                        x if x > 0.02 => ('·', Color::Blue, Color::LightBlue), // Shallow water - blue on light blue
+                        x if x > 0.01 => ('░', Color::Cyan, Color::LightCyan), // Light moisture - cyan on light cyan
+                        _ => ('▒', Color::Gray, Color::White), // Trace moisture - gray on white
+                    };
+                    (
+                        water_symbol,
+                        water_color,
+                        Style::default().fg(water_color).bg(bg_color),
+                    )
+                } else {
+                    // Normal terrain (base terrain + any deposited sediment)
+                    let (terrain_symbol, terrain_color) = match terrain_val {
+                        x if x < 0.2 => ('.', Color::Blue),   // Deep water
+                        x if x < 0.4 => ('~', Color::Cyan),   // Shallow water/coastline
+                        x if x < 0.6 => ('-', Color::Green),  // Plains/flatlands
+                        x if x < 0.8 => ('^', Color::Yellow), // Hills/foothills
+                        _ => ('▲', Color::Red),               // Mountains/peaks
+                    };
+                    (
+                        terrain_symbol,
+                        terrain_color,
+                        Style::default().fg(terrain_color),
+                    )
+                }
             };
 
             spans.push(Span::styled(symbol.to_string(), style));
@@ -287,52 +485,11 @@ fn render_terrain_ascii(
     lines
 }
 
-/// Generate mini-map by downsampling the full heightmap
-fn generate_minimap(
-    heightmap: &[Vec<f32>],
-    minimap_width: usize,
-    minimap_height: usize,
-) -> Vec<Line<'static>> {
-    let world_height = heightmap.len();
-    let world_width = if world_height > 0 {
-        heightmap[0].len()
-    } else {
-        0
-    };
-
-    let mut minimap_lines = Vec::new();
-
-    for minimap_y in 0..minimap_height {
-        let mut spans = Vec::new();
-
-        for minimap_x in 0..minimap_width {
-            // Sample from the full heightmap
-            let world_x = (minimap_x * world_width) / minimap_width;
-            let world_y = (minimap_y * world_height) / minimap_height;
-
-            let height_val = heightmap[world_y.min(world_height - 1)][world_x.min(world_width - 1)];
-
-            // Use simpler symbols for mini-map clarity
-            let (symbol, color) = match height_val {
-                x if x < 0.2 => ('·', Color::Blue),   // Water
-                x if x < 0.4 => ('~', Color::Cyan),   // Coast
-                x if x < 0.6 => ('-', Color::Green),  // Plains
-                x if x < 0.8 => ('^', Color::Yellow), // Hills
-                _ => ('▲', Color::Red),               // Mountains
-            };
-
-            spans.push(Span::styled(symbol.to_string(), Style::default().fg(color)));
-        }
-
-        minimap_lines.push(Line::from(spans));
-    }
-
-    minimap_lines
-}
-
-/// Render mini-map with viewport indicator
+/// Render mini-map with viewport indicator and optional water overlay
 fn render_minimap_with_viewport(
     heightmap: &[Vec<f32>],
+    water_layer: Option<&crate::sim::WaterLayer>,
+    show_water: bool,
     viewport: &Viewport,
     minimap_width: usize,
     minimap_height: usize,
@@ -364,6 +521,18 @@ fn render_minimap_with_viewport(
 
             let height_val = heightmap[world_y.min(world_height - 1)][world_x.min(world_width - 1)];
 
+            // Get water depth if water layer is available and enabled
+            let water_depth = if show_water && water_layer.is_some() {
+                let water = water_layer.unwrap();
+                if world_y < water.depth.len() && world_x < water.depth[0].len() {
+                    water.depth[world_y][world_x]
+                } else {
+                    0.0
+                }
+            } else {
+                0.0
+            };
+
             // Check if this cell is within the viewport
             let in_viewport = minimap_x >= viewport_left
                 && minimap_x <= viewport_right
@@ -374,7 +543,7 @@ fn render_minimap_with_viewport(
             let is_center = minimap_x == (viewport_left + viewport_right) / 2
                 && minimap_y == (viewport_top + viewport_bottom) / 2;
 
-            let (symbol, color, style) = if is_center {
+            let (symbol, _color, style) = if is_center {
                 // Mark exact center with a bright cursor
                 (
                     '●',
@@ -382,33 +551,63 @@ fn render_minimap_with_viewport(
                     Style::default().fg(Color::White).bg(Color::Black),
                 )
             } else if in_viewport {
-                // Highlight viewport area with brackets
-                let terrain_symbol = match height_val {
-                    x if x < 0.2 => '·',
-                    x if x < 0.4 => '~',
-                    x if x < 0.6 => '-',
-                    x if x < 0.8 => '^',
-                    _ => '▲',
+                // Highlight viewport area - show water if present, otherwise terrain
+                let (display_symbol, fg_color, bg_color) = if show_water && water_depth > 0.005 {
+                    let symbol = match water_depth {
+                        x if x > 0.2 => '■',
+                        x if x > 0.1 => '≋',
+                        x if x > 0.05 => '~',
+                        x if x > 0.02 => '·',
+                        x if x > 0.01 => '░',
+                        _ => '▒',
+                    };
+                    (symbol, Color::White, Color::Gray) // Keep viewport highlighting visible
+                } else {
+                    let symbol = match height_val {
+                        x if x < 0.2 => '·',
+                        x if x < 0.4 => '~',
+                        x if x < 0.6 => '-',
+                        x if x < 0.8 => '^',
+                        _ => '▲',
+                    };
+                    (symbol, Color::White, Color::Gray) // Keep viewport highlighting visible
                 };
                 (
-                    terrain_symbol,
-                    Color::White,
-                    Style::default().fg(Color::White).bg(Color::DarkGray),
+                    display_symbol,
+                    fg_color,
+                    Style::default().fg(fg_color).bg(bg_color),
                 )
             } else {
-                // Normal mini-map colors (dimmer)
-                let (terrain_symbol, terrain_color) = match height_val {
-                    x if x < 0.2 => ('·', Color::Blue),
-                    x if x < 0.4 => ('~', Color::Cyan),
-                    x if x < 0.6 => ('-', Color::Green),
-                    x if x < 0.8 => ('^', Color::Yellow),
-                    _ => ('▲', Color::Red),
-                };
-                (
-                    terrain_symbol,
-                    terrain_color,
-                    Style::default().fg(terrain_color),
-                )
+                // Normal mini-map - show water if present, otherwise terrain
+                if show_water && water_depth > 0.005 {
+                    // Get velocity for flow direction (minimap doesn't need arrows, but could show flow intensity)
+                    let (water_symbol, water_color, bg_color) = match water_depth {
+                        x if x > 0.2 => ('■', Color::White, Color::Blue),
+                        x if x > 0.1 => ('≋', Color::LightBlue, Color::Blue),
+                        x if x > 0.05 => ('~', Color::White, Color::Cyan),
+                        x if x > 0.02 => ('·', Color::Blue, Color::LightBlue),
+                        x if x > 0.01 => ('░', Color::Cyan, Color::LightCyan),
+                        _ => ('▒', Color::Gray, Color::White),
+                    };
+                    (
+                        water_symbol,
+                        water_color,
+                        Style::default().fg(water_color).bg(bg_color),
+                    )
+                } else {
+                    let (terrain_symbol, terrain_color) = match height_val {
+                        x if x < 0.2 => ('·', Color::Blue),
+                        x if x < 0.4 => ('~', Color::Cyan),
+                        x if x < 0.6 => ('-', Color::Green),
+                        x if x < 0.8 => ('^', Color::Yellow),
+                        _ => ('▲', Color::Red),
+                    };
+                    (
+                        terrain_symbol,
+                        terrain_color,
+                        Style::default().fg(terrain_color),
+                    )
+                }
             };
 
             spans.push(Span::styled(symbol.to_string(), style));
@@ -462,7 +661,8 @@ pub fn ui(f: &mut Frame, app: &mut TuiApp) {
     let cursor_x = app.viewport.view_width / 2;
     let cursor_y = app.viewport.view_height / 2;
 
-    let terrain_lines = render_terrain_ascii(&visible_heightmap, true, cursor_x, cursor_y);
+    let terrain_lines =
+        render_terrain_with_water(app, &visible_heightmap, true, cursor_x, cursor_y);
 
     // Main terrain viewport
     let terrain_paragraph = Paragraph::new(terrain_lines)
@@ -475,9 +675,11 @@ pub fn ui(f: &mut Frame, app: &mut TuiApp) {
 
     f.render_widget(terrain_paragraph, content_chunks[0]);
 
-    // Mini-map with viewport indicator
+    // Mini-map with viewport indicator and water overlay
     let minimap_lines = render_minimap_with_viewport(
         &app.simulation.heightmap,
+        Some(&app.simulation.water),
+        app.show_water,
         &app.viewport,
         20, // minimap width
         12, // minimap height
@@ -519,21 +721,23 @@ pub fn ui(f: &mut Frame, app: &mut TuiApp) {
 
     f.render_widget(legend_paragraph, sidebar_chunks[1]);
 
-    // Status bar with navigation info and terrain data
+    // Status bar with navigation info, terrain data, and simulation controls
     let world_width = app.simulation.heightmap[0].len();
     let world_height = app.simulation.heightmap.len();
     let (elevation, terrain_type, symbol) = app.get_cursor_terrain_info();
+    let total_water = app.simulation.water.get_total_water();
 
     let status_text = format!(
-        "Pos: ({}, {}) | Zoom: 1:{} | Terrain: {} {} ({:.3}) | World: {}×{} | WASD=Move ±=Zoom Q=Quit",
+        "Pos: ({}, {}) | Zoom: 1:{} | {} {} ({:.3}) | Water: {:.1} | Tick: {} | {} | WASD=Move SPC=Pause F=AddWater V=ToggleWater Q=Quit",
         app.viewport.world_x,
         app.viewport.world_y,
         app.zoom_level,
         symbol,
         terrain_type,
         elevation,
-        world_width,
-        world_height
+        total_water,
+        app.simulation.tick_count,
+        if app.paused { "PAUSED" } else { "RUNNING" }
     );
 
     let status_paragraph = Paragraph::new(status_text).style(Style::default().fg(Color::Gray));
@@ -561,9 +765,18 @@ pub fn run_tui(simulation: Simulation) -> Result<(), Box<dyn std::error::Error>>
     // Event handling loop with optimized timing
     let mut needs_redraw = true;
     let mut last_redraw = Instant::now();
+    let mut last_sim_tick = Instant::now();
     let min_frame_time = Duration::from_millis(33); // ~30fps, more responsive than 60fps for terminal
+    let sim_tick_interval = Duration::from_millis(100); // ~10 simulation ticks per second
 
     loop {
+        // Run simulation tick if not paused and enough time has passed
+        if !app.paused && last_sim_tick.elapsed() >= sim_tick_interval {
+            app.simulation.tick();
+            last_sim_tick = Instant::now();
+            needs_redraw = true; // Redraw after simulation update
+        }
+
         // Only redraw if needed and enough time has passed
         if needs_redraw && last_redraw.elapsed() >= min_frame_time {
             terminal.draw(|f| ui(f, &mut app))?;
