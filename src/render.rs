@@ -13,11 +13,11 @@ pub fn ascii_render(sim: &Simulation) {
     for row in &sim.heightmap {
         for &val in row {
             let symbol = match val {
-                x if x < 0.2 => '.'.blue(),
-                x if x < 0.4 => '~'.cyan(),
-                x if x < 0.6 => '^'.green(),
-                x if x < 0.8 => '#'.yellow(),
-                _ => '@'.red(),
+                x if x < 0.2 => '.'.blue(),   // Deep water
+                x if x < 0.4 => '~'.cyan(),   // Shallow water/coastline
+                x if x < 0.6 => '-'.green(),  // Plains/flatlands
+                x if x < 0.8 => '^'.yellow(), // Hills/foothills
+                _ => '▲'.red(),               // Mountains/peaks
             };
             let _ = execute!(stdout, PrintStyledContent(symbol));
         }
