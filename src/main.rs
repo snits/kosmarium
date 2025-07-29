@@ -1,6 +1,7 @@
 // sim-prototype/src/main.rs
 
 mod render;
+mod scale;
 mod sim;
 mod tui;
 mod worldgen;

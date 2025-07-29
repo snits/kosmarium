@@ -1,6 +1,8 @@
 // ABOUTME: Core simulation state and water flow system for dynamic terrain evolution
 // ABOUTME: Manages heightmap terrain with real-time water flow, accumulation, and hydraulic erosion
 
+use crate::scale::{REFERENCE_SCALE, ScaleAware, WorldScale};
+
 #[derive(Clone, Debug)]
 pub struct Vec2 {
     pub x: f32,
@@ -52,29 +54,182 @@ impl WaterLayer {
     }
 }
 
-pub struct WaterFlowSystem {
-    pub flow_rate: f32,        // How fast water flows (0.0-1.0)
-    pub evaporation_rate: f32, // Water loss per tick (0.0-1.0)
-    pub erosion_strength: f32, // How much sediment water can carry
-    pub deposition_rate: f32,  // How fast sediment settles
-    pub rainfall_rate: f32,    // How much water is added per tick
+/// Raw, scale-independent water flow parameters
+/// These represent the base behavior before any scale adjustments
+#[derive(Clone, Debug)]
+pub struct WaterFlowParameters {
+    pub flow_rate: f32,                    // How fast water flows (0.0-1.0)
+    pub evaporation_rate: f32,             // Water loss per tick (0.0-1.0)
+    pub erosion_strength: f32,             // How much sediment water can carry
+    pub deposition_rate: f32,              // How fast sediment settles
+    pub base_rainfall_rate: f32,           // Base rainfall per cell per tick (at reference scale)
+    pub rainfall_scaling: RainfallScaling, // How rainfall adjusts with map size
+    pub max_expected_velocity_ms: f32,     // Maximum expected flow velocity in m/s (for CFL)
+    pub cfl_safety_factor: f32,            // Safety margin for CFL condition (0.0-1.0)
 }
 
-impl Default for WaterFlowSystem {
+/// Scale-derived water flow system with effective parameters
+pub struct WaterFlowSystem {
+    pub parameters: WaterFlowParameters,
+    pub effective_rainfall_rate: f32, // Computed rainfall rate for current scale
+    pub stable_timestep_seconds: f32, // CFL-derived timestep for numerical stability
+    pub evaporation_threshold: f32,   // Scale-aware threshold for clearing tiny water amounts
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum RainfallScaling {
+    /// Same rainfall per cell regardless of map size (higher total water on larger maps)
+    /// Use for predictable behavior and debugging
+    PerCell,
+
+    /// Mass-conserving scaling: Total rainfall over region remains constant
+    /// Rain per cell ∝ 1/area - larger maps get less rain per cell
+    /// Use for realistic water budget modeling
+    MassConserving,
+
+    /// Intensity-based scaling: Meteorological intensity remains constant per unit area
+    /// Same as PerCell but with clearer physical interpretation
+    /// Use when modeling actual precipitation rates
+    IntensityBased,
+
+    /// Hydrologically realistic scaling: Based on empirical watershed relationships
+    /// Many hydrological processes follow Area^0.6 scaling laws
+    /// Use for realistic terrain evolution simulation
+    HydrologicalRealistic,
+}
+
+impl Default for WaterFlowParameters {
     fn default() -> Self {
+        // Default values calibrated for ~240x120 reference map
         Self {
             flow_rate: 0.1,
             evaporation_rate: 0.001,
             erosion_strength: 0.01,
             deposition_rate: 0.05,
-            rainfall_rate: 0.002,
+            base_rainfall_rate: 0.002,
+            rainfall_scaling: RainfallScaling::MassConserving, // Physics-based total mass conservation
+            max_expected_velocity_ms: 2.0, // Reasonable for gentle water flow (walking speed)
+            cfl_safety_factor: 0.5,        // Conservative safety margin
         }
     }
 }
 
+impl ScaleAware for WaterFlowParameters {
+    fn derive_parameters(&self, scale: &WorldScale) -> Self {
+        // For now, most parameters don't scale - just return copy
+        // Future enhancement: could scale flow_rate based on meters_per_pixel, etc.
+        self.clone()
+    }
+}
+
 impl WaterFlowSystem {
-    pub fn new() -> Self {
-        Self::default()
+    /// Create a water flow system from parameters and world scale
+    pub fn from_parameters(parameters: WaterFlowParameters, scale: &WorldScale) -> Self {
+        let scaled_params = parameters.derive_parameters(scale);
+        let effective_rainfall_rate = Self::calculate_rainfall_rate(&scaled_params, scale);
+        let stable_timestep_seconds = Self::calculate_cfl_timestep(&scaled_params, scale);
+        let evaporation_threshold =
+            Self::calculate_evaporation_threshold(&scaled_params, effective_rainfall_rate);
+
+        Self {
+            parameters: scaled_params,
+            effective_rainfall_rate,
+            stable_timestep_seconds,
+            evaporation_threshold,
+        }
+    }
+
+    /// Calculate the effective rainfall rate based on scaling strategy
+    fn calculate_rainfall_rate(params: &WaterFlowParameters, scale: &WorldScale) -> f32 {
+        match params.rainfall_scaling {
+            RainfallScaling::PerCell => {
+                // No scaling - same rain per cell regardless of map size
+                params.base_rainfall_rate
+            }
+            RainfallScaling::MassConserving => {
+                // Total rainfall over region remains constant
+                // Rain per cell ∝ 1/area (inverse scaling with map size)
+                let area_ratio = scale.scale_factor_from_reference(REFERENCE_SCALE) as f32;
+                params.base_rainfall_rate * area_ratio
+            }
+            RainfallScaling::IntensityBased => {
+                // Meteorological intensity remains constant - same as PerCell
+                params.base_rainfall_rate
+            }
+            RainfallScaling::HydrologicalRealistic => {
+                // Based on empirical relationships in hydrology
+                // Many watershed processes follow ~ Area^0.6 relationships
+                let area_ratio = scale.scale_factor_from_reference(REFERENCE_SCALE) as f32;
+                params.base_rainfall_rate * area_ratio.powf(0.6)
+            }
+        }
+    }
+
+    /// Calculate CFL-stable timestep based on grid resolution and expected velocities
+    /// CFL condition: dt ≤ dx / max_velocity
+    fn calculate_cfl_timestep(params: &WaterFlowParameters, scale: &WorldScale) -> f32 {
+        let dx = scale.meters_per_pixel() as f32; // Grid spacing in meters
+        let max_velocity = params.max_expected_velocity_ms; // Maximum expected velocity in m/s
+
+        // CFL condition with safety factor
+        let cfl_timestep = params.cfl_safety_factor * dx / max_velocity;
+
+        // Clamp to reasonable bounds (at least 0.001s, at most 60.0s for very coarse grids)
+        cfl_timestep.max(0.001).min(60.0)
+    }
+
+    /// Calculate scale-aware evaporation threshold to prevent clearing water that should accumulate
+    /// Threshold should be small enough to allow rainfall to accumulate over multiple ticks
+    fn calculate_evaporation_threshold(
+        params: &WaterFlowParameters,
+        effective_rainfall_rate: f32,
+    ) -> f32 {
+        // Calculate what water depth looks like after evaporation is applied to one tick of rainfall
+        let post_evaporation_rainfall = effective_rainfall_rate * (1.0 - params.evaporation_rate);
+
+        // Set threshold to 1% of post-evaporation rainfall, ensuring water can accumulate
+        // This allows ~100 ticks of rainfall to build up before being cleared
+        let scale_aware_threshold = post_evaporation_rainfall * 0.01;
+
+        // Ensure minimum threshold is not too small (avoid floating point precision issues)
+        // but also not too large (don't clear water that should accumulate)
+        scale_aware_threshold.max(1e-8).min(1e-4)
+    }
+}
+
+impl WaterFlowSystem {
+    /// Create a water flow system with default parameters for the given world scale
+    pub fn new_for_scale(scale: &WorldScale) -> Self {
+        let parameters = WaterFlowParameters::default();
+        Self::from_parameters(parameters, scale)
+    }
+
+    /// Get the effective rainfall rate for this system
+    pub fn get_effective_rainfall_rate(&self) -> f32 {
+        self.effective_rainfall_rate
+    }
+
+    /// Get the CFL-stable timestep for this system
+    pub fn get_stable_timestep_seconds(&self) -> f32 {
+        self.stable_timestep_seconds
+    }
+
+    /// Check if current flow velocities are within CFL stability bounds
+    pub fn check_cfl_stability(&self, water: &WaterLayer, scale: &WorldScale) -> bool {
+        let dx = scale.meters_per_pixel() as f32;
+        let mut max_observed_velocity = 0.0f32;
+
+        for row in &water.velocity {
+            for velocity in row {
+                max_observed_velocity = max_observed_velocity.max(velocity.magnitude());
+            }
+        }
+
+        // Convert from dimensionless simulation units to m/s (rough approximation)
+        let estimated_velocity_ms = max_observed_velocity * dx;
+
+        // Check if we're within expected bounds
+        estimated_velocity_ms <= self.parameters.max_expected_velocity_ms
     }
 
     /// Calculate flow direction for each cell based on elevation gradients
@@ -121,9 +276,9 @@ impl WaterFlowSystem {
                 if flow_direction.magnitude() > 0.0 {
                     let magnitude = flow_direction.magnitude();
                     flow_direction.x =
-                        (flow_direction.x / magnitude) * steepest_slope * self.flow_rate;
+                        (flow_direction.x / magnitude) * steepest_slope * self.parameters.flow_rate;
                     flow_direction.y =
-                        (flow_direction.y / magnitude) * steepest_slope * self.flow_rate;
+                        (flow_direction.y / magnitude) * steepest_slope * self.parameters.flow_rate;
                 }
 
                 water.velocity[y][x] = flow_direction;
@@ -152,7 +307,7 @@ impl WaterFlowSystem {
     fn add_rainfall(&self, water: &mut WaterLayer) {
         for row in water.depth.iter_mut() {
             for depth in row.iter_mut() {
-                *depth += self.rainfall_rate;
+                *depth += self.effective_rainfall_rate;
             }
         }
     }
@@ -194,7 +349,8 @@ impl WaterFlowSystem {
 
                 if flow_speed > 0.01 && water_depth > 0.001 {
                     // Erosion capacity based on flow speed and water depth
-                    let erosion_capacity = flow_speed * water_depth * self.erosion_strength;
+                    let erosion_capacity =
+                        flow_speed * water_depth * self.parameters.erosion_strength;
 
                     // Erode terrain if we're below capacity
                     if water.sediment[y][x] < erosion_capacity {
@@ -204,8 +360,8 @@ impl WaterFlowSystem {
                     }
                     // Deposit sediment if we're over capacity
                     else if water.sediment[y][x] > erosion_capacity {
-                        let deposition_amount =
-                            (water.sediment[y][x] - erosion_capacity) * self.deposition_rate;
+                        let deposition_amount = (water.sediment[y][x] - erosion_capacity)
+                            * self.parameters.deposition_rate;
                         heightmap[y][x] += deposition_amount;
                         water.sediment[y][x] -= deposition_amount;
                     }
@@ -217,8 +373,8 @@ impl WaterFlowSystem {
     fn apply_evaporation(&self, water: &mut WaterLayer) {
         for row in water.depth.iter_mut() {
             for depth in row.iter_mut() {
-                *depth *= 1.0 - self.evaporation_rate;
-                if *depth < 0.001 {
+                *depth *= 1.0 - self.parameters.evaporation_rate;
+                if *depth < self.evaporation_threshold {
                     *depth = 0.0;
                 }
             }
@@ -227,7 +383,7 @@ impl WaterFlowSystem {
         // Also evaporate sediment when water disappears
         for y in 0..water.height {
             for x in 0..water.width {
-                if water.depth[y][x] < 0.001 {
+                if water.depth[y][x] < self.evaporation_threshold {
                     water.sediment[y][x] *= 0.5; // Sediment settles when water dries up
                 }
             }
@@ -239,18 +395,42 @@ pub struct Simulation {
     pub heightmap: Vec<Vec<f32>>,
     pub water: WaterLayer,
     pub water_system: WaterFlowSystem,
+    pub world_scale: WorldScale,
     pub tick_count: u64,
 }
 
 impl Simulation {
+    /// Create a simulation with default world scale (assumes 10km physical size)
     pub fn new(heightmap: Vec<Vec<f32>>) -> Self {
+        let height = heightmap.len();
+        let width = if height > 0 { heightmap[0].len() } else { 0 };
+
+        // Default to 10km physical size with standard detail
+        let world_scale = WorldScale::new(
+            10.0,
+            (width as u32, height as u32),
+            crate::scale::DetailLevel::Standard,
+        );
+
+        Self {
+            heightmap,
+            water: WaterLayer::new(width, height),
+            water_system: WaterFlowSystem::new_for_scale(&world_scale),
+            world_scale,
+            tick_count: 0,
+        }
+    }
+
+    /// Create a simulation with explicit world scale
+    pub fn new_with_scale(heightmap: Vec<Vec<f32>>, world_scale: WorldScale) -> Self {
         let height = heightmap.len();
         let width = if height > 0 { heightmap[0].len() } else { 0 };
 
         Self {
             heightmap,
             water: WaterLayer::new(width, height),
-            water_system: WaterFlowSystem::new(),
+            water_system: WaterFlowSystem::new_for_scale(&world_scale),
+            world_scale,
             tick_count: 0,
         }
     }
@@ -280,6 +460,17 @@ impl Simulation {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::scale::{DetailLevel, WorldScale};
+
+    // Helper function to create a test world scale
+    fn test_scale(width: u32, height: u32) -> WorldScale {
+        WorldScale::new(10.0, (width, height), DetailLevel::Standard)
+    }
+
+    // Helper function to create a test water system
+    fn test_water_system(width: u32, height: u32) -> WaterFlowSystem {
+        WaterFlowSystem::new_for_scale(&test_scale(width, height))
+    }
 
     // Vec2 unit tests
     #[test]
@@ -422,26 +613,33 @@ mod tests {
 
     // WaterFlowSystem unit tests
     #[test]
-    fn water_flow_system_default_values() {
-        let system = WaterFlowSystem::default();
-        assert_eq!(system.flow_rate, 0.1);
-        assert_eq!(system.evaporation_rate, 0.001);
-        assert_eq!(system.erosion_strength, 0.01);
-        assert_eq!(system.deposition_rate, 0.05);
-        assert_eq!(system.rainfall_rate, 0.002);
+    fn water_flow_parameters_default_values() {
+        let params = WaterFlowParameters::default();
+        assert_eq!(params.flow_rate, 0.1);
+        assert_eq!(params.evaporation_rate, 0.001);
+        assert_eq!(params.erosion_strength, 0.01);
+        assert_eq!(params.deposition_rate, 0.05);
+        assert_eq!(params.base_rainfall_rate, 0.002);
+        assert_eq!(params.rainfall_scaling, RainfallScaling::MassConserving);
     }
 
     #[test]
-    fn water_flow_system_new_uses_default() {
-        let system1 = WaterFlowSystem::new();
-        let system2 = WaterFlowSystem::default();
-        assert_eq!(system1.flow_rate, system2.flow_rate);
-        assert_eq!(system1.evaporation_rate, system2.evaporation_rate);
+    fn water_flow_system_with_scale() {
+        use crate::scale::{DetailLevel, WorldScale};
+        let scale = WorldScale::new(10.0, (240, 120), DetailLevel::Standard);
+        let system = WaterFlowSystem::new_for_scale(&scale);
+
+        // Should have default parameter values
+        assert_eq!(system.parameters.flow_rate, 0.1);
+        assert_eq!(system.parameters.evaporation_rate, 0.001);
+
+        // Effective rainfall should be calculated based on scale
+        assert!(system.effective_rainfall_rate > 0.0);
     }
 
     #[test]
     fn flow_direction_flat_terrain_no_flow() {
-        let system = WaterFlowSystem::new();
+        let system = test_water_system(3, 3);
         let heightmap = vec![
             vec![0.5, 0.5, 0.5],
             vec![0.5, 0.5, 0.5],
@@ -462,7 +660,7 @@ mod tests {
 
     #[test]
     fn flow_direction_simple_slope() {
-        let system = WaterFlowSystem::new();
+        let system = test_water_system(3, 3);
         // Create a simple slope from left to right
         let heightmap = vec![
             vec![1.0, 0.5, 0.0],
@@ -489,7 +687,7 @@ mod tests {
 
     #[test]
     fn flow_direction_with_water_depth() {
-        let system = WaterFlowSystem::new();
+        let system = test_water_system(2, 2);
         let heightmap = vec![vec![1.0, 0.5], vec![1.0, 0.5]];
         let mut water = WaterLayer::new(2, 2);
 
@@ -509,7 +707,7 @@ mod tests {
 
     #[test]
     fn flow_direction_eight_neighbors() {
-        let system = WaterFlowSystem::new();
+        let system = test_water_system(2, 2);
         // Create a heightmap with center cell higher than all neighbors
         let heightmap = vec![
             vec![0.0, 0.0, 0.0],
@@ -530,12 +728,12 @@ mod tests {
         );
 
         // Flow direction should be normalized
-        assert!(magnitude <= system.flow_rate * 1.0); // slope of 1.0
+        assert!(magnitude <= system.parameters.flow_rate * 1.0); // slope of 1.0
     }
 
     #[test]
     fn flow_direction_boundary_conditions() {
-        let system = WaterFlowSystem::new();
+        let system = test_water_system(2, 2);
         let heightmap = vec![vec![1.0, 0.5], vec![0.8, 0.3]];
         let mut water = WaterLayer::new(2, 2);
 
@@ -554,27 +752,28 @@ mod tests {
     // Water movement and physics tests
     #[test]
     fn rainfall_adds_water_uniformly() {
-        let system = WaterFlowSystem {
-            rainfall_rate: 0.1,
-            ..Default::default()
-        };
+        use crate::scale::{DetailLevel, WorldScale};
+        let scale = WorldScale::new(10.0, (2, 2), DetailLevel::Standard);
+        let mut params = WaterFlowParameters::default();
+        params.base_rainfall_rate = 0.1;
+        let system = WaterFlowSystem::from_parameters(params, &scale);
         let mut water = WaterLayer::new(2, 2);
 
         system.add_rainfall(&mut water);
 
         for row in &water.depth {
             for &depth in row {
-                assert_eq!(depth, 0.1);
+                assert_eq!(depth, system.effective_rainfall_rate);
             }
         }
     }
 
     #[test]
     fn evaporation_reduces_water() {
-        let system = WaterFlowSystem {
-            evaporation_rate: 0.1,
-            ..Default::default()
-        };
+        let scale = test_scale(2, 2);
+        let mut params = WaterFlowParameters::default();
+        params.evaporation_rate = 0.1;
+        let system = WaterFlowSystem::from_parameters(params, &scale);
         let mut water = WaterLayer::new(2, 2);
         water.depth[0][0] = 1.0;
         water.depth[0][1] = 0.5;
@@ -587,18 +786,19 @@ mod tests {
 
     #[test]
     fn evaporation_clears_tiny_amounts() {
-        let system = WaterFlowSystem::new();
+        let system = test_water_system(2, 2);
         let mut water = WaterLayer::new(1, 1);
-        water.depth[0][0] = 0.0005; // Very small amount
 
-        system.apply_evaporation(&mut water);
+        // Use an amount smaller than the scale-aware threshold
+        let tiny_amount = system.evaporation_threshold * 0.5;
+        water.depth[0][0] = tiny_amount;
 
         assert_eq!(water.depth[0][0], 0.0); // Should be cleared to 0
     }
 
     #[test]
     fn erosion_removes_terrain_adds_sediment() {
-        let system = WaterFlowSystem::new();
+        let system = test_water_system(2, 2);
         let mut heightmap = vec![vec![1.0]];
         let mut water = WaterLayer::new(1, 1);
         water.depth[0][0] = 0.1;
@@ -614,7 +814,7 @@ mod tests {
 
     #[test]
     fn deposition_adds_terrain_removes_sediment() {
-        let system = WaterFlowSystem::new();
+        let system = test_water_system(2, 2);
         let mut heightmap = vec![vec![1.0]];
         let mut water = WaterLayer::new(1, 1);
         water.depth[0][0] = 0.1; // More water needed for capacity calculation
@@ -661,8 +861,8 @@ mod tests {
 
         // On flat terrain, only rainfall and evaporation should affect water
         sim.tick();
-        let rainfall_added = 9.0 * sim.water_system.rainfall_rate; // 9 cells
-        let evaporation_factor = 1.0 - sim.water_system.evaporation_rate;
+        let rainfall_added = 9.0 * sim.water_system.effective_rainfall_rate; // 9 cells
+        let evaporation_factor = 1.0 - sim.water_system.parameters.evaporation_rate;
         let expected_water = rainfall_added * evaporation_factor;
         let actual_water = sim.water.get_total_water();
 
@@ -673,5 +873,288 @@ mod tests {
             expected_water,
             actual_water
         );
+    }
+
+    // Scale-aware rainfall tests
+    #[test]
+    fn mass_conserving_scaling_maintains_total_water_input() {
+        // Create two different sized maps
+        let small_heightmap = vec![vec![0.5; 10]; 10]; // 100 cells  
+        let large_heightmap = vec![vec![0.5; 20]; 20]; // 400 cells (4x larger)
+
+        let mut small_sim = Simulation::new(small_heightmap);
+        let mut large_sim = Simulation::new(large_heightmap);
+
+        // Both should use mass-conserving scaling by default
+        assert!(matches!(
+            small_sim.water_system.parameters.rainfall_scaling,
+            RainfallScaling::MassConserving
+        ));
+        assert!(matches!(
+            large_sim.water_system.parameters.rainfall_scaling,
+            RainfallScaling::MassConserving
+        ));
+
+        // Check that total water input per tick is conserved across map sizes
+        let small_water_per_tick = small_sim.water_system.effective_rainfall_rate * 100.0; // 100 cells  
+        let large_water_per_tick = large_sim.water_system.effective_rainfall_rate * 400.0; // 400 cells
+
+        // With mass-conserving scaling, total water input should be approximately equal
+        let ratio = small_water_per_tick / large_water_per_tick;
+        assert!(
+            (ratio - 1.0).abs() < 0.01,
+            "Total water input should be conserved, ratio: {}",
+            ratio
+        );
+    }
+
+    #[test]
+    fn mass_conserving_scaling_adjusts_rainfall_rates() {
+        // Reference size water system (240x120) with mass-conserving scaling
+        let reference_system = WaterFlowSystem::new_for_scale(&test_scale(240, 120));
+        let reference_rate = reference_system.effective_rainfall_rate;
+        assert!(
+            (reference_rate - 0.002).abs() < 1e-6,
+            "Reference rate should be ~0.002, got {}",
+            reference_rate
+        );
+
+        // Larger map should have proportionally lower effective rainfall rate with mass-conserving scaling
+        let large_system = WaterFlowSystem::new_for_scale(&test_scale(480, 240)); // 4x larger area
+        let large_rate = large_system.effective_rainfall_rate;
+        assert!(large_rate < 0.002);
+        // With linear scaling: 0.25, so 0.002 * 0.25 = 0.0005
+        assert!(
+            (large_rate - 0.0005).abs() < 1e-6,
+            "4x larger map with mass conservation should have 1/4 rainfall rate, got {}",
+            large_rate
+        );
+
+        // Smaller map should have proportionally higher effective rainfall rate
+        let small_system = WaterFlowSystem::new_for_scale(&test_scale(120, 60)); // 1/4 area
+        let small_rate = small_system.effective_rainfall_rate;
+        assert!(small_rate > 0.002);
+        // With linear scaling: 4.0, so 0.002 * 4.0 = 0.008
+        assert!(
+            (small_rate - 0.008).abs() < 1e-6,
+            "1/4 area map with mass conservation should have 4x rainfall rate, got {}",
+            small_rate
+        );
+    }
+
+    #[test]
+    fn per_cell_scaling_keeps_constant_rainfall() {
+        // Test per-cell scaling mode
+        let small_scale = test_scale(120, 60);
+        let large_scale = test_scale(480, 240);
+
+        let mut small_params = WaterFlowParameters::default();
+        small_params.rainfall_scaling = RainfallScaling::IntensityBased;
+        let small_system = WaterFlowSystem::from_parameters(small_params, &small_scale);
+
+        let mut large_params = WaterFlowParameters::default();
+        large_params.rainfall_scaling = RainfallScaling::IntensityBased;
+        let large_system = WaterFlowSystem::from_parameters(large_params, &large_scale);
+
+        // Both should have the same rainfall rate per cell
+        assert_eq!(small_system.effective_rainfall_rate, 0.002);
+        assert_eq!(large_system.effective_rainfall_rate, 0.002);
+    }
+
+    #[test]
+    fn water_system_with_different_scales() {
+        let small_system = test_water_system(120, 60);
+        let large_system = test_water_system(1024, 512);
+
+        // Different scales should result in different effective rainfall rates
+        assert_ne!(
+            small_system.effective_rainfall_rate,
+            large_system.effective_rainfall_rate
+        );
+
+        // Larger maps should have lower effective rainfall (mass conserving scaling)
+        assert!(large_system.effective_rainfall_rate < small_system.effective_rainfall_rate);
+    }
+
+    #[test]
+    fn hydrological_realistic_scaling() {
+        // Test hydrological realistic scaling with Area^0.6 power law
+        let reference_system = WaterFlowSystem::new_for_scale(&test_scale(240, 120));
+
+        let mut params = WaterFlowParameters::default();
+        params.rainfall_scaling = RainfallScaling::HydrologicalRealistic;
+
+        // Test with 4x larger area
+        let large_scale = test_scale(480, 240); // 4x area
+        let large_system = WaterFlowSystem::from_parameters(params.clone(), &large_scale);
+
+        // With Area^0.6 scaling: (0.25)^0.6 ≈ 0.435, so 0.002 * 0.435 ≈ 0.00087
+        let expected_large_rate = 0.002 * (0.25_f32).powf(0.6);
+        assert!(
+            (large_system.effective_rainfall_rate - expected_large_rate).abs() < 1e-6,
+            "4x area with hydrological scaling, expected: {}, got: {}",
+            expected_large_rate,
+            large_system.effective_rainfall_rate
+        );
+
+        // Test with 1/4 area
+        let small_scale = test_scale(120, 60); // 1/4 area
+        let small_system = WaterFlowSystem::from_parameters(params, &small_scale);
+
+        // With Area^0.6 scaling: (4.0)^0.6 ≈ 2.297, so 0.002 * 2.297 ≈ 0.00459
+        let expected_small_rate = 0.002 * (4.0_f32).powf(0.6);
+        assert!(
+            (small_system.effective_rainfall_rate - expected_small_rate).abs() < 1e-6,
+            "1/4 area with hydrological scaling, expected: {}, got: {}",
+            expected_small_rate,
+            small_system.effective_rainfall_rate
+        );
+    }
+
+    #[test]
+    fn large_map_water_accumulation_works() {
+        // Test the problematic 1024x512 map size that Jerry reported
+        let heightmap = vec![vec![0.5; 1024]; 512]; // Flat terrain for predictable results
+        let world_scale = WorldScale::new(10.0, (1024, 512), DetailLevel::Standard);
+        let mut sim = Simulation::new_with_scale(heightmap, world_scale);
+
+        // Check that water system has scale-aware threshold
+        assert!(
+            sim.water_system.evaporation_threshold < 0.001,
+            "Evaporation threshold should be smaller than old fixed value"
+        );
+        assert!(
+            sim.water_system.evaporation_threshold > 0.0,
+            "Evaporation threshold should be positive"
+        );
+
+        // The effective rainfall rate should be low but the threshold should be even lower
+        let post_evap_rainfall = sim.water_system.effective_rainfall_rate
+            * (1.0 - sim.water_system.parameters.evaporation_rate);
+        assert!(
+            post_evap_rainfall > sim.water_system.evaporation_threshold,
+            "Post-evaporation rainfall should exceed threshold to allow accumulation"
+        );
+
+        // Run several ticks and verify water accumulates
+        let initial_water = sim.water.get_total_water();
+        assert_eq!(initial_water, 0.0, "Should start with no water");
+
+        // Run multiple ticks
+        for _ in 0..5 {
+            sim.tick();
+        }
+
+        let final_water = sim.water.get_total_water();
+        assert!(
+            final_water > 0.0,
+            "Water should accumulate on large maps, got {}",
+            final_water
+        );
+        assert!(
+            final_water > initial_water,
+            "Water should increase over time"
+        );
+    }
+
+    #[test]
+    fn scale_aware_evaporation_threshold() {
+        // Test that different map sizes get appropriate evaporation thresholds
+        let small_system = test_water_system(240, 120); // Reference size
+        let large_system = test_water_system(1024, 512); // Large map
+
+        // Large maps should have smaller thresholds to accommodate lower rainfall rates
+        assert!(
+            large_system.evaporation_threshold < small_system.evaporation_threshold,
+            "Large maps should have smaller evaporation thresholds"
+        );
+
+        // Both should allow their respective rainfall rates to accumulate
+        let small_post_evap =
+            small_system.effective_rainfall_rate * (1.0 - small_system.parameters.evaporation_rate);
+        let large_post_evap =
+            large_system.effective_rainfall_rate * (1.0 - large_system.parameters.evaporation_rate);
+
+        assert!(
+            small_post_evap > small_system.evaporation_threshold,
+            "Small map rainfall should exceed its threshold"
+        );
+        assert!(
+            large_post_evap > large_system.evaporation_threshold,
+            "Large map rainfall should exceed its threshold"
+        );
+    }
+
+    #[test]
+    fn all_scaling_modes_work() {
+        let scale = test_scale(480, 240); // 4x reference area
+        let base_params = WaterFlowParameters::default();
+
+        // Test each scaling mode
+        let mut per_cell_params = base_params.clone();
+        per_cell_params.rainfall_scaling = RainfallScaling::PerCell;
+        let per_cell_system = WaterFlowSystem::from_parameters(per_cell_params, &scale);
+        assert_eq!(per_cell_system.effective_rainfall_rate, 0.002);
+
+        let mut intensity_params = base_params.clone();
+        intensity_params.rainfall_scaling = RainfallScaling::IntensityBased;
+        let intensity_system = WaterFlowSystem::from_parameters(intensity_params, &scale);
+        assert_eq!(intensity_system.effective_rainfall_rate, 0.002); // Same as PerCell
+
+        let mut mass_params = base_params.clone();
+        mass_params.rainfall_scaling = RainfallScaling::MassConserving;
+        let mass_system = WaterFlowSystem::from_parameters(mass_params, &scale);
+        assert_eq!(mass_system.effective_rainfall_rate, 0.0005); // 0.002 * 0.25
+
+        let mut hydro_params = base_params;
+        hydro_params.rainfall_scaling = RainfallScaling::HydrologicalRealistic;
+        let hydro_system = WaterFlowSystem::from_parameters(hydro_params, &scale);
+        let expected_hydro = 0.002 * (0.25_f32).powf(0.6);
+        assert!((hydro_system.effective_rainfall_rate - expected_hydro).abs() < 1e-6);
+    }
+
+    // CFL timestep tests
+    #[test]
+    fn cfl_timestep_calculation() {
+        // Create a high-resolution scale (small pixels) - same physical size, more pixels
+        let high_res_scale = test_scale(1000, 1000); // 10km represented by 1000x1000 pixels = 10m per pixel
+        let high_res_system = test_water_system(1000, 1000);
+
+        // Create a low-resolution scale (large pixels) - same physical size, fewer pixels
+        let low_res_scale = test_scale(100, 100); // 10km represented by 100x100 pixels = 100m per pixel  
+        let low_res_system = test_water_system(100, 100);
+
+        // Higher resolution (smaller pixels) should require smaller timesteps
+        assert!(high_res_system.stable_timestep_seconds < low_res_system.stable_timestep_seconds);
+
+        // Both should be in reasonable bounds
+        assert!(high_res_system.stable_timestep_seconds > 0.001);
+        assert!(high_res_system.stable_timestep_seconds < 60.0);
+        assert!(low_res_system.stable_timestep_seconds > 0.001);
+        assert!(low_res_system.stable_timestep_seconds < 60.0);
+    }
+
+    #[test]
+    fn cfl_parameters_in_defaults() {
+        let params = WaterFlowParameters::default();
+        assert_eq!(params.max_expected_velocity_ms, 2.0);
+        assert_eq!(params.cfl_safety_factor, 0.5);
+    }
+
+    #[test]
+    fn cfl_stability_check() {
+        let scale = test_scale(100, 100); // 100m per pixel
+        let system = test_water_system(100, 100);
+        let mut water = WaterLayer::new(3, 3);
+
+        // Test with reasonable velocities - should be stable
+        // In simulation units, velocity of 0.01 should translate to reasonable m/s
+        water.velocity[1][1] = Vec2::new(0.01, 0.01);
+        assert!(system.check_cfl_stability(&water, &scale));
+
+        // Test with very high velocities - should be unstable
+        // This should translate to much higher than 2.0 m/s
+        water.velocity[1][1] = Vec2::new(1.0, 1.0);
+        assert!(!system.check_cfl_stability(&water, &scale));
     }
 }

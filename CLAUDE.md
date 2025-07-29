@@ -43,6 +43,22 @@ The codebase follows a modular architecture with clear separation of concerns:
 ### Educational Purpose
 This project serves as a learning environment for both simulation concepts and agentic workflow experimentation. **Please provide detailed explanations for technical concepts, algorithmic decisions, and architectural choices.** The goal is to understand not just what the code does, but why specific approaches were chosen and how they work under the hood.
 
+### Subsystem Documentation Requirement
+**MANDATORY**: Upon completion of any major subsystem, create a comprehensive deep-dive document in `/docs/` that covers:
+
+1. **Mathematical Foundations** - The underlying mathematical principles and equations
+2. **Engineering Patterns** - Architectural patterns used and why they were chosen  
+3. **Implementation Details** - How the theory translates to code
+4. **System Extensions** - How the patterns extend to other systems
+5. **Educational Insights** - What can be learned and applied elsewhere
+
+**Examples:**
+- `docs/deep-dive-scaling-foundations.md` - WorldScale architecture analysis
+- `docs/deep-dive-water-physics.md` - Water flow system principles (when completed)
+- `docs/deep-dive-terrain-generation.md` - Noise algorithms and procedural methods (when completed)
+
+**Purpose**: These documents serve as both educational material and architectural reference, enabling deep understanding of design decisions and their broader applicability to other systems and domains.
+
 ### Current State  
 - Actual Diamond-Square terrain generation implemented with trait-based architecture
 - Colored ASCII rendering functional with realistic terrain patterns

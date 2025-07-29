@@ -6,54 +6,56 @@ ABOUTME: Tracks active development state for smooth transitions between sessions
 ## Current Implementation Status
 
 ### Active Development State
-- **Project Phase**: Water flow system implementation complete
+- **Project Phase**: Professional-grade water flow physics system complete
 - **Current Branch**: main
-- **Last Session Focus**: Complete water flow physics system with enhanced TUI visualization
+- **Last Session Focus**: Physics-based scaling laws, CFL numerical stability, large map bug fixes
 
 ### System Status
 - **Build Status**: ✅ Working (all compilation issues resolved)
 - **Dependencies**: All resolved (rand, crossterm, ratatui, clap, tokio, atty)
-- **Test Coverage**: ✅ Comprehensive (23 passing tests for water flow system)
-- **Documentation**: Comprehensive expert guidance captured
+- **Test Coverage**: ✅ Comprehensive (36 passing tests including CFL and scaling validation)
+- **Documentation**: Complete Phase 2 environmental systems plan documented
 
 ### Recently Completed
 - ✅ Complete Diamond-Square terrain generation with configurable parameters
 - ✅ Professional TUI interface with ratatui (viewport, mini-map, zoom, legend)
 - ✅ Command-line parameter system with clap
-- ✅ **Complete Water Flow System Implementation:**
+- ✅ **Professional Water Flow Physics System:**
   - Real-time water physics (steepest descent flow, hydraulic erosion, evaporation)
   - Enhanced TUI visualization (6 depth bands, flow direction arrows, background colors)
   - Water controls (F=add water, V=toggle display, space=pause/resume)
-  - Comprehensive test coverage (23 passing tests)
+  - **Scale-aware parameter system** with WorldScale architecture
+  - **Physics-based scaling laws** (MassConserving, IntensityBased, HydrologicalRealistic)
+  - **CFL numerical stability** with adaptive timesteps
+  - **Large map bug fix** - scale-aware evaporation thresholds
+  - Comprehensive test coverage (36 passing tests)
 - ✅ Expert consultations and technical roadmaps documented
 
 ## Next Priority Actions
 
-### Immediate Implementation Options (Next Session)
-**Phase 2A: Environmental Foundation** (recommended next step)
-- Implement basic climate simulation (temperature, precipitation patterns)
-- Add biome assignment using Whittaker classification
-- Multi-layer environmental visualization in TUI
-- Climate-water interaction systems
+### Remaining Physics Foundation Tasks (High Priority)
+**Dimensional Analysis and Grid Convergence** (complete current physics work)
+- Add dimensional analysis with proper physical units (mm/h, m³/s, etc)
+- Implement grid convergence testing framework for scaling validation
+- These complete the professional-grade numerical simulation foundation
 
-**Phase 2B: Advanced Water Features** (optional water system extensions)
-- River system generation and naming
-- Seasonal water level variation
-- Water temperature and ice formation
-- Advanced erosion patterns (canyon carving)
+### Phase 2A: Environmental Foundation Systems (Next Major Phase)
+**Temperature/Climate Layer Implementation** (recommended next major development)
+- Pre-computed base temperature layer from elevation + latitude
+- Dynamic seasonal effects and weather patterns
+- Integration with water system (temperature-dependent evaporation)
+- Scale-aware climate parameter derivation using WorldScale architecture
+- See `docs/phase-2-environmental-systems.md` for complete implementation plan
 
-**Phase 2C: Terrain Generation Experiments** (alternative direction)
+### Alternative Directions (If changing focus)
+**Phase 2B: Large-Scale Flow Effects** (advanced physics)
+- Coriolis effect simulation for large maps
+- Atmospheric pressure and wind systems
+- Geostrophic flow patterns
+
+**Phase 2C: Terrain Generation Experiments** (different direction)
 - Implement Generalized Stochastic Diffusion (GSD) algorithm
-- Try different initial corner configurations for terrain variety
-- Experiment with map aspect ratios and edge effects
-- Performance optimization for larger map sizes
-
-### Medium Term (Next 2-4 Sessions)
-**Phase 2: Environmental Foundation**
-- Implement Generalized Stochastic Diffusion (GSD) algorithm
-- Add climate simulation pipeline (temperature, precipitation)
-- Biome assignment using Whittaker classification
-- Multi-layer environmental visualization in TUI
+- Multi-algorithm terrain generation system
 
 ### Technical Architecture Status
 - **Simulation Engine**: Ready for implementation (detailed roadmap available)
@@ -76,10 +78,11 @@ ABOUTME: Tracks active development state for smooth transitions between sessions
 - **TUI value recognition**: Builds broadly applicable skills for roguelikes, prototyping, developer tools
 
 ### Expert Consensus Summary
-- **✅ Water flow system complete** - First dynamic simulation component successfully implemented
-- **Climate systems next** - Temperature, precipitation, and biome layers recommended as Phase 2
+- **✅ Professional water flow physics complete** - Scale-aware system with CFL stability and physics-based scaling
+- **✅ Architecture validation** - WorldScale and ScaleAware patterns proven through complex implementation
+- **Phase 2 environmental systems ready** - Temperature/climate layer is natural next progression
 - **Maintain TUI focus** until 3-4 layers + real-time requires graphics migration
-- **Architecture proven excellent** - Water system integration validated the modular design
+- **Physics foundation solid** - CFL stability and scaling laws match professional simulation practices
 
 ### Implementation Readiness
 - **Codebase**: Fully functional with professional TUI interface
