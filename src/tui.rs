@@ -17,6 +17,7 @@ use ratatui::{
 use std::io;
 use std::time::{Duration, Instant};
 
+use crate::atmosphere::WeatherPatternType;
 use crate::sim::Simulation;
 
 /// Viewport for navigating the world map
@@ -165,13 +166,25 @@ impl Viewport {
 }
 
 /// TUI application state
+/// Display overlay modes for different data layers
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum DisplayMode {
+    Terrain,     // Default terrain view
+    Water,       // Water depth and flow
+    Pressure,    // Atmospheric pressure
+    Wind,        // Wind vectors and speed
+    Weather,     // Weather patterns and storms
+    Temperature, // Temperature field
+}
+
 pub struct TuiApp {
     pub simulation: Simulation,
     pub viewport: Viewport,
     pub should_quit: bool,
-    pub zoom_level: u32,  // 1 = 1:1, 2 = 1:2, 4 = 1:4, etc.
-    pub paused: bool,     // Whether simulation is paused
-    pub show_water: bool, // Whether to visualize water layer
+    pub zoom_level: u32,           // 1 = 1:1, 2 = 1:2, 4 = 1:4, etc.
+    pub paused: bool,              // Whether simulation is paused
+    pub show_water: bool,          // Whether to visualize water layer (legacy)
+    pub display_mode: DisplayMode, // Current display overlay mode
 }
 
 impl TuiApp {
@@ -183,9 +196,10 @@ impl TuiApp {
             simulation,
             viewport,
             should_quit: false,
-            zoom_level: 1,    // Start at 1:1 zoom
-            paused: false,    // Start with simulation running
-            show_water: true, // Start with water visualization enabled
+            zoom_level: 1,
+            paused: false,
+            show_water: false,
+            display_mode: DisplayMode::Terrain,
         }
     }
 
@@ -321,7 +335,26 @@ impl TuiApp {
                 }
             }
             KeyCode::Char('v') => {
-                self.show_water = !self.show_water; // Toggle water visualization
+                self.show_water = !self.show_water; // Toggle water visualization (legacy)
+            }
+            // Display mode hotkeys
+            KeyCode::Char('1') => {
+                self.display_mode = DisplayMode::Terrain;
+            }
+            KeyCode::Char('2') => {
+                self.display_mode = DisplayMode::Water;
+            }
+            KeyCode::Char('3') => {
+                self.display_mode = DisplayMode::Pressure;
+            }
+            KeyCode::Char('4') => {
+                self.display_mode = DisplayMode::Wind;
+            }
+            KeyCode::Char('5') => {
+                self.display_mode = DisplayMode::Weather;
+            }
+            KeyCode::Char('6') => {
+                self.display_mode = DisplayMode::Temperature;
             }
             // Add water at cursor position for testing
             KeyCode::Char('f') => {
@@ -344,6 +377,92 @@ impl TuiApp {
 
         self.viewport.view_width = available_width;
         self.viewport.view_height = available_height;
+    }
+}
+
+/// Get symbol and color for atmospheric display modes
+fn get_atmospheric_display(
+    app: &TuiApp,
+    world_x: usize,
+    world_y: usize,
+    terrain_val: f32,
+) -> Option<(char, Color, Style)> {
+    match app.display_mode {
+        DisplayMode::Terrain => None, // Use default terrain rendering
+        DisplayMode::Water => None,   // Use legacy water rendering for now
+        DisplayMode::Pressure => {
+            let pressure = app.simulation.get_pressure_at(world_x, world_y);
+            let avg_pressure = app.simulation.get_average_pressure();
+            let pressure_diff = pressure - avg_pressure;
+
+            // Map pressure to colors and symbols
+            let (symbol, color) = if pressure_diff > 1000.0 {
+                ('H', Color::Red) // High pressure - red H
+            } else if pressure_diff > 500.0 {
+                ('+', Color::Yellow) // Moderate high - yellow +
+            } else if pressure_diff < -1000.0 {
+                ('L', Color::Blue) // Low pressure - blue L
+            } else if pressure_diff < -500.0 {
+                ('-', Color::Cyan) // Moderate low - cyan -
+            } else {
+                ('·', Color::Gray) // Normal pressure - gray dot
+            };
+
+            Some((symbol, color, Style::default().fg(color)))
+        }
+        DisplayMode::Wind => {
+            let wind = app.simulation.get_wind_at(world_x, world_y);
+            let speed = app.simulation.get_wind_speed_at(world_x, world_y);
+
+            if speed < 1.0 {
+                Some(('·', Color::Gray, Style::default().fg(Color::Gray))) // Calm
+            } else {
+                let arrow = velocity_to_arrow(&wind);
+                let color = match speed {
+                    s if s > 15.0 => Color::Red,    // Strong winds
+                    s if s > 10.0 => Color::Yellow, // Moderate winds
+                    s if s > 5.0 => Color::Green,   // Light winds
+                    _ => Color::Cyan,               // Very light winds
+                };
+                Some((arrow, color, Style::default().fg(color)))
+            }
+        }
+        DisplayMode::Weather => {
+            // Check if there's a weather pattern at this location
+            for pattern in &app.simulation.weather_analysis.patterns {
+                let dx = (world_x as i32 - pattern.center.0 as i32).abs() as usize;
+                let dy = (world_y as i32 - pattern.center.1 as i32).abs() as usize;
+                let distance = ((dx * dx + dy * dy) as f32).sqrt() as usize;
+
+                if distance <= pattern.radius {
+                    let (symbol, color) = match pattern.pattern_type {
+                        WeatherPatternType::LowPressureSystem => ('◉', Color::Blue), // Storm center
+                        WeatherPatternType::HighPressureSystem => ('⊙', Color::Red), // High pressure center
+                        WeatherPatternType::WindShear => ('≈', Color::Yellow),       // Wind shear
+                        WeatherPatternType::Calm => ('○', Color::Gray),              // Calm region
+                    };
+                    return Some((symbol, color, Style::default().fg(color)));
+                }
+            }
+            None // No weather pattern here, use terrain
+        }
+        DisplayMode::Temperature => {
+            let temp = app.simulation.temperature_layer.get_current_temperature(
+                world_x,
+                world_y,
+                app.simulation.climate_system.current_season,
+            );
+
+            let (symbol, color) = match temp {
+                t if t > 30.0 => ('▓', Color::Red),    // Hot
+                t if t > 20.0 => ('▒', Color::Yellow), // Warm
+                t if t > 10.0 => ('░', Color::Green),  // Mild
+                t if t > 0.0 => ('·', Color::Cyan),    // Cool
+                _ => ('*', Color::Blue),               // Cold/freezing
+            };
+
+            Some((symbol, color, Style::default().fg(color)))
+        }
     }
 }
 
@@ -373,7 +492,7 @@ fn velocity_to_arrow(velocity: &crate::sim::Vec2) -> char {
 }
 
 /// Render the visible terrain with optional water overlay using ASCII characters with colors and cursor
-fn render_terrain_with_water(
+fn render_terrain_with_overlays(
     app: &TuiApp,
     visible_heightmap: &[Vec<f32>],
     show_cursor: bool,
@@ -465,19 +584,30 @@ fn render_terrain_with_water(
                         Style::default().fg(water_color).bg(bg_color),
                     )
                 } else {
-                    // Normal terrain (base terrain + any deposited sediment)
-                    let (terrain_symbol, terrain_color) = match terrain_val {
-                        x if x < 0.2 => ('.', Color::Blue),   // Deep water
-                        x if x < 0.4 => ('~', Color::Cyan),   // Shallow water/coastline
-                        x if x < 0.6 => ('-', Color::Green),  // Plains/flatlands
-                        x if x < 0.8 => ('^', Color::Yellow), // Hills/foothills
-                        _ => ('▲', Color::Red),               // Mountains/peaks
-                    };
-                    (
-                        terrain_symbol,
-                        terrain_color,
-                        Style::default().fg(terrain_color),
-                    )
+                    // Calculate world coordinates for atmospheric data
+                    let world_x = (app.viewport.world_x + col_idx as i32) as usize;
+                    let world_y = (app.viewport.world_y + row_idx as i32) as usize;
+
+                    // Check for atmospheric overlay display
+                    if let Some((atmo_symbol, atmo_color, atmo_style)) =
+                        get_atmospheric_display(app, world_x, world_y, terrain_val)
+                    {
+                        (atmo_symbol, atmo_color, atmo_style)
+                    } else {
+                        // Normal terrain (base terrain + any deposited sediment)
+                        let (terrain_symbol, terrain_color) = match terrain_val {
+                            x if x < 0.2 => ('.', Color::Blue),   // Deep water
+                            x if x < 0.4 => ('~', Color::Cyan),   // Shallow water/coastline
+                            x if x < 0.6 => ('-', Color::Green),  // Plains/flatlands
+                            x if x < 0.8 => ('^', Color::Yellow), // Hills/foothills
+                            _ => ('▲', Color::Red),               // Mountains/peaks
+                        };
+                        (
+                            terrain_symbol,
+                            terrain_color,
+                            Style::default().fg(terrain_color),
+                        )
+                    }
                 }
             };
 
@@ -674,7 +804,7 @@ pub fn ui(f: &mut Frame, app: &mut TuiApp) {
     let cursor_y = app.viewport.view_height / 2;
 
     let terrain_lines =
-        render_terrain_with_water(app, &visible_heightmap, true, cursor_x, cursor_y);
+        render_terrain_with_overlays(app, &visible_heightmap, true, cursor_x, cursor_y);
 
     // Main terrain viewport
     let terrain_paragraph = Paragraph::new(terrain_lines)

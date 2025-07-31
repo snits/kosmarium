@@ -1,7 +1,8 @@
 // ABOUTME: Core simulation state and water flow system for dynamic terrain evolution
 // ABOUTME: Manages heightmap terrain with real-time water flow, accumulation, and hydraulic erosion
 
-use crate::climate::{ClimateSystem, TemperatureLayer};
+use crate::atmosphere::{AtmosphericSystem, WeatherAnalysis, WindLayer};
+use crate::climate::{AtmosphericPressureLayer, ClimateSystem, TemperatureLayer};
 use crate::dimensional::{DimensionalAnalysis, DimensionalWaterFlowParameters, PhysicalQuantity};
 use crate::scale::{REFERENCE_SCALE, ScaleAware, WorldScale};
 
@@ -503,6 +504,10 @@ pub struct Simulation {
     pub water_system: WaterFlowSystem,
     pub climate_system: ClimateSystem,
     pub temperature_layer: TemperatureLayer,
+    pub atmospheric_system: AtmosphericSystem,
+    pub pressure_layer: AtmosphericPressureLayer,
+    pub wind_layer: WindLayer,
+    pub weather_analysis: WeatherAnalysis,
     pub _world_scale: WorldScale,
     pub tick_count: u64,
 }
@@ -524,12 +529,23 @@ impl Simulation {
         let climate_system = ClimateSystem::new_for_scale(&world_scale);
         let temperature_layer = climate_system.generate_temperature_layer(&heightmap);
 
+        // Create atmospheric system and generate pressure/wind layers
+        let atmospheric_system = AtmosphericSystem::new_for_scale(&world_scale);
+        let pressure_layer =
+            climate_system.generate_pressure_layer(&temperature_layer, &heightmap, &world_scale);
+        let wind_layer =
+            atmospheric_system.generate_geostrophic_winds(&pressure_layer, &world_scale);
+
         Self {
             heightmap,
             water: WaterLayer::new(width, height),
             water_system: WaterFlowSystem::new_for_scale(&world_scale),
             climate_system,
             temperature_layer,
+            atmospheric_system,
+            pressure_layer,
+            wind_layer,
+            weather_analysis: WeatherAnalysis::default(),
             _world_scale: world_scale,
             tick_count: 0,
         }
@@ -544,12 +560,23 @@ impl Simulation {
         let climate_system = ClimateSystem::new_for_scale(&world_scale);
         let temperature_layer = climate_system.generate_temperature_layer(&heightmap);
 
+        // Create atmospheric system and generate pressure/wind layers
+        let atmospheric_system = AtmosphericSystem::new_for_scale(&world_scale);
+        let pressure_layer =
+            climate_system.generate_pressure_layer(&temperature_layer, &heightmap, &world_scale);
+        let wind_layer =
+            atmospheric_system.generate_geostrophic_winds(&pressure_layer, &world_scale);
+
         Self {
             heightmap,
             water: WaterLayer::new(width, height),
             water_system: WaterFlowSystem::new_for_scale(&world_scale),
             climate_system,
             temperature_layer,
+            atmospheric_system,
+            pressure_layer,
+            wind_layer,
+            weather_analysis: WeatherAnalysis::default(),
             _world_scale: world_scale,
             tick_count: 0,
         }
@@ -559,6 +586,30 @@ impl Simulation {
     pub fn tick(&mut self) {
         // Advance seasonal cycle
         self.climate_system.tick();
+
+        // Regenerate temperature layer (for seasonal changes)
+        self.temperature_layer = self
+            .climate_system
+            .generate_temperature_layer(&self.heightmap);
+
+        // Regenerate pressure layer (coupled to temperature changes)
+        self.pressure_layer = self.climate_system.generate_pressure_layer(
+            &self.temperature_layer,
+            &self.heightmap,
+            &self._world_scale,
+        );
+
+        // Regenerate wind field (from updated pressure gradients)
+        self.wind_layer = self
+            .atmospheric_system
+            .generate_geostrophic_winds(&self.pressure_layer, &self._world_scale);
+
+        // Analyze weather patterns (storms, pressure systems)
+        self.weather_analysis = self.atmospheric_system.analyze_weather_patterns(
+            &self.pressure_layer,
+            &self.wind_layer,
+            &self._world_scale,
+        );
 
         // Update water flow with temperature-dependent evaporation
         self.water_system.update_water_flow_with_climate(
@@ -607,6 +658,36 @@ impl Simulation {
     pub fn get_physical_evaporation_rate(&self) -> PhysicalQuantity {
         self.water_system
             .get_evaporation_volume_rate(&self._world_scale)
+    }
+
+    /// Get atmospheric pressure at a specific location
+    pub fn get_pressure_at(&self, x: usize, y: usize) -> f32 {
+        self.pressure_layer.get_pressure(x, y)
+    }
+
+    /// Get wind velocity at a specific location
+    pub fn get_wind_at(&self, x: usize, y: usize) -> Vec2 {
+        self.wind_layer.get_velocity(x, y)
+    }
+
+    /// Get wind speed at a specific location
+    pub fn get_wind_speed_at(&self, x: usize, y: usize) -> f32 {
+        self.wind_layer.get_speed(x, y)
+    }
+
+    /// Check if Coriolis effects are active for this simulation
+    pub fn is_coriolis_active(&self) -> bool {
+        self.atmospheric_system.is_coriolis_active()
+    }
+
+    /// Get average atmospheric pressure across the map
+    pub fn get_average_pressure(&self) -> f32 {
+        self.pressure_layer.get_average_pressure()
+    }
+
+    /// Get average wind speed across the map
+    pub fn get_average_wind_speed(&self) -> f32 {
+        self.wind_layer.get_average_wind_speed()
     }
 }
 

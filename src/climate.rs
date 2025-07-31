@@ -2,6 +2,7 @@
 // ABOUTME: Implements elevation-based temperature gradients with scale-aware parameters
 
 use crate::scale::{ScaleAware, WorldScale};
+use crate::sim::Vec2;
 
 /// Core temperature data layer
 #[derive(Clone, Debug)]
@@ -10,6 +11,19 @@ pub struct TemperatureLayer {
     pub temperature: Vec<Vec<f32>>,
     /// Seasonal temperature variation range at each cell
     pub seasonal_variation: Vec<Vec<f32>>,
+    /// Width and height for bounds checking
+    width: usize,
+    height: usize,
+}
+
+/// Atmospheric pressure data layer
+/// Pressure drives wind patterns through horizontal pressure gradients
+#[derive(Clone, Debug)]
+pub struct AtmosphericPressureLayer {
+    /// Pressure in Pascals at each cell (sea level equivalent)
+    pub pressure: Vec<Vec<f32>>,
+    /// Pressure gradient vector (∇P) in Pa/m at each cell
+    pub pressure_gradient: Vec<Vec<Vec2>>,
     /// Width and height for bounds checking
     width: usize,
     height: usize,
@@ -70,6 +84,101 @@ impl TemperatureLayer {
     }
 }
 
+impl AtmosphericPressureLayer {
+    /// Create a new atmospheric pressure layer with the given dimensions
+    pub fn new(width: usize, height: usize) -> Self {
+        Self {
+            pressure: vec![vec![101325.0; width]; height], // Standard sea level pressure (Pa)
+            pressure_gradient: vec![vec![Vec2::zero(); width]; height],
+            width,
+            height,
+        }
+    }
+
+    /// Get pressure at a specific location (with bounds checking)
+    pub fn get_pressure(&self, x: usize, y: usize) -> f32 {
+        if x < self.width && y < self.height {
+            self.pressure[y][x]
+        } else {
+            101325.0 // Standard sea level pressure if out of bounds
+        }
+    }
+
+    /// Get pressure gradient at a specific location (with bounds checking)
+    pub fn get_pressure_gradient(&self, x: usize, y: usize) -> Vec2 {
+        if x < self.width && y < self.height {
+            self.pressure_gradient[y][x].clone()
+        } else {
+            Vec2::zero()
+        }
+    }
+
+    /// Calculate pressure gradients using finite differences
+    /// ∇P = (∂P/∂x, ∂P/∂y) computed using central differences where possible
+    pub fn calculate_pressure_gradients(&mut self, meters_per_pixel: f32) {
+        for y in 0..self.height {
+            for x in 0..self.width {
+                let mut gradient = Vec2::zero();
+
+                // Calculate ∂P/∂x using central differences (or forward/backward at boundaries)
+                if x > 0 && x < self.width - 1 {
+                    // Central difference: (P[x+1] - P[x-1]) / (2 * dx)
+                    let dp_dx = (self.pressure[y][x + 1] - self.pressure[y][x - 1])
+                        / (2.0 * meters_per_pixel);
+                    gradient.x = dp_dx;
+                } else if x == 0 && self.width > 1 {
+                    // Forward difference: (P[x+1] - P[x]) / dx
+                    let dp_dx = (self.pressure[y][x + 1] - self.pressure[y][x]) / meters_per_pixel;
+                    gradient.x = dp_dx;
+                } else if x == self.width - 1 && self.width > 1 {
+                    // Backward difference: (P[x] - P[x-1]) / dx
+                    let dp_dx = (self.pressure[y][x] - self.pressure[y][x - 1]) / meters_per_pixel;
+                    gradient.x = dp_dx;
+                }
+
+                // Calculate ∂P/∂y using central differences (or forward/backward at boundaries)
+                if y > 0 && y < self.height - 1 {
+                    // Central difference: (P[y+1] - P[y-1]) / (2 * dy)
+                    let dp_dy = (self.pressure[y + 1][x] - self.pressure[y - 1][x])
+                        / (2.0 * meters_per_pixel);
+                    gradient.y = dp_dy;
+                } else if y == 0 && self.height > 1 {
+                    // Forward difference: (P[y+1] - P[y]) / dy
+                    let dp_dy = (self.pressure[y + 1][x] - self.pressure[y][x]) / meters_per_pixel;
+                    gradient.y = dp_dy;
+                } else if y == self.height - 1 && self.height > 1 {
+                    // Backward difference: (P[y] - P[y-1]) / dy
+                    let dp_dy = (self.pressure[y][x] - self.pressure[y - 1][x]) / meters_per_pixel;
+                    gradient.y = dp_dy;
+                }
+
+                self.pressure_gradient[y][x] = gradient;
+            }
+        }
+    }
+
+    /// Get average pressure across the entire map
+    pub fn get_average_pressure(&self) -> f32 {
+        let total: f32 = self.pressure.iter().flat_map(|row| row.iter()).sum();
+
+        let cell_count = (self.width * self.height) as f32;
+        if cell_count > 0.0 {
+            total / cell_count
+        } else {
+            101325.0
+        }
+    }
+
+    /// Get maximum pressure gradient magnitude for stability analysis
+    pub fn get_max_pressure_gradient_magnitude(&self) -> f32 {
+        self.pressure_gradient
+            .iter()
+            .flat_map(|row| row.iter())
+            .map(|grad| grad.magnitude())
+            .fold(0.0, f32::max)
+    }
+}
+
 /// Raw climate parameters before scale adjustment
 #[derive(Clone, Debug)]
 pub struct ClimateParameters {
@@ -85,6 +194,16 @@ pub struct ClimateParameters {
     pub min_temperature: f32,
     /// Maximum temperature threshold (°C)
     pub max_temperature: f32,
+
+    // Atmospheric pressure parameters
+    /// Base pressure at sea level in Pascals
+    pub base_pressure_pa: f32,
+    /// Pressure variation amplitude due to temperature differences (Pa)
+    pub pressure_temperature_coupling: f32,
+    /// Pressure variation due to seasonal effects (Pa)
+    pub seasonal_pressure_amplitude: f32,
+    /// Random pressure perturbation strength for weather systems (Pa)
+    pub pressure_noise_amplitude: f32,
 }
 
 impl Default for ClimateParameters {
@@ -97,6 +216,12 @@ impl Default for ClimateParameters {
             latitude_gradient: 0.8,       // About 0.8°C per degree latitude
             min_temperature: -50.0,       // Extreme cold limit
             max_temperature: 50.0,        // Extreme heat limit
+
+            // Atmospheric pressure defaults
+            base_pressure_pa: 101325.0, // Standard sea level pressure (1013.25 hPa)
+            pressure_temperature_coupling: 500.0, // ~5 hPa pressure change per 10°C temperature difference
+            seasonal_pressure_amplitude: 300.0,   // ~3 hPa seasonal pressure variation
+            pressure_noise_amplitude: 200.0,      // ~2 hPa random weather perturbations
         }
     }
 }
@@ -123,6 +248,22 @@ impl ScaleAware for ClimateParameters {
             // Temperature limits remain physical constants
             min_temperature: self.min_temperature,
             max_temperature: self.max_temperature,
+
+            // Pressure parameters
+            // Base pressure is intensive - doesn't scale
+            base_pressure_pa: self.base_pressure_pa,
+
+            // Temperature-pressure coupling scales with temperature gradients
+            pressure_temperature_coupling: self.pressure_temperature_coupling
+                * (physical_extent_km / 100.0).min(3.0),
+
+            // Seasonal pressure variation scales with continental effects
+            seasonal_pressure_amplitude: self.seasonal_pressure_amplitude
+                * (1.0 + physical_extent_km / 1000.0 * 0.2),
+
+            // Weather noise scales with map size (larger maps = more weather systems)
+            pressure_noise_amplitude: self.pressure_noise_amplitude
+                * (physical_extent_km / 100.0).min(2.0),
         }
     }
 }
@@ -136,6 +277,8 @@ pub struct ClimateSystem {
     pub current_season: f32,
     /// Seasonal cycle rate (cycles per simulation tick)
     pub seasonal_rate: f32,
+    /// Random seed for pressure perturbations (for reproducible weather)
+    pub pressure_seed: u64,
 }
 
 impl ClimateSystem {
@@ -147,6 +290,7 @@ impl ClimateSystem {
             parameters,
             current_season: 0.0,         // Start in winter
             seasonal_rate: 1.0 / 3650.0, // One year = ~3650 ticks (10 ticks per day)
+            pressure_seed: 12345,        // Default seed for reproducible weather
         }
     }
 
@@ -158,6 +302,7 @@ impl ClimateSystem {
             parameters: scaled_params,
             current_season: 0.0,
             seasonal_rate: 1.0 / 3650.0,
+            pressure_seed: 12345,
         }
     }
 
@@ -233,6 +378,76 @@ impl ClimateSystem {
 
         // Clamp to reasonable bounds (0.1x to 10x normal rate)
         multiplier.max(0.1).min(10.0)
+    }
+
+    /// Generate atmospheric pressure layer from temperature field
+    /// Pressure is coupled to temperature through the ideal gas law and hydrostatic balance
+    pub fn generate_pressure_layer(
+        &self,
+        temperature_layer: &TemperatureLayer,
+        heightmap: &[Vec<f32>],
+        scale: &WorldScale,
+    ) -> AtmosphericPressureLayer {
+        let height = heightmap.len();
+        let width = if height > 0 { heightmap[0].len() } else { 0 };
+
+        let mut pressure_layer = AtmosphericPressureLayer::new(width, height);
+
+        // Simple PRNG for reproducible weather patterns
+        let mut rng_state = self.pressure_seed.wrapping_add(self.tick_count() as u64);
+
+        // Calculate pressure for each cell
+        for y in 0..height {
+            for x in 0..width {
+                let elevation = heightmap[y][x];
+                let temperature_c =
+                    temperature_layer.get_current_temperature(x, y, self.current_season);
+                let _temperature_k = temperature_c + 273.15;
+
+                // Base pressure calculation using barometric formula
+                // P = P₀ × exp(-mgh/kT) where m = molar mass of air, g = gravity, h = height
+                let mut pressure = self.parameters.base_pressure_pa;
+
+                // Apply elevation-based pressure reduction (hydrostatic balance)
+                // Using simplified barometric formula: P = P₀ × exp(-h/H) where H ≈ 8400m (scale height)
+                let scale_height = 8400.0; // meters
+                let elevation_meters = elevation.max(0.0) * 1000.0; // Convert to meters (assuming elevation is in km)
+                pressure *= (-elevation_meters / scale_height).exp();
+
+                // Apply temperature-pressure coupling (warmer air = lower pressure)
+                // This creates thermal low/high pressure systems
+                let temp_deviation = temperature_c - self.parameters.base_temperature_c;
+                let thermal_pressure_change =
+                    -temp_deviation * self.parameters.pressure_temperature_coupling / 10.0;
+                pressure += thermal_pressure_change;
+
+                // Apply seasonal pressure variation
+                let seasonal_factor = (self.current_season * 2.0 * std::f32::consts::PI).sin();
+                pressure += seasonal_factor * self.parameters.seasonal_pressure_amplitude;
+
+                // Add weather noise for realistic pressure perturbations
+                // Simple LCG for reproducible pseudo-random numbers
+                rng_state = rng_state.wrapping_mul(1664525).wrapping_add(1013904223);
+                let noise_factor = ((rng_state as f32) / (u64::MAX as f32)) * 2.0 - 1.0; // -1 to 1
+                pressure += noise_factor * self.parameters.pressure_noise_amplitude;
+
+                // Clamp to reasonable atmospheric pressure bounds (500-1100 hPa)
+                pressure = pressure.max(50000.0).min(110000.0);
+
+                pressure_layer.pressure[y][x] = pressure;
+            }
+        }
+
+        // Calculate pressure gradients
+        pressure_layer.calculate_pressure_gradients(scale.meters_per_pixel() as f32);
+
+        pressure_layer
+    }
+
+    /// Get current tick count for pressure noise generation
+    fn tick_count(&self) -> u32 {
+        // Convert seasonal position back to approximate tick count
+        (self.current_season / self.seasonal_rate) as u32
     }
 }
 
@@ -354,5 +569,130 @@ mod tests {
         // Base temperature should be roughly spring temperature
         let base_temp = temp_layer.get_temperature(5, 5);
         assert!((spring_temp - base_temp).abs() < 1.0); // Should be close to base temperature
+    }
+
+    // Atmospheric pressure tests
+    #[test]
+    fn atmospheric_pressure_layer_basic_operations() {
+        let pressure_layer = AtmosphericPressureLayer::new(5, 5);
+
+        // Should initialize to standard sea level pressure
+        assert_eq!(pressure_layer.get_pressure(2, 2), 101325.0);
+        assert_eq!(pressure_layer.get_pressure(10, 10), 101325.0); // Out of bounds should return default
+
+        // Should initialize gradients to zero
+        let gradient = pressure_layer.get_pressure_gradient(2, 2);
+        assert_eq!(gradient.x, 0.0);
+        assert_eq!(gradient.y, 0.0);
+    }
+
+    #[test]
+    fn pressure_gradient_calculation() {
+        let mut pressure_layer = AtmosphericPressureLayer::new(3, 3);
+
+        // Create a simple pressure gradient (high to low from left to right)
+        pressure_layer.pressure[1][0] = 102000.0; // High pressure
+        pressure_layer.pressure[1][1] = 101325.0; // Standard pressure
+        pressure_layer.pressure[1][2] = 100650.0; // Low pressure
+
+        let meters_per_pixel = 1000.0; // 1km per pixel
+        pressure_layer.calculate_pressure_gradients(meters_per_pixel);
+
+        // Center cell should have negative x gradient (pressure decreases to the right)
+        let center_gradient = pressure_layer.get_pressure_gradient(1, 1);
+        assert!(
+            center_gradient.x < 0.0,
+            "Pressure gradient should be negative (decreasing to right)"
+        );
+
+        // Gradient magnitude should be reasonable
+        let expected_gradient = (100650.0 - 102000.0) / (2.0 * meters_per_pixel); // Central difference
+        assert!(
+            (center_gradient.x - expected_gradient).abs() < 0.1,
+            "Gradient calculation should match expected value"
+        );
+    }
+
+    #[test]
+    fn pressure_generation_from_temperature() {
+        let heightmap = vec![
+            vec![0.0, 0.0, 0.0], // Flat terrain
+            vec![0.0, 0.0, 0.0],
+            vec![0.0, 0.0, 0.0],
+        ];
+        let scale = WorldScale::new(10.0, (3, 3), DetailLevel::Standard);
+        let climate = ClimateSystem::new_for_scale(&scale);
+        let temp_layer = climate.generate_temperature_layer(&heightmap);
+        let pressure_layer = climate.generate_pressure_layer(&temp_layer, &heightmap, &scale);
+
+        // Pressure should be in reasonable atmospheric range
+        let avg_pressure = pressure_layer.get_average_pressure();
+        assert!(
+            avg_pressure > 50000.0 && avg_pressure < 110000.0,
+            "Average pressure should be in reasonable range, got: {}",
+            avg_pressure
+        );
+
+        // Should have some pressure variation due to temperature coupling and noise
+        let mut pressures = Vec::new();
+        for y in 0..3 {
+            for x in 0..3 {
+                pressures.push(pressure_layer.get_pressure(x, y));
+            }
+        }
+        let min_pressure = pressures.iter().fold(f32::INFINITY, |a, &b| a.min(b));
+        let max_pressure = pressures.iter().fold(f32::NEG_INFINITY, |a, &b| a.max(b));
+
+        // Should have some variation (at least from noise)
+        assert!(
+            max_pressure > min_pressure,
+            "Should have pressure variation"
+        );
+    }
+
+    #[test]
+    fn pressure_elevation_dependence() {
+        let heightmap = vec![
+            vec![0.0, 0.5, 1.0], // Sea level to mountain
+            vec![0.0, 0.5, 1.0],
+            vec![0.0, 0.5, 1.0],
+        ];
+        let scale = WorldScale::new(10.0, (3, 3), DetailLevel::Standard);
+        let climate = ClimateSystem::new_for_scale(&scale);
+        let temp_layer = climate.generate_temperature_layer(&heightmap);
+        let pressure_layer = climate.generate_pressure_layer(&temp_layer, &heightmap, &scale);
+
+        // Higher elevations should have lower pressure (barometric formula)
+        let sea_level_pressure = pressure_layer.get_pressure(0, 0);
+        let mountain_pressure = pressure_layer.get_pressure(2, 0);
+
+        assert!(
+            mountain_pressure < sea_level_pressure,
+            "Mountain pressure ({:.0} Pa) should be lower than sea level ({:.0} Pa)",
+            mountain_pressure,
+            sea_level_pressure
+        );
+    }
+
+    #[test]
+    fn pressure_parameters_scaling() {
+        let base_params = ClimateParameters::default();
+        let small_scale = WorldScale::new(1.0, (50, 50), DetailLevel::Standard);
+        let large_scale = WorldScale::new(1000.0, (500, 500), DetailLevel::Standard);
+
+        let small_scaled = base_params.derive_parameters(&small_scale);
+        let large_scaled = base_params.derive_parameters(&large_scale);
+
+        // Base pressure should remain constant
+        assert_eq!(small_scaled.base_pressure_pa, large_scaled.base_pressure_pa);
+
+        // Larger maps should have stronger pressure variations
+        assert!(
+            large_scaled.pressure_temperature_coupling > small_scaled.pressure_temperature_coupling
+        );
+        assert!(
+            large_scaled.seasonal_pressure_amplitude > small_scaled.seasonal_pressure_amplitude
+        );
+        assert!(large_scaled.pressure_noise_amplitude > small_scaled.pressure_noise_amplitude);
     }
 }

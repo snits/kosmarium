@@ -1,5 +1,6 @@
 // sim-prototype/src/main.rs
 
+pub mod atmosphere;
 pub mod climate;
 pub mod convergence;
 pub mod dimensional;
