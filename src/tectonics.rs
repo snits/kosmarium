@@ -50,10 +50,10 @@ pub struct TectonicPlate {
     pub id: usize,
     pub center: Vec2,
     pub plate_type: PlateType,
-    pub velocity: Vec2,        // Movement direction and speed (cm/year scaled)
-    pub age: f32,             // Age in millions of years
-    pub density: f32,         // Relative density (affects subduction)
-    pub base_elevation: f32,  // Base elevation for this plate
+    pub velocity: Vec2,         // Movement direction and speed (cm/year scaled)
+    pub age: f32,               // Age in millions of years
+    pub density: f32,           // Relative density (affects subduction)
+    pub base_elevation: f32,    // Base elevation for this plate
     pub crustal_thickness: f32, // Crustal thickness (affects isostatic elevation)
 }
 
@@ -64,21 +64,18 @@ impl TectonicPlate {
                 // Continental plates have variable thickness (30-50km)
                 let thickness = rng.gen_range(30.0..50.0);
                 (2.7, 0.6, thickness)
-            },
+            }
             PlateType::Oceanic => {
                 // Oceanic plates have thinner, more uniform crust (5-10km)
                 let thickness = rng.gen_range(5.0..10.0);
                 (3.0, -0.5, thickness)
-            },
+            }
         };
 
         // Random velocity vector (realistic plate speeds: 1-10 cm/year)
         let speed = rng.gen_range(0.01..0.05); // Scaled for simulation
         let direction = rng.gen_range(0.0..std::f32::consts::TAU);
-        let velocity = Vec2::new(
-            speed * direction.cos(),
-            speed * direction.sin(),
-        );
+        let velocity = Vec2::new(speed * direction.cos(), speed * direction.sin());
 
         Self {
             id,
@@ -118,22 +115,22 @@ impl TectonicSystem {
         // First, determine which plates will be continental (cluster them for realistic landmasses)
         let num_continental = (num_plates as f32 * 0.35).round() as usize; // Slightly more continental plates
         let mut continental_indices = Vec::new();
-        
+
         // Pick a few "continental cores" and cluster continents around them
         let num_cores = (num_continental as f32 * 0.6).max(1.0) as usize;
         for _ in 0..num_cores {
             continental_indices.push(rng.gen_range(0..num_plates));
         }
-        
+
         // Add nearby plates to continental clusters
         while continental_indices.len() < num_continental {
             let core_idx = continental_indices[rng.gen_range(0..continental_indices.len())];
             let core_center = &plate_centers[core_idx];
-            
+
             // Find closest non-continental plate to this core
             let mut closest_idx = 0;
             let mut closest_dist = f32::INFINITY;
-            
+
             for (i, center) in plate_centers.iter().enumerate() {
                 if !continental_indices.contains(&i) {
                     let dx = center.x - core_center.x;
@@ -145,7 +142,7 @@ impl TectonicSystem {
                     }
                 }
             }
-            
+
             if !continental_indices.contains(&closest_idx) {
                 continental_indices.push(closest_idx);
             } else {
@@ -159,10 +156,12 @@ impl TectonicSystem {
                     }
                     attempts += 1;
                 }
-                if attempts >= 20 { break; } // Avoid infinite loop
+                if attempts >= 20 {
+                    break;
+                } // Avoid infinite loop
             }
         }
-        
+
         // Create plates with determined types
         for (i, center) in plate_centers.into_iter().enumerate() {
             let plate_type = if continental_indices.contains(&i) {
@@ -170,7 +169,7 @@ impl TectonicSystem {
             } else {
                 PlateType::Oceanic
             };
-            
+
             plates.push(TectonicPlate::new(i, center, plate_type, &mut rng));
         }
 
@@ -178,16 +177,30 @@ impl TectonicSystem {
             plates,
             width,
             height,
-            voronoi_map: vec![vec![VoronoiCell { plate_id: 0, distance: f32::INFINITY }; width]; height],
+            voronoi_map: vec![
+                vec![
+                    VoronoiCell {
+                        plate_id: 0,
+                        distance: f32::INFINITY
+                    };
+                    width
+                ];
+                height
+            ],
         };
 
         // Generate Voronoi diagram
         system.generate_voronoi_diagram();
-        
+
         system
     }
 
-    fn generate_plate_centers(width: usize, height: usize, num_plates: usize, rng: &mut StdRng) -> Vec<Vec2> {
+    fn generate_plate_centers(
+        width: usize,
+        height: usize,
+        num_plates: usize,
+        rng: &mut StdRng,
+    ) -> Vec<Vec2> {
         let mut centers = Vec::new();
         let min_distance = ((width * height) as f32 / num_plates as f32).sqrt() * 0.5;
 
@@ -288,29 +301,29 @@ impl TectonicSystem {
     fn calculate_boundary_effect(&self, x: usize, y: usize) -> f32 {
         let current_plate_id = self.voronoi_map[y][x].plate_id;
         let current_plate = &self.plates[current_plate_id];
-        
+
         // Distance to nearest plate boundary (from Voronoi distance)
         let boundary_distance = self.voronoi_map[y][x].distance;
-        
+
         // Safety check: handle infinity distances
         if !boundary_distance.is_finite() || boundary_distance > 1000.0 {
             return 0.0;
         }
-        
+
         // Find the nearest different plate to determine boundary type
         let mut nearest_different_plate_id = current_plate_id;
         let mut min_distance_to_different = f32::INFINITY;
-        
+
         // Search in expanding radius for different plate
         let search_radius = 10; // Larger search radius for more realistic effects
         for dy in -(search_radius as i32)..=(search_radius as i32) {
             for dx in -(search_radius as i32)..=(search_radius as i32) {
                 let nx = x as i32 + dx;
                 let ny = y as i32 + dy;
-                
+
                 if nx >= 0 && nx < self.width as i32 && ny >= 0 && ny < self.height as i32 {
                     let neighbor_plate_id = self.voronoi_map[ny as usize][nx as usize].plate_id;
-                    
+
                     if neighbor_plate_id != current_plate_id {
                         let distance = ((dx * dx + dy * dy) as f32).sqrt();
                         if distance < min_distance_to_different {
@@ -321,18 +334,23 @@ impl TectonicSystem {
                 }
             }
         }
-        
+
         if nearest_different_plate_id == current_plate_id {
             return 0.0; // No nearby different plate found
         }
-        
+
         let neighbor_plate = &self.plates[nearest_different_plate_id];
-        
+
         // Calculate boundary interaction with improved distance falloff
         self.calculate_plate_interaction_elevation(current_plate, neighbor_plate, boundary_distance)
     }
 
-    fn calculate_plate_interaction_elevation(&self, plate1: &TectonicPlate, plate2: &TectonicPlate, distance: f32) -> f32 {
+    fn calculate_plate_interaction_elevation(
+        &self,
+        plate1: &TectonicPlate,
+        plate2: &TectonicPlate,
+        distance: f32,
+    ) -> f32 {
         // Calculate relative velocity between plates
         let relative_velocity = Vec2::new(
             plate1.velocity.x - plate2.velocity.x,
@@ -362,18 +380,19 @@ impl TectonicSystem {
                     (PlateType::Continental, PlateType::Continental) => {
                         // Continental collision: Himalayas-style - highest mountains
                         1.5 + (plate1.crustal_thickness + plate2.crustal_thickness) * 0.02
-                    },
-                    (PlateType::Continental, PlateType::Oceanic) | (PlateType::Oceanic, PlateType::Continental) => {
+                    }
+                    (PlateType::Continental, PlateType::Oceanic)
+                    | (PlateType::Oceanic, PlateType::Continental) => {
                         // Subduction zone: Andes-style - high coastal mountains
                         1.0 + plate1.crustal_thickness.max(plate2.crustal_thickness) * 0.015
-                    },
+                    }
                     (PlateType::Oceanic, PlateType::Oceanic) => {
                         // Ocean-ocean convergence: Island arcs
                         0.6 + (plate1.age + plate2.age) * 0.002 // Older plates create higher islands
-                    },
+                    }
                 };
                 mountain_height * distance_factor * convergence_strength
-            },
+            }
             BoundaryType::Divergent => {
                 // Rift valleys and mid-ocean ridges
                 let rift_depth = match (plate1.plate_type, plate2.plate_type) {
@@ -381,21 +400,27 @@ impl TectonicSystem {
                     _ => -0.1, // Mid-ocean ridges (less deep due to volcanic activity)
                 };
                 rift_depth * distance_factor * convergence_strength
-            },
+            }
             BoundaryType::Transform => {
                 // Transform faults - create linear valleys and ridges
                 let fault_effect = 0.2 * (1.0 - 2.0 * (distance % 2.0)); // Alternating ridges/valleys
                 fault_effect * distance_factor * convergence_strength * 0.5
-            },
+            }
         }
     }
 
-    fn determine_boundary_type(&self, plate1: &TectonicPlate, plate2: &TectonicPlate, relative_velocity: &Vec2) -> BoundaryType {
+    fn determine_boundary_type(
+        &self,
+        plate1: &TectonicPlate,
+        plate2: &TectonicPlate,
+        relative_velocity: &Vec2,
+    ) -> BoundaryType {
         // Calculate direction from plate1 center to plate2 center
         let direction = Vec2::new(
             plate2.center.x - plate1.center.x,
             plate2.center.y - plate1.center.y,
-        ).normalize();
+        )
+        .normalize();
 
         // Dot product tells us if plates are moving toward/away from each other
         let dot_product = relative_velocity.dot(&direction);

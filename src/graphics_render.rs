@@ -1,8 +1,8 @@
 // ABOUTME: Graphics rendering system using macroquad for atmospheric visualization
 // ABOUTME: Handles wind vectors, pressure fields, and weather patterns with 2D graphics
 
-use crate::atmosphere::{WeatherAnalysis, WeatherPattern, WeatherPatternType};
-use crate::climate::{AtmosphericPressureLayer, TemperatureLayer};
+use crate::atmosphere::{WeatherPattern, WeatherPatternType};
+use crate::climate::AtmosphericPressureLayer;
 use crate::sim::Simulation;
 use macroquad::prelude::*;
 
@@ -11,6 +11,8 @@ pub struct GraphicsRenderer {
     viewport: Rect,
     display_mode: DisplayMode,
     zoom_level: f32,
+    pan_offset: Vec2,
+    simulation_paused: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -25,20 +27,25 @@ pub enum DisplayMode {
 
 impl GraphicsRenderer {
     pub fn new(width: f32, height: f32) -> Self {
-        let camera = Camera2D::from_display_rect(Rect::new(0.0, 0.0, width, height));
+        // Initialize camera to center of screen
+        let mut camera = Camera2D::from_display_rect(Rect::new(0.0, 0.0, width, height));
+        camera.target = Vec2::new(width * 0.5, height * 0.5);
 
         Self {
             camera,
             viewport: Rect::new(0.0, 0.0, width, height),
             display_mode: DisplayMode::Terrain,
             zoom_level: 1.0,
+            pan_offset: Vec2::new(0.0, 0.0),
+            simulation_paused: false,
         }
     }
 
     pub fn render_simulation(&mut self, simulation: &Simulation) {
         clear_background(BLACK);
 
-        set_camera(&self.camera);
+        // Use default camera for consistent coordinate system
+        set_default_camera();
 
         match self.display_mode {
             DisplayMode::Terrain => self.render_terrain(simulation),
@@ -55,13 +62,19 @@ impl GraphicsRenderer {
     fn render_terrain(&self, simulation: &Simulation) {
         let cell_size = self.calculate_cell_size(simulation.get_width(), simulation.get_height());
 
+        // Center the simulation data in the screen with pan offset
+        let total_width = simulation.get_width() as f32 * cell_size;
+        let total_height = simulation.get_height() as f32 * cell_size;
+        let offset_x = (self.viewport.w - total_width) * 0.5 + self.pan_offset.x;
+        let offset_y = (self.viewport.h - total_height) * 0.5 + self.pan_offset.y;
+
         for y in 0..simulation.get_height() {
             for x in 0..simulation.get_width() {
                 let elevation = simulation.get_elevation(x, y);
                 let color = self.elevation_to_color(elevation);
 
-                let world_x = x as f32 * cell_size;
-                let world_y = y as f32 * cell_size;
+                let world_x = offset_x + x as f32 * cell_size;
+                let world_y = offset_y + y as f32 * cell_size;
 
                 draw_rectangle(world_x, world_y, cell_size, cell_size, color);
             }
@@ -76,6 +89,12 @@ impl GraphicsRenderer {
         let water_layer = simulation.get_water_layer();
         let cell_size = self.calculate_cell_size(water_layer.width(), water_layer.height());
 
+        // Center the simulation data in the screen (same as terrain mode)
+        let total_width = water_layer.width() as f32 * cell_size;
+        let total_height = water_layer.height() as f32 * cell_size;
+        let offset_x = (self.viewport.w - total_width) * 0.5 + self.pan_offset.x;
+        let offset_y = (self.viewport.h - total_height) * 0.5 + self.pan_offset.y;
+
         for y in 0..water_layer.height() {
             for x in 0..water_layer.width() {
                 let water_depth = water_layer.get_water_depth(x, y);
@@ -83,9 +102,8 @@ impl GraphicsRenderer {
                     let alpha = (water_depth * 255.0).min(200.0) as u8;
                     let water_color = Color::new(0.0, 0.4, 0.8, alpha as f32 / 255.0);
 
-                    let world_x = x as f32 * cell_size;
-                    let world_y = y as f32 * cell_size;
-
+                    let world_x = offset_x + x as f32 * cell_size;
+                    let world_y = offset_y + (water_layer.height() - 1 - y) as f32 * cell_size;
                     draw_rectangle(world_x, world_y, cell_size, cell_size, water_color);
                 }
             }
@@ -96,6 +114,12 @@ impl GraphicsRenderer {
         let pressure_layer = simulation.get_atmospheric_pressure_layer();
         let cell_size = self.calculate_cell_size(simulation.get_width(), simulation.get_height());
 
+        // Center the simulation data in the screen (same as terrain mode)
+        let total_width = simulation.get_width() as f32 * cell_size;
+        let total_height = simulation.get_height() as f32 * cell_size;
+        let offset_x = (self.viewport.w - total_width) * 0.5 + self.pan_offset.x;
+        let offset_y = (self.viewport.h - total_height) * 0.5 + self.pan_offset.y;
+
         // Find pressure range for color mapping
         let (min_pressure, max_pressure) = self.find_pressure_range(pressure_layer);
 
@@ -104,8 +128,8 @@ impl GraphicsRenderer {
                 let pressure = pressure_layer.get_pressure(x, y);
                 let color = self.pressure_to_color(pressure, min_pressure, max_pressure);
 
-                let world_x = x as f32 * cell_size;
-                let world_y = y as f32 * cell_size;
+                let world_x = offset_x + x as f32 * cell_size;
+                let world_y = offset_y + (simulation.get_height() - 1 - y) as f32 * cell_size;
 
                 draw_rectangle(world_x, world_y, cell_size, cell_size, color);
             }
@@ -120,6 +144,12 @@ impl GraphicsRenderer {
         let cell_size = self.calculate_cell_size(simulation.get_width(), simulation.get_height());
         let arrow_scale = cell_size * 0.8;
 
+        // Center the simulation data in the screen (same as terrain mode)
+        let total_width = simulation.get_width() as f32 * cell_size;
+        let total_height = simulation.get_height() as f32 * cell_size;
+        let offset_x = (self.viewport.w - total_width) * 0.5 + self.pan_offset.x;
+        let offset_y = (self.viewport.h - total_height) * 0.5 + self.pan_offset.y;
+
         // Sample wind vectors at lower resolution to avoid clutter
         let sample_rate = (cell_size / 10.0).max(1.0) as usize;
 
@@ -130,12 +160,14 @@ impl GraphicsRenderer {
 
                 if speed > 0.1 {
                     // Only draw significant winds
-                    let center_x = x as f32 * cell_size + cell_size * 0.5;
-                    let center_y = y as f32 * cell_size + cell_size * 0.5;
+                    let center_x = offset_x + x as f32 * cell_size + cell_size * 0.5;
+                    let center_y = offset_y
+                        + (simulation.get_height() - 1 - y) as f32 * cell_size
+                        + cell_size * 0.5;
 
                     let arrow_length = (speed * arrow_scale).min(arrow_scale);
                     let end_x = center_x + velocity.x * arrow_length;
-                    let end_y = center_y + velocity.y * arrow_length;
+                    let end_y = center_y - velocity.y * arrow_length; // Flip Y direction to match coordinate system
 
                     let color = self.wind_speed_to_color(speed);
 
@@ -156,14 +188,32 @@ impl GraphicsRenderer {
         let weather_analysis = simulation.get_weather_analysis();
         let cell_size = self.calculate_cell_size(simulation.get_width(), simulation.get_height());
 
+        // Center the simulation data in the screen (same as terrain mode)
+        let total_width = simulation.get_width() as f32 * cell_size;
+        let total_height = simulation.get_height() as f32 * cell_size;
+        let offset_x = (self.viewport.w - total_width) * 0.5 + self.pan_offset.x;
+        let offset_y = (self.viewport.h - total_height) * 0.5 + self.pan_offset.y;
+
         for pattern in &weather_analysis.patterns {
-            self.render_weather_pattern(pattern, cell_size);
+            self.render_weather_pattern(
+                pattern,
+                cell_size,
+                offset_x,
+                offset_y,
+                simulation.get_height(),
+            );
         }
     }
 
     fn render_temperature_field(&self, simulation: &Simulation) {
         let temperature_layer = simulation.get_temperature_layer();
         let cell_size = self.calculate_cell_size(simulation.get_width(), simulation.get_height());
+
+        // Center the simulation data in the screen (same as terrain mode)
+        let total_width = simulation.get_width() as f32 * cell_size;
+        let total_height = simulation.get_height() as f32 * cell_size;
+        let offset_x = (self.viewport.w - total_width) * 0.5 + self.pan_offset.x;
+        let offset_y = (self.viewport.h - total_height) * 0.5 + self.pan_offset.y;
 
         // Find temperature range for color mapping
         let (min_temp, max_temp) = self.find_temperature_range(temperature_layer);
@@ -173,17 +223,24 @@ impl GraphicsRenderer {
                 let temperature = temperature_layer.get_temperature(x, y);
                 let color = self.temperature_to_color(temperature, min_temp, max_temp);
 
-                let world_x = x as f32 * cell_size;
-                let world_y = y as f32 * cell_size;
+                let world_x = offset_x + x as f32 * cell_size;
+                let world_y = offset_y + (simulation.get_height() - 1 - y) as f32 * cell_size;
 
                 draw_rectangle(world_x, world_y, cell_size, cell_size, color);
             }
         }
     }
 
-    fn render_weather_pattern(&self, pattern: &WeatherPattern, cell_size: f32) {
-        let center_x = pattern.center.0 as f32 * cell_size;
-        let center_y = pattern.center.1 as f32 * cell_size;
+    fn render_weather_pattern(
+        &self,
+        pattern: &WeatherPattern,
+        cell_size: f32,
+        offset_x: f32,
+        offset_y: f32,
+        height: usize,
+    ) {
+        let center_x = offset_x + pattern.center.0 as f32 * cell_size;
+        let center_y = offset_y + (height - 1 - pattern.center.1) as f32 * cell_size;
         let radius = pattern.radius as f32 * cell_size;
 
         let (color, thickness) = match pattern.pattern_type {
@@ -200,7 +257,8 @@ impl GraphicsRenderer {
         draw_circle(center_x, center_y, 3.0, color);
     }
 
-    fn render_ui(&self, simulation: &Simulation) {
+    fn render_ui(&self, _simulation: &Simulation) {
+        // Use default screen coordinates for UI
         set_default_camera();
 
         // Display mode indicator
@@ -211,9 +269,28 @@ impl GraphicsRenderer {
         let zoom_text = format!("Zoom: {:.1}x", self.zoom_level);
         draw_text(&zoom_text, 10.0, 55.0, 20.0, WHITE);
 
+        // Simulation state
+        let sim_state = if self.simulation_paused {
+            "PAUSED"
+        } else {
+            "RUNNING"
+        };
+        let sim_color = if self.simulation_paused {
+            YELLOW
+        } else {
+            GREEN
+        };
+        draw_text(
+            &format!("Simulation: {}", sim_state),
+            10.0,
+            80.0,
+            20.0,
+            sim_color,
+        );
+
         // Instructions
         draw_text(
-            "WASD: Pan, Mouse Wheel: Zoom, 1-6: Display Mode",
+            "WASD: Pan, Mouse Wheel: Zoom, R: Reset, SPACE: Pause/Play, 1-6: Display Mode",
             10.0,
             screen_height() - 20.0,
             16.0,
@@ -248,10 +325,11 @@ impl GraphicsRenderer {
     }
 
     fn calculate_cell_size(&self, width: usize, height: usize) -> f32 {
-        let viewport_width = self.viewport.w / self.zoom_level;
-        let viewport_height = self.viewport.h / self.zoom_level;
+        let viewport_width = self.viewport.w;
+        let viewport_height = self.viewport.h;
 
-        (viewport_width / width as f32).min(viewport_height / height as f32)
+        let base_cell_size = (viewport_width / width as f32).min(viewport_height / height as f32);
+        base_cell_size * self.zoom_level
     }
 
     fn find_pressure_range(&self, pressure_layer: &AtmosphericPressureLayer) -> (f32, f32) {
@@ -311,6 +389,10 @@ impl GraphicsRenderer {
     }
 
     // Input handling
+    pub fn should_tick_simulation(&self) -> bool {
+        !self.simulation_paused
+    }
+
     pub fn handle_input(&mut self) {
         // Display mode switching
         if is_key_pressed(KeyCode::Key1) {
@@ -332,19 +414,30 @@ impl GraphicsRenderer {
             self.display_mode = DisplayMode::Temperature;
         }
 
-        // Camera movement
-        let pan_speed = 10.0 / self.zoom_level;
+        // Simulation control
+        if is_key_pressed(KeyCode::Space) {
+            self.simulation_paused = !self.simulation_paused;
+        }
+
+        // Reset zoom and center view
+        if is_key_pressed(KeyCode::R) {
+            self.zoom_level = 1.0;
+            self.pan_offset = Vec2::new(0.0, 0.0);
+        }
+
+        // Pan movement
+        let pan_speed = 10.0;
         if is_key_down(KeyCode::W) {
-            self.camera.target.y -= pan_speed;
+            self.pan_offset.y += pan_speed;
         }
         if is_key_down(KeyCode::S) {
-            self.camera.target.y += pan_speed;
+            self.pan_offset.y -= pan_speed;
         }
         if is_key_down(KeyCode::A) {
-            self.camera.target.x -= pan_speed;
+            self.pan_offset.x += pan_speed;
         }
         if is_key_down(KeyCode::D) {
-            self.camera.target.x += pan_speed;
+            self.pan_offset.x -= pan_speed;
         }
 
         // Zoom with mouse wheel (more gradual)
@@ -359,8 +452,25 @@ impl GraphicsRenderer {
 
             self.zoom_level *= zoom_delta;
             self.zoom_level = self.zoom_level.clamp(0.2, 5.0); // Tighter zoom range
+        }
+    }
 
-            // Update camera zoom
+    pub fn handle_resize(&mut self) {
+        // Handle window resize - update viewport dimensions
+        let current_width = screen_width();
+        let current_height = screen_height();
+
+        if (self.viewport.w - current_width).abs() > 1.0
+            || (self.viewport.h - current_height).abs() > 1.0
+        {
+            // Update viewport
+            self.viewport.w = current_width;
+            self.viewport.h = current_height;
+
+            // Update camera display rect to match new viewport
+            self.camera =
+                Camera2D::from_display_rect(Rect::new(0.0, 0.0, current_width, current_height));
+            self.camera.target = Vec2::new(current_width * 0.5, current_height * 0.5);
             self.camera.zoom = Vec2::new(self.zoom_level, self.zoom_level);
         }
     }
