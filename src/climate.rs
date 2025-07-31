@@ -82,6 +82,16 @@ impl TemperatureLayer {
             0.0
         }
     }
+
+    /// Get width of temperature layer
+    pub fn width(&self) -> usize {
+        self.width
+    }
+
+    /// Get height of temperature layer
+    pub fn height(&self) -> usize {
+        self.height
+    }
 }
 
 impl AtmosphericPressureLayer {
@@ -176,6 +186,16 @@ impl AtmosphericPressureLayer {
             .flat_map(|row| row.iter())
             .map(|grad| grad.magnitude())
             .fold(0.0, f32::max)
+    }
+
+    /// Get width of pressure layer
+    pub fn width(&self) -> usize {
+        self.width
+    }
+
+    /// Get height of pressure layer
+    pub fn height(&self) -> usize {
+        self.height
     }
 }
 

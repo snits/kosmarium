@@ -4,6 +4,7 @@ pub mod atmosphere;
 pub mod climate;
 pub mod convergence;
 pub mod dimensional;
+pub mod graphics_render;
 pub mod render;
 pub mod scale;
 pub mod sim;
@@ -11,6 +12,8 @@ pub mod tui;
 pub mod worldgen;
 
 use clap::Parser;
+use graphics_render::GraphicsRenderer;
+use macroquad::prelude::*;
 use render::ascii_render;
 use sim::Simulation;
 use tui::run_tui;
@@ -43,9 +46,14 @@ struct Args {
     /// Use ASCII mode instead of TUI
     #[arg(long)]
     ascii: bool,
+
+    /// Use graphics mode (macroquad) instead of TUI
+    #[arg(long)]
+    graphics: bool,
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+#[macroquad::main("Atmospheric Simulation")]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Parse command line arguments
     let args = Args::parse();
 
@@ -64,9 +72,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Step 3: Run simulation setup (placeholder for now)
     let sim = Simulation::new(heightmap);
 
-    // Choose between TUI and ASCII rendering
-    if args.ascii {
-        // Step 4a: Static ASCII render (legacy mode)
+    // Choose between graphics, TUI, and ASCII rendering
+    if args.graphics {
+        // Step 4a: Graphics mode (macroquad)
+        println!("Starting graphics mode...");
+        println!("Use WASD to pan, mouse wheel to zoom, 1-6 to switch display modes");
+        run_graphics(sim).await;
+    } else if args.ascii {
+        // Step 4b: Static ASCII render (legacy mode)
         ascii_render(&sim);
 
         // Debug info
@@ -76,11 +89,33 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             generator.supports_arbitrary_dimensions()
         );
     } else {
-        // Step 4b: Interactive TUI mode (default)
+        // Step 4c: Interactive TUI mode (default)
         println!("Starting interactive terrain explorer...");
         println!("Use WASD or arrow keys to navigate, Q or Esc to quit");
         run_tui(sim)?;
     }
 
     Ok(())
+}
+
+async fn run_graphics(mut simulation: Simulation) {
+    let mut renderer = GraphicsRenderer::new(screen_width(), screen_height());
+
+    loop {
+        // Handle input
+        renderer.handle_input();
+
+        // Update simulation (tick atmospheric systems)
+        simulation.tick();
+
+        // Render
+        renderer.render_simulation(&simulation);
+
+        // Exit on Escape
+        if is_key_pressed(KeyCode::Escape) {
+            break;
+        }
+
+        next_frame().await;
+    }
 }

@@ -55,6 +55,25 @@ impl WaterLayer {
             self.depth[y][x] += amount;
         }
     }
+
+    /// Get water depth at specific coordinates
+    pub fn get_water_depth(&self, x: usize, y: usize) -> f32 {
+        if x < self.width && y < self.height {
+            self.depth[y][x]
+        } else {
+            0.0
+        }
+    }
+
+    /// Get width of water layer
+    pub fn width(&self) -> usize {
+        self.width
+    }
+
+    /// Get height of water layer
+    pub fn height(&self) -> usize {
+        self.height
+    }
 }
 
 /// Raw, scale-independent water flow parameters
@@ -689,6 +708,61 @@ impl Simulation {
     pub fn get_average_wind_speed(&self) -> f32 {
         self.wind_layer.get_average_wind_speed()
     }
+
+    // Graphics API methods for accessing simulation data layers
+
+    /// Get reference to heightmap for graphics rendering
+    pub fn get_heightmap(&self) -> &Vec<Vec<f32>> {
+        &self.heightmap
+    }
+
+    /// Get reference to water layer for graphics rendering
+    pub fn get_water_layer(&self) -> &WaterLayer {
+        &self.water
+    }
+
+    /// Get reference to atmospheric pressure layer for graphics rendering
+    pub fn get_atmospheric_pressure_layer(&self) -> &AtmosphericPressureLayer {
+        &self.pressure_layer
+    }
+
+    /// Get reference to wind layer for graphics rendering
+    pub fn get_wind_layer(&self) -> &WindLayer {
+        &self.wind_layer
+    }
+
+    /// Get reference to weather analysis for graphics rendering
+    pub fn get_weather_analysis(&self) -> &WeatherAnalysis {
+        &self.weather_analysis
+    }
+
+    /// Get reference to temperature layer for graphics rendering
+    pub fn get_temperature_layer(&self) -> &TemperatureLayer {
+        &self.temperature_layer
+    }
+
+    /// Get heightmap width
+    pub fn get_width(&self) -> usize {
+        if self.heightmap.is_empty() {
+            0
+        } else {
+            self.heightmap[0].len()
+        }
+    }
+
+    /// Get heightmap height
+    pub fn get_height(&self) -> usize {
+        self.heightmap.len()
+    }
+
+    /// Get elevation at specific coordinates
+    pub fn get_elevation(&self, x: usize, y: usize) -> f32 {
+        if y < self.heightmap.len() && x < self.heightmap[y].len() {
+            self.heightmap[y][x]
+        } else {
+            0.0
+        }
+    }
 }
 
 #[cfg(test)]
@@ -1026,6 +1100,8 @@ mod tests {
         // Use an amount smaller than the scale-aware threshold
         let tiny_amount = system.evaporation_threshold * 0.5;
         water.depth[0][0] = tiny_amount;
+
+        system.apply_evaporation(&mut water);
 
         assert_eq!(water.depth[0][0], 0.0); // Should be cleared to 0
     }
