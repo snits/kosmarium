@@ -207,13 +207,16 @@ impl OptimizedWaterFlowSystem {
         water_depth: &mut Vec<f32>,
         water_velocity: &mut Vec<(f32, f32)>,
         sediment: &mut Vec<f32>,
-        iteration: u64,
+        _iteration: u64,
     ) -> bool {
         let mut any_changes = false;
-        let (width, height) = heightmap.dimensions();
+        let (width, _height) = heightmap.dimensions();
+
+        // Collect active cells to avoid borrowing conflicts
+        let active_cells: Vec<(usize, usize)> = self.update_tracker.active_cells().collect();
 
         // Process only active cells
-        for (x, y) in self.update_tracker.active_cells() {
+        for (x, y) in active_cells {
             let index = y * width + x;
 
             // Store previous values to detect changes
@@ -221,9 +224,10 @@ impl OptimizedWaterFlowSystem {
             let prev_water = water_depth[index];
 
             // Apply water flow, erosion, etc. only to this cell
-            let flow_magnitude =
+            let _flow_magnitude =
                 self.calculate_flow_at_cell(heightmap, water_depth, water_velocity, x, y);
-            let erosion_amount = self.apply_erosion_at_cell(heightmap, water_depth, sediment, x, y);
+            let _erosion_amount =
+                self.apply_erosion_at_cell(heightmap, water_depth, sediment, x, y);
 
             // Detect changes and mark neighboring cells if needed
             let elevation_change = (heightmap.get(x, y) - prev_elevation).abs();

@@ -57,8 +57,14 @@ impl SimulationCache {
         let cache_key = self.compute_cache_key(terrain_hash, season);
 
         // Check if we have a valid cache entry
-        if let Some(entry) = self.temperature_cache.get_mut(&cache_key) {
-            if self.is_cache_entry_valid(entry, terrain_hash) {
+        let cache_hit = if let Some(entry) = self.temperature_cache.get(&cache_key) {
+            self.is_cache_entry_valid(entry, terrain_hash)
+        } else {
+            false
+        };
+
+        if cache_hit {
+            if let Some(entry) = self.temperature_cache.get_mut(&cache_key) {
                 entry.last_accessed = self.current_iteration;
                 self.cache_hits += 1;
                 return entry.temperature_layer.clone();
@@ -99,7 +105,7 @@ impl SimulationCache {
         let new_data = new_heightmap.data();
 
         let mut total_change = 0.0;
-        let mut max_change = 0.0;
+        let mut max_change: f32 = 0.0;
 
         for (old_val, new_val) in old_data.iter().zip(new_data.iter()) {
             let change = (new_val - old_val).abs();
@@ -225,12 +231,20 @@ impl SimulationCache {
 
         // If still too many entries, remove least recently used
         if self.temperature_cache.len() > self.max_cache_entries {
-            let mut entries: Vec<_> = self.temperature_cache.iter().collect();
-            entries.sort_by_key(|(_, entry)| entry.last_accessed);
+            let keys_to_remove: Vec<_> = {
+                let mut entries: Vec<_> = self.temperature_cache.iter().collect();
+                entries.sort_by_key(|(_, entry)| entry.last_accessed);
 
-            let entries_to_remove = self.temperature_cache.len() - self.max_cache_entries;
-            for (key, _) in entries.iter().take(entries_to_remove) {
-                self.temperature_cache.remove(key);
+                let entries_to_remove = self.temperature_cache.len() - self.max_cache_entries;
+                entries
+                    .iter()
+                    .take(entries_to_remove)
+                    .map(|(key, _)| (*key).clone())
+                    .collect()
+            };
+
+            for key in keys_to_remove {
+                self.temperature_cache.remove(&key);
             }
         }
     }

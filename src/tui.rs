@@ -385,7 +385,7 @@ fn get_atmospheric_display(
     app: &TuiApp,
     world_x: usize,
     world_y: usize,
-    terrain_val: f32,
+    _terrain_val: f32,
 ) -> Option<(char, Color, Style)> {
     match app.display_mode {
         DisplayMode::Terrain => None, // Use default terrain rendering

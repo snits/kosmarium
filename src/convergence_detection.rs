@@ -169,7 +169,7 @@ impl ConvergenceTracker {
             iterations_since_convergence: self
                 .convergence_iteration
                 .map(|c| self.current_iteration - c),
-            change_metrics,
+            change_metrics: change_metrics.clone(),
             progress_info,
             estimated_iterations_remaining: self.estimate_remaining_iterations(&change_metrics),
         }
@@ -223,7 +223,7 @@ impl ConvergenceTracker {
         let new_data = new_heightmap.data();
 
         let mut total_change = 0.0;
-        let mut max_change = 0.0;
+        let mut max_change: f32 = 0.0;
         let mut change_count = 0;
 
         for (old_val, new_val) in old_data.iter().zip(new_data.iter()) {

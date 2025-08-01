@@ -68,13 +68,15 @@ impl FlatHeightmap {
     /// Get elevation at coordinates (unchecked for performance-critical code)
     #[inline]
     pub unsafe fn get_unchecked(&self, x: usize, y: usize) -> f32 {
-        *self.data.get_unchecked(y * self.width + x)
+        unsafe { *self.data.get_unchecked(y * self.width + x) }
     }
 
     /// Set elevation at coordinates (unchecked for performance-critical code)
     #[inline]
     pub unsafe fn set_unchecked(&mut self, x: usize, y: usize, value: f32) {
-        *self.data.get_unchecked_mut(y * self.width + x) = value;
+        unsafe {
+            *self.data.get_unchecked_mut(y * self.width + x) = value;
+        }
     }
 
     /// Get raw data slice for bulk operations

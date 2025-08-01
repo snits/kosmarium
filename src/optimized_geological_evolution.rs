@@ -8,9 +8,7 @@ use crate::convergence_detection::{
 };
 use crate::optimized_heightmap::FlatHeightmap;
 use crate::scale::WorldScale;
-use crate::spatial_partitioning::{
-    ChangeType, OptimizedWaterFlowSystem, PerformanceStats, SpatialUpdateTracker,
-};
+use crate::spatial_partitioning::{OptimizedWaterFlowSystem, PerformanceStats};
 
 /// Configuration for optimized geological evolution
 #[derive(Clone, Debug)]
