@@ -114,17 +114,25 @@ ABOUTME: Tracks what's been tried, what worked, and what to investigate next
 20. **✅ Multi-Criteria Convergence Detection** - Early termination saves 30-70% of iterations through robust stopping criteria
 21. **✅ Integrated Performance Architecture** - Complete optimization suite with comprehensive analysis and documentation
 
+**Phase 3B: Rust Performance Optimization (HIGH PRIORITY)**
+22. **📊 PNG Export Diagnostic Mode** - Add --export-png flag for visual validation of optimizations and terrain analysis
+23. **🚀 Memory Layout Optimization** - Replace Vec<Vec<T>> with flat Vec<T> + indexing (2-3x performance improvement)
+24. **🚀 Error Handling Implementation** - Add comprehensive Result types with thiserror throughout codebase
+25. **🚀 Double Buffering System** - Eliminate expensive clones in water simulation with dual buffer approach
+26. **🚀 SIMD Operations** - Add vectorized operations for bulk mathematical computations
+27. **🚀 Memory Pool Architecture** - Implement reusable memory pools for temporary allocations
+
 **Phase 4A: Real-Time Gameplay Systems (READY TO BEGIN)**
-22. **🎮 Agent Systems** - NPCs, creatures, player avatar with intelligent behaviors using optimized simulation foundation
-23. **🎮 Game Mechanics** - Resource gathering, exploration, settlement building on high-performance terrain
-24. **🎮 Interactive Elements** - Landing sequences, terrain interaction, survival mechanics with real-time responsiveness
-25. **🎮 Roguelike Features** - Procedural events, exploration rewards, character progression in persistent worlds
+28. **🎮 Agent Systems** - NPCs, creatures, player avatar with intelligent behaviors using optimized simulation foundation
+29. **🎮 Game Mechanics** - Resource gathering, exploration, settlement building on high-performance terrain
+30. **🎮 Interactive Elements** - Landing sequences, terrain interaction, survival mechanics with real-time responsiveness
+31. **🎮 Roguelike Features** - Procedural events, exploration rewards, character progression in persistent worlds
 
 **Phase 4B: Advanced Simulation Features (READY TO BEGIN)**
-26. **🔬 Biome Evolution** - Dynamic ecosystem development on high-performance geological terrain
-27. **🔬 Weather Systems** - Real-time weather patterns affecting gameplay with optimized climate integration
-28. **🔬 Seasonal Cycles** - Long-term environmental changes and adaptation using convergence-detected equilibrium
-29. **🔬 Ecological Networks** - Species interactions, food webs, population dynamics with spatial partitioning efficiency
+32. **🔬 Biome Evolution** - Dynamic ecosystem development on high-performance geological terrain
+33. **🔬 Weather Systems** - Real-time weather patterns affecting gameplay with optimized climate integration
+34. **🔬 Seasonal Cycles** - Long-term environmental changes and adaptation using convergence-detected equilibrium
+35. **🔬 Ecological Networks** - Species interactions, food webs, population dynamics with spatial partitioning efficiency
 
 **Legacy Ideas:**
 - **Agents/Creatures**: Simple creatures that move around, eat, reproduce

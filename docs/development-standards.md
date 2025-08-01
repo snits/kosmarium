@@ -17,6 +17,12 @@ cargo fmt           # Code must be formatted
 cargo clippy        # Fix obvious issues, but warnings OK for experiments
 ```
 
+### Performance Analysis
+```bash
+cargo flamegraph    # Profile performance bottlenecks (install: cargo install flamegraph)
+# See docs/rust-analysis.md for comprehensive performance optimization roadmap
+```
+
 ## Agentic Workflow Requirements
 
 ### Code Review Process
@@ -77,8 +83,9 @@ cargo flamegraph    # When you need to profile (install with: cargo install flam
 
 ### Update Documentation After Sessions
 - **session-handoff.md**: What you were working on, what's broken, what to try next
-- **experiment-roadmap.md**: New ideas discovered, experiments completed
+- **project-roadmap.md**: New ideas discovered, experiments completed
 - **architecture-decisions.md**: When you try something interesting and want to remember why
+- **rust-analysis.md**: Rust-specific code quality and performance analysis from specialist agents
 
 ### Context for Future Sessions
 - Commit frequently during experiments (even incomplete work)  
