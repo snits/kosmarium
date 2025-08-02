@@ -1,12 +1,13 @@
 // ABOUTME: Demonstration of dimensional analysis functionality for water flow physics
 // ABOUTME: Shows how to validate physical parameters and convert between units
 
+use sim_protoype::heightmap::HeightMap;
 use sim_protoype::scale::{DetailLevel, WorldScale};
 use sim_protoype::sim::Simulation;
 
 fn main() {
     // Create a simple heightmap
-    let heightmap = vec![vec![0.5; 100]; 100];
+    let heightmap = HeightMap::from_nested(vec![vec![0.5; 100]; 100]);
 
     // Create simulation with explicit world scale (10km physical size)
     let world_scale = WorldScale::new(10.0, (100, 100), DetailLevel::Standard);

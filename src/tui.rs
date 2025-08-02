@@ -131,12 +131,8 @@ impl Viewport {
         water_layer: &crate::sim::WaterLayer,
         zoom_level: u32,
     ) -> Vec<Vec<crate::sim::Vec2>> {
-        let world_height = water_layer.velocity.len();
-        let world_width = if world_height > 0 {
-            water_layer.velocity[0].len()
-        } else {
-            0
-        };
+        let world_height = water_layer.velocity.height();
+        let world_width = water_layer.velocity.width();
 
         let start_y = self.world_y.max(0) as usize;
         let start_x = self.world_x.max(0) as usize;
@@ -153,7 +149,8 @@ impl Viewport {
 
                 // Sample from water velocity (with bounds checking)
                 if world_y < world_height && world_x < world_width {
-                    row.push(water_layer.velocity[world_y][world_x].clone());
+                    let (vx, vy) = water_layer.velocity.get(world_x, world_y);
+                    row.push(crate::sim::Vec2::new(vx, vy));
                 } else {
                     row.push(crate::sim::Vec2::zero()); // Default value for out-of-bounds
                 }
@@ -797,7 +794,7 @@ pub fn ui(f: &mut Frame, app: &mut TuiApp) {
     // Extract visible terrain region with zoom
     let visible_heightmap = app
         .viewport
-        .extract_visible_region(&app.simulation.heightmap, app.zoom_level);
+        .extract_visible_region(&app.simulation.heightmap.to_nested(), app.zoom_level);
 
     // Calculate cursor position in the visible region (center of viewport)
     let cursor_x = app.viewport.view_width / 2;
@@ -819,7 +816,7 @@ pub fn ui(f: &mut Frame, app: &mut TuiApp) {
 
     // Mini-map with viewport indicator and water overlay
     let minimap_lines = render_minimap_with_viewport(
-        &app.simulation.heightmap,
+        &app.simulation.heightmap.to_nested(),
         Some(&app.simulation.water),
         app.show_water,
         &app.viewport,

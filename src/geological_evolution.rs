@@ -2,6 +2,7 @@
 // ABOUTME: Runs accelerated water flow and erosion over geological timescales before real-time simulation
 
 use crate::climate::{ClimateSystem, TemperatureLayer};
+use crate::heightmap::HeightMap;
 use crate::scale::{DetailLevel, WorldScale};
 use crate::sim::{WaterFlowParameters, WaterFlowSystem, WaterLayer};
 use crate::tectonics::TectonicSystem;
@@ -127,7 +128,7 @@ impl GeologicalEvolution {
         let mut water_layer = WaterLayer::new(width, height);
 
         // Initialize climate system for temperature-dependent processes
-        let mut climate_system = ClimateSystem::new_for_scale(&world_scale);
+        let climate_system = ClimateSystem::new_for_scale(&world_scale);
         let mut temperature_layer = TemperatureLayer::new(width, height);
 
         // Initialize statistics tracking
@@ -150,12 +151,16 @@ impl GeologicalEvolution {
                 evolved_heightmap.iter().flat_map(|row| row.iter()).sum();
 
             // Run one step of accelerated water flow and erosion
+            // Convert to HeightMap for the water system
+            let mut heightmap_for_water = HeightMap::from_nested(evolved_heightmap.clone());
             water_system.update_water_flow_with_climate(
-                &mut evolved_heightmap,
+                &mut heightmap_for_water,
                 &mut water_layer,
                 &temperature_layer,
                 &climate_system,
             );
+            // Convert back to nested format
+            evolved_heightmap = heightmap_for_water.to_nested();
 
             // Apply erosion acceleration factor
             if self.config.erosion_acceleration > 1.0 {

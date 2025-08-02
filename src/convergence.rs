@@ -215,8 +215,7 @@ impl ConvergenceStudy {
             .water
             .depth
             .iter()
-            .flat_map(|row| row.iter())
-            .fold(0.0f32, |max, &depth| max.max(depth)) as f64
+            .fold(0.0f32, |max, depth| max.max(depth)) as f64
     }
 
     /// Compute water distribution entropy (measure of how spread out water is)
@@ -227,12 +226,10 @@ impl ConvergenceStudy {
         }
 
         let mut entropy = 0.0;
-        for row in &simulation.water.depth {
-            for &depth in row {
-                if depth > 0.0 {
-                    let probability = depth / total_water;
-                    entropy -= (probability as f64) * (probability as f64).ln();
-                }
+        for depth in simulation.water.depth.iter() {
+            if depth > 0.0 {
+                let probability = depth / total_water;
+                entropy -= (probability as f64) * (probability as f64).ln();
             }
         }
 
@@ -405,12 +402,13 @@ impl ConvergenceStudy {
         );
 
         let climate_system = ClimateSystem::new_for_scale(&world_scale);
-        let temperature_layer = climate_system.generate_temperature_layer(&heightmap);
+        let heightmap_nested = heightmap.to_nested();
+        let temperature_layer = climate_system.generate_temperature_layer(&heightmap_nested);
 
         // Compute climate metrics
         let grid_spacing = world_scale.meters_per_pixel();
         let climate_metrics =
-            self.compute_climate_metrics(&heightmap, &temperature_layer, grid_spacing);
+            self.compute_climate_metrics(&heightmap_nested, &temperature_layer, grid_spacing);
 
         Ok(climate_metrics)
     }

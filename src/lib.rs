@@ -9,6 +9,7 @@ pub mod convergence_detection;
 pub mod dimensional;
 pub mod geological_evolution;
 pub mod graphics_render;
+pub mod heightmap;
 pub mod optimized_geological_evolution;
 pub mod optimized_heightmap;
 pub mod render;

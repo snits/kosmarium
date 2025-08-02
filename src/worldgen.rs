@@ -1,6 +1,7 @@
 // sim-prototype/src/worldgen.rs
 
 use crate::geological_evolution::{GeologicalEvolution, GeologicalEvolutionConfig};
+use crate::heightmap::HeightMap;
 use crate::tectonics::TectonicSystem;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
@@ -9,7 +10,7 @@ use rand::{Rng, SeedableRng};
 pub trait TerrainGenerator {
     type Config: Clone + Default;
 
-    fn generate(&self, width: usize, height: usize, config: &Self::Config) -> Vec<Vec<f32>>;
+    fn generate(&self, width: usize, height: usize, config: &Self::Config) -> HeightMap;
     fn name(&self) -> &'static str;
     fn supports_arbitrary_dimensions(&self) -> bool;
 }
@@ -45,16 +46,16 @@ impl DiamondSquareGenerator {
     }
 
     /// Generate terrain on a power-of-2 sized grid using Diamond-Square algorithm
-    fn generate_power_of_two(&self, size: usize, config: &DiamondSquareConfig) -> Vec<Vec<f32>> {
+    fn generate_power_of_two(&self, size: usize, config: &DiamondSquareConfig) -> HeightMap {
         let mut rng = StdRng::seed_from_u64(self.seed);
-        let mut map = vec![vec![0.0; size]; size];
+        let mut map = HeightMap::new(size, size, 0.0);
         let max_index = size - 1;
 
         // Initialize corners
-        map[0][0] = config.initial_corners[0];
-        map[0][max_index] = config.initial_corners[1];
-        map[max_index][0] = config.initial_corners[2];
-        map[max_index][max_index] = config.initial_corners[3];
+        map.set(0, 0, config.initial_corners[0]);
+        map.set(max_index, 0, config.initial_corners[1]);
+        map.set(0, max_index, config.initial_corners[2]);
+        map.set(max_index, max_index, config.initial_corners[3]);
 
         let mut step_size = size - 1;
         let mut scale = config.roughness;
@@ -67,7 +68,7 @@ impl DiamondSquareGenerator {
                 for x in (half_step..size).step_by(step_size) {
                     let avg = self.diamond_average(&map, x, y, half_step, config.wrap_edges, size);
                     let noise = rng.gen_range(-scale..scale);
-                    map[y][x] = avg + noise;
+                    map.set(x, y, avg + noise);
                 }
             }
 
@@ -81,7 +82,7 @@ impl DiamondSquareGenerator {
                 for x in (offset..size).step_by(step_size) {
                     let avg = self.square_average(&map, x, y, half_step, config.wrap_edges, size);
                     let noise = rng.gen_range(-scale..scale);
-                    map[y][x] = avg + noise;
+                    map.set(x, y, avg + noise);
                 }
             }
 
@@ -94,7 +95,7 @@ impl DiamondSquareGenerator {
 
     fn diamond_average(
         &self,
-        map: &[Vec<f32>],
+        map: &HeightMap,
         x: usize,
         y: usize,
         half_step: usize,
@@ -113,7 +114,7 @@ impl DiamondSquareGenerator {
 
         for (px, py) in points {
             if wrap || (px < size && py < size) {
-                sum += map[py % size][px % size];
+                sum += map.get(px % size, py % size);
                 count += 1;
             }
         }
@@ -123,7 +124,7 @@ impl DiamondSquareGenerator {
 
     fn square_average(
         &self,
-        map: &[Vec<f32>],
+        map: &HeightMap,
         x: usize,
         y: usize,
         half_step: usize,
@@ -142,7 +143,7 @@ impl DiamondSquareGenerator {
 
         for (px, py) in points {
             if wrap || (px < size && py < size) {
-                sum += map[py % size][px % size];
+                sum += map.get(px % size, py % size);
                 count += 1;
             }
         }
@@ -151,20 +152,19 @@ impl DiamondSquareGenerator {
     }
 
     /// Sample a larger grid down to requested dimensions
-    fn sample_to_dimensions(
-        &self,
-        full_map: Vec<Vec<f32>>,
-        width: usize,
-        height: usize,
-    ) -> Vec<Vec<f32>> {
-        let full_size = full_map.len();
-        let mut result = vec![vec![0.0; width]; height];
+    fn sample_to_dimensions(&self, full_map: HeightMap, width: usize, height: usize) -> HeightMap {
+        let full_size = full_map.width();
+        let mut result = HeightMap::new(width, height, 0.0);
 
         for y in 0..height {
             for x in 0..width {
                 let src_x = (x * (full_size - 1)) / (width - 1).max(1);
                 let src_y = (y * (full_size - 1)) / (height - 1).max(1);
-                result[y][x] = full_map[src_y.min(full_size - 1)][src_x.min(full_size - 1)];
+                result.set(
+                    x,
+                    y,
+                    full_map.get(src_x.min(full_size - 1), src_y.min(full_size - 1)),
+                );
             }
         }
 
@@ -172,14 +172,10 @@ impl DiamondSquareGenerator {
     }
 
     /// Normalize map values to 0.0-1.0 range
-    fn normalize_map(&self, map: &mut Vec<Vec<f32>>) {
-        let min = map.iter().flatten().cloned().fold(f32::INFINITY, f32::min);
-        let max = map
-            .iter()
-            .flatten()
-            .cloned()
-            .fold(f32::NEG_INFINITY, f32::max);
-        let mean = map.iter().flatten().cloned().sum::<f32>() / (map.len() * map[0].len()) as f32;
+    fn normalize_map(&self, map: &mut HeightMap) {
+        let min = map.min();
+        let max = map.max();
+        let mean = map.iter().sum::<f32>() / map.len() as f32;
 
         // Diagnostic: Show raw elevation distribution before normalization
         println!(
@@ -190,20 +186,14 @@ impl DiamondSquareGenerator {
             max - min
         );
 
-        if max > min {
-            for row in map.iter_mut() {
-                for val in row.iter_mut() {
-                    *val = (*val - min) / (max - min);
-                }
-            }
-        }
+        map.normalize();
     }
 }
 
 impl TerrainGenerator for DiamondSquareGenerator {
     type Config = DiamondSquareConfig;
 
-    fn generate(&self, width: usize, height: usize, config: &Self::Config) -> Vec<Vec<f32>> {
+    fn generate(&self, width: usize, height: usize, config: &Self::Config) -> HeightMap {
         // Handle arbitrary dimensions by generating on power-of-2 grid then sampling
         let power_size = (width.max(height).next_power_of_two()).max(8);
         let full_map = self.generate_power_of_two(power_size, config);
@@ -278,18 +268,18 @@ impl TectonicGenerator {
 impl TerrainGenerator for TectonicGenerator {
     type Config = TectonicConfig;
 
-    fn generate(&self, width: usize, height: usize, config: &Self::Config) -> Vec<Vec<f32>> {
+    fn generate(&self, width: usize, height: usize, config: &Self::Config) -> HeightMap {
         // Create tectonic system
         let tectonic_system = TectonicSystem::new(width, height, config.num_plates, self.seed);
 
         // Generate base elevation from tectonics
-        let mut tectonic_base = vec![vec![0.0; width]; height];
+        let mut tectonic_base = HeightMap::new(width, height, 0.0);
         let mut plate_type_map = vec![vec![false; width]; height]; // true = continental, false = oceanic
 
         for y in 0..height {
             for x in 0..width {
                 let base_elevation = tectonic_system.get_elevation_at(x, y);
-                tectonic_base[y][x] = base_elevation * config.mountain_scale;
+                tectonic_base.set(x, y, base_elevation * config.mountain_scale);
 
                 // Track plate type for terrain-aware detail generation
                 if let Some(plate) = tectonic_system.get_plate_at(x, y) {
@@ -308,7 +298,7 @@ impl TerrainGenerator for TectonicGenerator {
                 );
 
                 let evolution_results = geological_evolution
-                    .evolve_terrain(tectonic_base.clone(), Some(&tectonic_system));
+                    .evolve_terrain(tectonic_base.to_nested(), Some(&tectonic_system));
 
                 if evo_config.verbose_logging {
                     println!("Geological evolution completed:");
@@ -323,7 +313,7 @@ impl TerrainGenerator for TectonicGenerator {
                     );
                 }
 
-                evolution_results.evolved_heightmap
+                HeightMap::from_nested(evolution_results.evolved_heightmap)
             } else {
                 tectonic_base.clone()
             }
@@ -358,12 +348,12 @@ impl TectonicGenerator {
     /// Generate layered terrain detail combining tectonic foundation with terrain-aware fractal noise
     fn generate_layered_detail(
         &self,
-        tectonic_base: &[Vec<f32>],
+        tectonic_base: &HeightMap,
         plate_type_map: &[Vec<bool>],
         width: usize,
         height: usize,
         config: &TectonicConfig,
-    ) -> Vec<Vec<f32>> {
+    ) -> HeightMap {
         // Generate continental detail (high roughness for varied terrain)
         let continental_generator = DiamondSquareGenerator::new(self.seed + 1);
         let continental_config = DiamondSquareConfig {
@@ -389,11 +379,11 @@ impl TectonicGenerator {
             self.calculate_coastal_distance_field(plate_type_map, width, height);
 
         // Combine tectonic base with terrain-aware detail
-        let mut layered_heightmap = vec![vec![0.0; width]; height];
+        let mut layered_heightmap = HeightMap::new(width, height, 0.0);
 
         for y in 0..height {
             for x in 0..width {
-                let tectonic_elevation = tectonic_base[y][x];
+                let tectonic_elevation = tectonic_base.get(x, y);
                 let is_continental = plate_type_map[y][x];
                 let coastal_distance = coastal_distance_field[y][x];
 
@@ -414,11 +404,12 @@ impl TectonicGenerator {
                 let combined_elevation = tectonic_elevation + scaled_detail;
 
                 // Final safety check: ensure result is finite and reasonable for OpenGL
-                layered_heightmap[y][x] = if combined_elevation.is_finite() {
+                let final_elevation = if combined_elevation.is_finite() {
                     combined_elevation.clamp(-10.0, 10.0) // Reasonable elevation bounds
                 } else {
                     0.0 // Safe fallback
                 };
+                layered_heightmap.set(x, y, final_elevation);
             }
         }
 
@@ -615,16 +606,14 @@ impl TectonicGenerator {
         }
     }
 
-    fn normalize_map(&self, heightmap: &mut Vec<Vec<f32>>) {
+    fn normalize_map(&self, heightmap: &mut HeightMap) {
         let mut min_val = f32::INFINITY;
         let mut max_val = f32::NEG_INFINITY;
 
         // Find min/max
-        for row in heightmap.iter() {
-            for &val in row.iter() {
-                min_val = min_val.min(val);
-                max_val = max_val.max(val);
-            }
+        for val in heightmap.iter() {
+            min_val = min_val.min(val);
+            max_val = max_val.max(val);
         }
 
         println!(
@@ -637,10 +626,8 @@ impl TectonicGenerator {
         // Normalize to -0.5 to 1.0 range (more land than water)
         let range = max_val - min_val;
         if range > 0.0 {
-            for row in heightmap.iter_mut() {
-                for val in row.iter_mut() {
-                    *val = (*val - min_val) / range * 1.5 - 0.5;
-                }
+            for val in heightmap.iter_mut() {
+                *val = (*val - min_val) / range * 1.5 - 0.5;
             }
         }
     }

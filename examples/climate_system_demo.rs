@@ -42,7 +42,8 @@ fn main() {
     );
 
     // Generate temperature layer from terrain
-    let temp_layer = climate.generate_temperature_layer(&heightmap);
+    let heightmap_nested = heightmap.to_nested();
+    let temp_layer = climate.generate_temperature_layer(&heightmap_nested);
 
     println!("\n=== Temperature Distribution ===");
 
@@ -50,9 +51,9 @@ fn main() {
     println!("\nTemperature Map (°C):");
     println!("Legend: Very Cold(<-10) | Cold(-10-0) | Cool(0-10) | Warm(10-20) | Hot(>20)");
 
-    for y in 0..heightmap.len() {
-        for x in 0..heightmap[0].len() {
-            let elevation = heightmap[y][x];
+    for y in 0..heightmap_nested.len() {
+        for x in 0..heightmap_nested[0].len() {
+            let elevation = heightmap_nested[y][x];
             let temperature = temp_layer.get_temperature(x, y);
 
             let symbol = match temperature {
@@ -79,9 +80,9 @@ fn main() {
     let mut min_coords = (0, 0);
     let mut max_coords = (0, 0);
 
-    for y in 0..heightmap.len() {
-        for x in 0..heightmap[0].len() {
-            let elevation = heightmap[y][x];
+    for y in 0..heightmap_nested.len() {
+        for x in 0..heightmap_nested[0].len() {
+            let elevation = heightmap_nested[y][x];
             let temperature = temp_layer.get_temperature(x, y);
 
             if temperature < min_temp {
@@ -108,7 +109,7 @@ fn main() {
     println!("- Elevation: {:.3}", heightmap[min_coords.1][min_coords.0]);
     println!(
         "- Latitude factor: {:.2} (0=north pole, 1=south pole)",
-        min_coords.1 as f32 / heightmap.len() as f32
+        min_coords.1 as f32 / heightmap_nested.len() as f32
     );
 
     println!(
@@ -118,7 +119,7 @@ fn main() {
     println!("- Elevation: {:.3}", heightmap[max_coords.1][max_coords.0]);
     println!(
         "- Latitude factor: {:.2}",
-        max_coords.1 as f32 / heightmap.len() as f32
+        max_coords.1 as f32 / heightmap_nested.len() as f32
     );
 
     println!("\nTerrain Summary:");
@@ -134,8 +135,8 @@ fn main() {
     // Show seasonal effects
     println!("\n=== Seasonal Effects ===");
 
-    let mid_x = heightmap[0].len() / 2;
-    let mid_y = heightmap.len() / 2;
+    let mid_x = heightmap_nested[0].len() / 2;
+    let mid_y = heightmap_nested.len() / 2;
 
     println!("Seasonal temperature at center ({}, {}):", mid_x, mid_y);
 
@@ -174,19 +175,19 @@ fn main() {
     // Show average temperatures by latitude band
     println!("\n=== Latitude Temperature Profile ===");
 
-    for y in (0..heightmap.len()).step_by(heightmap.len() / 5) {
+    for y in (0..heightmap_nested.len()).step_by(heightmap_nested.len() / 5) {
         let mut sum_temp = 0.0;
         let mut count = 0;
 
-        for x in 0..heightmap[0].len() {
+        for x in 0..heightmap_nested[0].len() {
             sum_temp += temp_layer.get_temperature(x, y);
             count += 1;
         }
 
         let avg_temp = sum_temp / count as f32;
         let latitude_name = match y {
-            y if y < heightmap.len() / 4 => "Northern",
-            y if y < 3 * heightmap.len() / 4 => "Central",
+            y if y < heightmap_nested.len() / 4 => "Northern",
+            y if y < 3 * heightmap_nested.len() / 4 => "Central",
             _ => "Southern",
         };
 

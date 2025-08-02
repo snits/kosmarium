@@ -6,6 +6,7 @@ pub mod convergence;
 pub mod dimensional;
 pub mod geological_evolution;
 pub mod graphics_render;
+pub mod heightmap;
 pub mod render;
 pub mod scale;
 pub mod sim;

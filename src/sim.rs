@@ -4,6 +4,7 @@
 use crate::atmosphere::{AtmosphericSystem, WeatherAnalysis, WindLayer};
 use crate::climate::{AtmosphericPressureLayer, ClimateSystem, TemperatureLayer};
 use crate::dimensional::{DimensionalAnalysis, DimensionalWaterFlowParameters, PhysicalQuantity};
+use crate::heightmap::{HeightMap, Vec2Map};
 use crate::scale::{REFERENCE_SCALE, ScaleAware, WorldScale};
 
 #[derive(Clone, Debug)]
@@ -28,9 +29,9 @@ impl Vec2 {
 
 #[derive(Clone, Debug)]
 pub struct WaterLayer {
-    pub depth: Vec<Vec<f32>>,     // Water depth at each cell
-    pub velocity: Vec<Vec<Vec2>>, // Flow direction and speed
-    pub sediment: Vec<Vec<f32>>,  // Carried sediment for erosion
+    pub depth: HeightMap,    // Water depth at each cell
+    pub velocity: Vec2Map,   // Flow direction and speed
+    pub sediment: HeightMap, // Carried sediment for erosion
     width: usize,
     height: usize,
 }
@@ -38,28 +39,29 @@ pub struct WaterLayer {
 impl WaterLayer {
     pub fn new(width: usize, height: usize) -> Self {
         Self {
-            depth: vec![vec![0.0; width]; height],
-            velocity: vec![vec![Vec2::zero(); width]; height],
-            sediment: vec![vec![0.0; width]; height],
+            depth: HeightMap::new(width, height, 0.0),
+            velocity: Vec2Map::new(width, height),
+            sediment: HeightMap::new(width, height, 0.0),
             width,
             height,
         }
     }
 
     pub fn get_total_water(&self) -> f32 {
-        self.depth.iter().flat_map(|row| row.iter()).sum()
+        self.depth.iter().sum()
     }
 
     pub fn add_water(&mut self, x: usize, y: usize, amount: f32) {
         if x < self.width && y < self.height {
-            self.depth[y][x] += amount;
+            let current = self.depth.get(x, y);
+            self.depth.set(x, y, current + amount);
         }
     }
 
     /// Get water depth at specific coordinates
     pub fn get_water_depth(&self, x: usize, y: usize) -> f32 {
         if x < self.width && y < self.height {
-            self.depth[y][x]
+            self.depth.get(x, y)
         } else {
             0.0
         }
@@ -281,9 +283,11 @@ impl WaterFlowSystem {
         let dx = scale.meters_per_pixel() as f32;
         let mut max_observed_velocity = 0.0f32;
 
-        for row in &water.velocity {
-            for velocity in row {
-                max_observed_velocity = max_observed_velocity.max(velocity.magnitude());
+        for y in 0..water.height() {
+            for x in 0..water.width() {
+                let (vx, vy) = water.velocity.get(x, y);
+                let velocity_mag = (vx * vx + vy * vy).sqrt();
+                max_observed_velocity = max_observed_velocity.max(velocity_mag);
             }
         }
 
@@ -295,17 +299,16 @@ impl WaterFlowSystem {
     }
 
     /// Calculate flow direction for each cell based on elevation gradients
-    pub fn calculate_flow_directions(&self, heightmap: &[Vec<f32>], water: &mut WaterLayer) {
-        let height = heightmap.len();
-        let width = if height > 0 {
-            heightmap[0].len()
-        } else {
+    pub fn calculate_flow_directions(&self, heightmap: &HeightMap, water: &mut WaterLayer) {
+        let height = heightmap.height();
+        let width = heightmap.width();
+        if height == 0 || width == 0 {
             return;
-        };
+        }
 
         for y in 0..height {
             for x in 0..width {
-                let current_elevation = heightmap[y][x] + water.depth[y][x];
+                let current_elevation = heightmap.get(x, y) + water.depth.get(x, y);
                 let mut steepest_slope = 0.0;
                 let mut flow_direction = Vec2::zero();
 
@@ -323,7 +326,8 @@ impl WaterFlowSystem {
                             let nx = nx as usize;
                             let ny = ny as usize;
 
-                            let neighbor_elevation = heightmap[ny][nx] + water.depth[ny][nx];
+                            let neighbor_elevation =
+                                heightmap.get(nx, ny) + water.depth.get(nx, ny);
                             let slope = current_elevation - neighbor_elevation;
 
                             if slope > steepest_slope {
@@ -343,13 +347,15 @@ impl WaterFlowSystem {
                         (flow_direction.y / magnitude) * steepest_slope * self.parameters.flow_rate;
                 }
 
-                water.velocity[y][x] = flow_direction;
+                water
+                    .velocity
+                    .set(x, y, (flow_direction.x, flow_direction.y));
             }
         }
     }
 
     /// Simulate one tick of water flow
-    pub fn update_water_flow(&self, heightmap: &mut Vec<Vec<f32>>, water: &mut WaterLayer) {
+    pub fn update_water_flow(&self, heightmap: &mut HeightMap, water: &mut WaterLayer) {
         // Calculate flow directions based on current state
         self.calculate_flow_directions(heightmap, water);
 
@@ -369,7 +375,7 @@ impl WaterFlowSystem {
     /// Simulate one tick of water flow with climate integration
     pub fn update_water_flow_with_climate(
         &self,
-        heightmap: &mut Vec<Vec<f32>>,
+        heightmap: &mut HeightMap,
         water: &mut WaterLayer,
         temperature_layer: &TemperatureLayer,
         climate_system: &ClimateSystem,
@@ -391,10 +397,8 @@ impl WaterFlowSystem {
     }
 
     fn add_rainfall(&self, water: &mut WaterLayer) {
-        for row in water.depth.iter_mut() {
-            for depth in row.iter_mut() {
-                *depth += self.effective_rainfall_rate;
-            }
+        for depth in water.depth.iter_mut() {
+            *depth += self.effective_rainfall_rate;
         }
     }
 
@@ -403,13 +407,14 @@ impl WaterFlowSystem {
 
         for y in 0..water.height {
             for x in 0..water.width {
-                let velocity = &water.velocity[y][x];
-                let flow_amount = water.depth[y][x] * velocity.magnitude().min(1.0);
+                let (vx, vy) = water.velocity.get(x, y);
+                let velocity_mag = (vx * vx + vy * vy).sqrt();
+                let flow_amount = water.depth.get(x, y) * velocity_mag.min(1.0);
 
                 if flow_amount > 0.001 {
                     // Calculate target position
-                    let target_x = (x as f32 + velocity.x).round() as i32;
-                    let target_y = (y as f32 + velocity.y).round() as i32;
+                    let target_x = (x as f32 + vx).round() as i32;
+                    let target_y = (y as f32 + vy).round() as i32;
 
                     // Move water if target is in bounds
                     if target_x >= 0
@@ -417,8 +422,14 @@ impl WaterFlowSystem {
                         && target_y >= 0
                         && target_y < water.height as i32
                     {
-                        new_depth[y][x] -= flow_amount;
-                        new_depth[target_y as usize][target_x as usize] += flow_amount;
+                        let current_depth = new_depth.get(x, y);
+                        new_depth.set(x, y, current_depth - flow_amount);
+                        let target_depth = new_depth.get(target_x as usize, target_y as usize);
+                        new_depth.set(
+                            target_x as usize,
+                            target_y as usize,
+                            target_depth + flow_amount,
+                        );
                     }
                 }
             }
@@ -427,11 +438,12 @@ impl WaterFlowSystem {
         water.depth = new_depth;
     }
 
-    fn apply_erosion(&self, heightmap: &mut Vec<Vec<f32>>, water: &mut WaterLayer) {
+    fn apply_erosion(&self, heightmap: &mut HeightMap, water: &mut WaterLayer) {
         for y in 0..water.height {
             for x in 0..water.width {
-                let flow_speed = water.velocity[y][x].magnitude();
-                let water_depth = water.depth[y][x];
+                let velocity = water.velocity.get(x, y);
+                let flow_speed = (velocity.0 * velocity.0 + velocity.1 * velocity.1).sqrt();
+                let water_depth = water.depth.get(x, y);
 
                 if flow_speed > 0.01 && water_depth > 0.001 {
                     // Erosion capacity based on flow speed and water depth
@@ -439,17 +451,22 @@ impl WaterFlowSystem {
                         flow_speed * water_depth * self.parameters.erosion_strength;
 
                     // Erode terrain if we're below capacity
-                    if water.sediment[y][x] < erosion_capacity {
-                        let erosion_amount = (erosion_capacity - water.sediment[y][x]).min(0.001);
-                        heightmap[y][x] -= erosion_amount;
-                        water.sediment[y][x] += erosion_amount;
+                    let current_sediment = water.sediment.get(x, y);
+                    if current_sediment < erosion_capacity {
+                        let erosion_amount = (erosion_capacity - current_sediment).min(0.001);
+                        let current_height = heightmap.get(x, y);
+                        heightmap.set(x, y, current_height - erosion_amount);
+                        water.sediment.set(x, y, current_sediment + erosion_amount);
                     }
                     // Deposit sediment if we're over capacity
-                    else if water.sediment[y][x] > erosion_capacity {
-                        let deposition_amount = (water.sediment[y][x] - erosion_capacity)
-                            * self.parameters.deposition_rate;
-                        heightmap[y][x] += deposition_amount;
-                        water.sediment[y][x] -= deposition_amount;
+                    else if current_sediment > erosion_capacity {
+                        let deposition_amount =
+                            (current_sediment - erosion_capacity) * self.parameters.deposition_rate;
+                        let current_height = heightmap.get(x, y);
+                        heightmap.set(x, y, current_height + deposition_amount);
+                        water
+                            .sediment
+                            .set(x, y, current_sediment - deposition_amount);
                     }
                 }
             }
@@ -458,20 +475,19 @@ impl WaterFlowSystem {
 
     /// Apply uniform evaporation (base case without temperature effects)
     fn apply_evaporation(&self, water: &mut WaterLayer) {
-        for row in water.depth.iter_mut() {
-            for depth in row.iter_mut() {
-                *depth *= 1.0 - self.parameters.evaporation_rate;
-                if *depth < self.evaporation_threshold {
-                    *depth = 0.0;
-                }
+        for depth in water.depth.iter_mut() {
+            *depth *= 1.0 - self.parameters.evaporation_rate;
+            if *depth < self.evaporation_threshold {
+                *depth = 0.0;
             }
         }
 
         // Also evaporate sediment when water disappears
         for y in 0..water.height {
             for x in 0..water.width {
-                if water.depth[y][x] < self.evaporation_threshold {
-                    water.sediment[y][x] *= 0.5; // Sediment settles when water dries up
+                if water.depth.get(x, y) < self.evaporation_threshold {
+                    let current_sediment = water.sediment.get(x, y);
+                    water.sediment.set(x, y, current_sediment * 0.5); // Sediment settles when water dries up
                 }
             }
         }
@@ -497,11 +513,14 @@ impl WaterFlowSystem {
                 let effective_evaporation_rate = self.parameters.evaporation_rate * temp_multiplier;
 
                 // Apply evaporation (bounded to prevent negative water)
-                water.depth[y][x] *= 1.0 - effective_evaporation_rate.min(1.0);
+                let current_depth = water.depth.get(x, y);
+                let new_depth = current_depth * (1.0 - effective_evaporation_rate.min(1.0));
 
                 // Clear tiny amounts based on threshold
-                if water.depth[y][x] < self.evaporation_threshold {
-                    water.depth[y][x] = 0.0;
+                if new_depth < self.evaporation_threshold {
+                    water.depth.set(x, y, 0.0);
+                } else {
+                    water.depth.set(x, y, new_depth);
                 }
             }
         }
@@ -509,8 +528,9 @@ impl WaterFlowSystem {
         // Handle sediment settling when water disappears
         for y in 0..water.height {
             for x in 0..water.width {
-                if water.depth[y][x] < self.evaporation_threshold {
-                    water.sediment[y][x] *= 0.5; // Sediment settles when water dries up
+                if water.depth.get(x, y) < self.evaporation_threshold {
+                    let current_sediment = water.sediment.get(x, y);
+                    water.sediment.set(x, y, current_sediment * 0.5); // Sediment settles when water dries up
                 }
             }
         }
@@ -518,7 +538,7 @@ impl WaterFlowSystem {
 }
 
 pub struct Simulation {
-    pub heightmap: Vec<Vec<f32>>,
+    pub heightmap: HeightMap,
     pub water: WaterLayer,
     pub water_system: WaterFlowSystem,
     pub climate_system: ClimateSystem,
@@ -533,9 +553,9 @@ pub struct Simulation {
 
 impl Simulation {
     /// Create a simulation with default world scale (assumes 10km physical size)
-    pub fn new(heightmap: Vec<Vec<f32>>) -> Self {
-        let height = heightmap.len();
-        let width = if height > 0 { heightmap[0].len() } else { 0 };
+    pub fn new(heightmap: HeightMap) -> Self {
+        let height = heightmap.height();
+        let width = heightmap.width();
 
         // Default to 10km physical size with standard detail
         let world_scale = WorldScale::new(
@@ -546,12 +566,16 @@ impl Simulation {
 
         // Create climate system and generate temperature layer
         let climate_system = ClimateSystem::new_for_scale(&world_scale);
-        let temperature_layer = climate_system.generate_temperature_layer(&heightmap);
+        let heightmap_nested = heightmap.to_nested();
+        let temperature_layer = climate_system.generate_temperature_layer(&heightmap_nested);
 
         // Create atmospheric system and generate pressure/wind layers
         let atmospheric_system = AtmosphericSystem::new_for_scale(&world_scale);
-        let pressure_layer =
-            climate_system.generate_pressure_layer(&temperature_layer, &heightmap, &world_scale);
+        let pressure_layer = climate_system.generate_pressure_layer(
+            &temperature_layer,
+            &heightmap_nested,
+            &world_scale,
+        );
         let wind_layer =
             atmospheric_system.generate_geostrophic_winds(&pressure_layer, &world_scale);
 
@@ -571,18 +595,22 @@ impl Simulation {
     }
 
     /// Create a simulation with explicit world scale
-    pub fn _new_with_scale(heightmap: Vec<Vec<f32>>, world_scale: WorldScale) -> Self {
-        let height = heightmap.len();
-        let width = if height > 0 { heightmap[0].len() } else { 0 };
+    pub fn _new_with_scale(heightmap: HeightMap, world_scale: WorldScale) -> Self {
+        let height = heightmap.height();
+        let width = heightmap.width();
 
         // Create climate system and generate temperature layer
         let climate_system = ClimateSystem::new_for_scale(&world_scale);
-        let temperature_layer = climate_system.generate_temperature_layer(&heightmap);
+        let heightmap_nested = heightmap.to_nested();
+        let temperature_layer = climate_system.generate_temperature_layer(&heightmap_nested);
 
         // Create atmospheric system and generate pressure/wind layers
         let atmospheric_system = AtmosphericSystem::new_for_scale(&world_scale);
-        let pressure_layer =
-            climate_system.generate_pressure_layer(&temperature_layer, &heightmap, &world_scale);
+        let pressure_layer = climate_system.generate_pressure_layer(
+            &temperature_layer,
+            &heightmap_nested,
+            &world_scale,
+        );
         let wind_layer =
             atmospheric_system.generate_geostrophic_winds(&pressure_layer, &world_scale);
 
@@ -607,14 +635,15 @@ impl Simulation {
         self.climate_system.tick();
 
         // Regenerate temperature layer (for seasonal changes)
+        let heightmap_nested = self.heightmap.to_nested();
         self.temperature_layer = self
             .climate_system
-            .generate_temperature_layer(&self.heightmap);
+            .generate_temperature_layer(&heightmap_nested);
 
         // Regenerate pressure layer (coupled to temperature changes)
         self.pressure_layer = self.climate_system.generate_pressure_layer(
             &self.temperature_layer,
-            &self.heightmap,
+            &heightmap_nested,
             &self._world_scale,
         );
 
@@ -643,8 +672,8 @@ impl Simulation {
 
     /// Get the total water + terrain elevation at a position
     pub fn _get_total_elevation(&self, x: usize, y: usize) -> f32 {
-        if y < self.heightmap.len() && x < self.heightmap[0].len() {
-            self.heightmap[y][x] + self.water.depth[y][x]
+        if x < self.heightmap.width() && y < self.heightmap.height() {
+            self.heightmap.get(x, y) + self.water.depth.get(x, y)
         } else {
             0.0
         }
@@ -712,7 +741,7 @@ impl Simulation {
     // Graphics API methods for accessing simulation data layers
 
     /// Get reference to heightmap for graphics rendering
-    pub fn get_heightmap(&self) -> &Vec<Vec<f32>> {
+    pub fn get_heightmap(&self) -> &HeightMap {
         &self.heightmap
     }
 
@@ -743,22 +772,18 @@ impl Simulation {
 
     /// Get heightmap width
     pub fn get_width(&self) -> usize {
-        if self.heightmap.is_empty() {
-            0
-        } else {
-            self.heightmap[0].len()
-        }
+        self.heightmap.width()
     }
 
     /// Get heightmap height
     pub fn get_height(&self) -> usize {
-        self.heightmap.len()
+        self.heightmap.height()
     }
 
     /// Get elevation at specific coordinates
     pub fn get_elevation(&self, x: usize, y: usize) -> f32 {
-        if y < self.heightmap.len() && x < self.heightmap[y].len() {
-            self.heightmap[y][x]
+        if x < self.heightmap.width() && y < self.heightmap.height() {
+            self.heightmap.get(x, y)
         } else {
             0.0
         }
@@ -832,12 +857,12 @@ mod tests {
         let layer = WaterLayer::new(10, 5);
         assert_eq!(layer.width, 10);
         assert_eq!(layer.height, 5);
-        assert_eq!(layer.depth.len(), 5); // height rows
-        assert_eq!(layer.depth[0].len(), 10); // width columns
-        assert_eq!(layer.velocity.len(), 5);
-        assert_eq!(layer.velocity[0].len(), 10);
-        assert_eq!(layer.sediment.len(), 5);
-        assert_eq!(layer.sediment[0].len(), 10);
+        assert_eq!(layer.depth.height(), 5); // height rows
+        assert_eq!(layer.depth.width(), 10); // width columns
+        assert_eq!(layer.velocity.height(), 5);
+        assert_eq!(layer.velocity.width(), 10);
+        assert_eq!(layer.sediment.height(), 5);
+        assert_eq!(layer.sediment.width(), 10);
     }
 
     #[test]
@@ -845,24 +870,25 @@ mod tests {
         let layer = WaterLayer::new(3, 3);
 
         // All depths should be zero
-        for row in &layer.depth {
-            for &depth in row {
-                assert_eq!(depth, 0.0);
+        for y in 0..layer.height {
+            for x in 0..layer.width {
+                assert_eq!(layer.depth.get(x, y), 0.0);
             }
         }
 
         // All velocities should be zero
-        for row in &layer.velocity {
-            for velocity in row {
-                assert_eq!(velocity.x, 0.0);
-                assert_eq!(velocity.y, 0.0);
+        for y in 0..layer.height {
+            for x in 0..layer.width {
+                let velocity = layer.velocity.get(x, y);
+                assert_eq!(velocity.0, 0.0);
+                assert_eq!(velocity.1, 0.0);
             }
         }
 
         // All sediment should be zero
-        for row in &layer.sediment {
-            for &sediment in row {
-                assert_eq!(sediment, 0.0);
+        for y in 0..layer.height {
+            for x in 0..layer.width {
+                assert_eq!(layer.sediment.get(x, y), 0.0);
             }
         }
     }
@@ -948,20 +974,21 @@ mod tests {
     #[test]
     fn flow_direction_flat_terrain_no_flow() {
         let system = test_water_system(3, 3);
-        let heightmap = vec![
+        let heightmap = HeightMap::from_nested(vec![
             vec![0.5, 0.5, 0.5],
             vec![0.5, 0.5, 0.5],
             vec![0.5, 0.5, 0.5],
-        ];
+        ]);
         let mut water = WaterLayer::new(3, 3);
 
         system.calculate_flow_directions(&heightmap, &mut water);
 
         // On flat terrain, there should be no flow
-        for row in &water.velocity {
-            for velocity in row {
-                assert_eq!(velocity.x, 0.0);
-                assert_eq!(velocity.y, 0.0);
+        for y in 0..water.height {
+            for x in 0..water.width {
+                let velocity = water.velocity.get(x, y);
+                assert_eq!(velocity.0, 0.0);
+                assert_eq!(velocity.1, 0.0);
             }
         }
     }
@@ -970,33 +997,30 @@ mod tests {
     fn flow_direction_simple_slope() {
         let system = test_water_system(3, 3);
         // Create a simple slope from left to right
-        let heightmap = vec![
+        let heightmap = HeightMap::from_nested(vec![
             vec![1.0, 0.5, 0.0],
             vec![1.0, 0.5, 0.0],
             vec![1.0, 0.5, 0.0],
-        ];
+        ]);
         let mut water = WaterLayer::new(3, 3);
 
         system.calculate_flow_directions(&heightmap, &mut water);
 
         // Water in center column should flow toward lower elevation (positive x direction)
-        let center_velocity = &water.velocity[1][1];
-        assert!(
-            center_velocity.x > 0.0,
-            "Water should flow downhill (positive x)"
-        );
+        let (vx, vy) = water.velocity.get(1, 1);
+        assert!(vx > 0.0, "Water should flow downhill (positive x)");
         // Note: May have small y component due to 8-neighbor diagonal flow
 
         // Water on rightmost column should have no flow (no lower neighbor)
-        let right_velocity = &water.velocity[1][2];
-        assert_eq!(right_velocity.x, 0.0);
-        assert_eq!(right_velocity.y, 0.0);
+        let (rv_x, rv_y) = water.velocity.get(2, 1);
+        assert_eq!(rv_x, 0.0);
+        assert_eq!(rv_y, 0.0);
     }
 
     #[test]
     fn flow_direction_with_water_depth() {
         let system = test_water_system(2, 2);
-        let heightmap = vec![vec![1.0, 0.5], vec![1.0, 0.5]];
+        let heightmap = HeightMap::from_nested(vec![vec![1.0, 0.5], vec![1.0, 0.5]]);
         let mut water = WaterLayer::new(2, 2);
 
         // Add water that changes the effective elevation
@@ -1006,9 +1030,9 @@ mod tests {
         system.calculate_flow_directions(&heightmap, &mut water);
 
         // Should still flow from higher total elevation to lower
-        let velocity = &water.velocity[0][0];
+        let velocity = water.velocity.get(0, 0);
         assert!(
-            velocity.x > 0.0,
+            velocity.0 > 0.0,
             "Water should flow from higher to lower total elevation"
         );
     }
@@ -1017,19 +1041,20 @@ mod tests {
     fn flow_direction_eight_neighbors() {
         let system = test_water_system(2, 2);
         // Create a heightmap with center cell higher than all neighbors
-        let heightmap = vec![
+        let heightmap = HeightMap::from_nested(vec![
             vec![0.0, 0.0, 0.0],
             vec![0.0, 1.0, 0.0],
             vec![0.0, 0.0, 0.0],
-        ];
+        ]);
         let mut water = WaterLayer::new(3, 3);
 
         system.calculate_flow_directions(&heightmap, &mut water);
 
         // Center cell should flow toward the steepest neighbor
         // All neighbors are equal, so it should pick one of them
-        let center_velocity = &water.velocity[1][1];
-        let magnitude = center_velocity.magnitude();
+        let center_velocity = water.velocity.get(1, 1);
+        let magnitude =
+            (center_velocity.0 * center_velocity.0 + center_velocity.1 * center_velocity.1).sqrt();
         assert!(
             magnitude > 0.0,
             "Center cell should have flow toward neighbors"
@@ -1042,7 +1067,7 @@ mod tests {
     #[test]
     fn flow_direction_boundary_conditions() {
         let system = test_water_system(2, 2);
-        let heightmap = vec![vec![1.0, 0.5], vec![0.8, 0.3]];
+        let heightmap = HeightMap::from_nested(vec![vec![1.0, 0.5], vec![0.8, 0.3]]);
         let mut water = WaterLayer::new(2, 2);
 
         system.calculate_flow_directions(&heightmap, &mut water);
@@ -1050,9 +1075,11 @@ mod tests {
         // Corner cells should only consider their available neighbors
         // This test ensures we don't access out-of-bounds indices
         // Just check that it doesn't panic - the exact flow values depend on implementation
-        for row in &water.velocity {
-            for velocity in row {
-                assert!(velocity.magnitude().is_finite());
+        for y in 0..water.height {
+            for x in 0..water.width {
+                let velocity = water.velocity.get(x, y);
+                let magnitude = (velocity.0 * velocity.0 + velocity.1 * velocity.1).sqrt();
+                assert!(magnitude.is_finite());
             }
         }
     }
@@ -1069,9 +1096,9 @@ mod tests {
 
         system.add_rainfall(&mut water);
 
-        for row in &water.depth {
-            for &depth in row {
-                assert_eq!(depth, system.effective_rainfall_rate);
+        for y in 0..water.height {
+            for x in 0..water.width {
+                assert_eq!(water.depth.get(x, y), system.effective_rainfall_rate);
             }
         }
     }
@@ -1109,35 +1136,38 @@ mod tests {
     #[test]
     fn erosion_removes_terrain_adds_sediment() {
         let system = test_water_system(2, 2);
-        let mut heightmap = vec![vec![1.0]];
+        let mut heightmap = HeightMap::from_nested(vec![vec![1.0]]);
         let mut water = WaterLayer::new(1, 1);
         water.depth[0][0] = 0.1;
-        water.velocity[0][0] = Vec2::new(0.5, 0.0); // Fast flow
+        water.velocity.set(0, 0, (0.5, 0.0)); // Fast flow
         water.sediment[0][0] = 0.0; // No initial sediment
 
-        let initial_height = heightmap[0][0];
+        let initial_height = heightmap.get(0, 0);
         system.apply_erosion(&mut heightmap, &mut water);
 
-        assert!(heightmap[0][0] < initial_height, "Terrain should be eroded");
+        assert!(
+            heightmap.get(0, 0) < initial_height,
+            "Terrain should be eroded"
+        );
         assert!(water.sediment[0][0] > 0.0, "Sediment should increase");
     }
 
     #[test]
     fn deposition_adds_terrain_removes_sediment() {
         let system = test_water_system(2, 2);
-        let mut heightmap = vec![vec![1.0]];
+        let mut heightmap = HeightMap::from_nested(vec![vec![1.0]]);
         let mut water = WaterLayer::new(1, 1);
         water.depth[0][0] = 0.1; // More water needed for capacity calculation
-        water.velocity[0][0] = Vec2::new(0.02, 0.0); // Slow but not too slow flow
+        water.velocity.set(0, 0, (0.02, 0.0)); // Slow but not too slow flow
         water.sediment[0][0] = 0.1; // Lots of sediment
 
-        let initial_height = heightmap[0][0];
+        let initial_height = heightmap.get(0, 0);
         let initial_sediment = water.sediment[0][0];
         system.apply_erosion(&mut heightmap, &mut water);
 
         // Check if deposition occurred (height increased) OR if we're at capacity
         // This test validates the physics are working correctly
-        let height_changed = heightmap[0][0] != initial_height;
+        let height_changed = heightmap.get(0, 0) != initial_height;
         let sediment_changed = water.sediment[0][0] != initial_sediment;
         assert!(
             height_changed || sediment_changed,
@@ -1149,7 +1179,7 @@ mod tests {
     #[test]
     fn simulation_tick_integrates_all_systems() {
         let heightmap = vec![vec![1.0, 0.5], vec![0.8, 0.3]];
-        let mut sim = Simulation::new(heightmap);
+        let mut sim = Simulation::new(HeightMap::from_nested(heightmap));
 
         // Add some initial water
         sim.add_water_at(0, 0, 0.5);
@@ -1167,7 +1197,7 @@ mod tests {
     #[test]
     fn water_conservation_with_no_flow() {
         let heightmap = vec![vec![0.5; 3]; 3]; // Flat terrain
-        let mut sim = Simulation::new(heightmap);
+        let mut sim = Simulation::new(HeightMap::from_nested(heightmap));
 
         // On flat terrain, only rainfall and evaporation should affect water
         sim.tick();
@@ -1215,8 +1245,8 @@ mod tests {
         let small_heightmap = vec![vec![0.5; 10]; 10]; // 100 cells  
         let large_heightmap = vec![vec![0.5; 20]; 20]; // 400 cells (4x larger)
 
-        let small_sim = Simulation::new(small_heightmap);
-        let large_sim = Simulation::new(large_heightmap);
+        let small_sim = Simulation::new(HeightMap::from_nested(small_heightmap));
+        let large_sim = Simulation::new(HeightMap::from_nested(large_heightmap));
 
         // Both should use mass-conserving scaling by default
         assert!(matches!(
@@ -1353,7 +1383,7 @@ mod tests {
             vec![0.0, 0.5, 1.0],
             vec![0.0, 0.5, 1.0],
         ];
-        let mut sim = Simulation::new(heightmap);
+        let mut sim = Simulation::new(HeightMap::from_nested(heightmap));
 
         // Add equal water to all cells
         for y in 0..3 {
@@ -1390,10 +1420,7 @@ mod tests {
 
         // Verify integration is working by checking that evaporation occurred
         let total_water_after = sim.water.get_total_water();
-        let total_water_before = initial_water_distribution
-            .iter()
-            .flat_map(|row| row.iter())
-            .sum::<f32>();
+        let total_water_before = initial_water_distribution.iter().sum::<f32>();
 
         // Some water should have evaporated (unless temperature-dependent evaporation is extremely low)
         // But we can't guarantee exact amounts due to complex interactions
@@ -1410,7 +1437,7 @@ mod tests {
     #[test]
     fn climate_system_seasonal_integration() {
         let heightmap = vec![vec![0.5; 2]; 2]; // Flat terrain
-        let mut sim = Simulation::new(heightmap);
+        let mut sim = Simulation::new(HeightMap::from_nested(heightmap));
 
         // Check that seasonal cycle advances
         let initial_season = sim.climate_system.current_season;
@@ -1441,7 +1468,7 @@ mod tests {
             vec![0.0, 1.0], // Sea level, mountain
             vec![0.5, 0.8], // Hill, high hill
         ];
-        let sim = Simulation::new(heightmap.clone());
+        let sim = Simulation::new(HeightMap::from_nested(heightmap.clone()));
 
         // Temperature should correlate with elevation (higher = cooler)
         let sea_level_temp = sim.temperature_layer.get_temperature(0, 0);
@@ -1474,7 +1501,7 @@ mod tests {
         // Test the problematic 1024x512 map size that Jerry reported
         let heightmap = vec![vec![0.5; 1024]; 512]; // Flat terrain for predictable results
         let world_scale = WorldScale::new(10.0, (1024, 512), DetailLevel::Standard);
-        let mut sim = Simulation::_new_with_scale(heightmap, world_scale);
+        let mut sim = Simulation::_new_with_scale(HeightMap::from_nested(heightmap), world_scale);
 
         // Check that water system has scale-aware threshold
         assert!(
@@ -1607,12 +1634,12 @@ mod tests {
 
         // Test with reasonable velocities - should be stable
         // In simulation units, velocity of 0.01 should translate to reasonable m/s
-        water.velocity[1][1] = Vec2::new(0.01, 0.01);
+        water.velocity.set(1, 1, (0.01, 0.01));
         assert!(system._check_cfl_stability(&water, &scale));
 
         // Test with very high velocities - should be unstable
         // This should translate to much higher than 2.0 m/s
-        water.velocity[1][1] = Vec2::new(1.0, 1.0);
+        water.velocity.set(1, 1, (1.0, 1.0));
         assert!(!system._check_cfl_stability(&water, &scale));
     }
 }

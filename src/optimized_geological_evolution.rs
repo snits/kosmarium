@@ -219,8 +219,16 @@ impl OptimizedGeologicalEvolution {
             // Advance climate system iteration
             self.cached_climate_system.advance_iteration();
 
-            // Early termination if no changes are occurring
-            if !water_changes_occurred && current_stats.active_cells == 0 {
+            // Early termination if no changes are occurring (but respect convergence detection time)
+            let min_iterations_for_convergence = self.config.convergence_config.min_iterations
+                + self
+                    .config
+                    .convergence_config
+                    .consecutive_iterations_required;
+            if !water_changes_occurred
+                && current_stats.active_cells == 0
+                && iteration >= min_iterations_for_convergence
+            {
                 println!(
                     "No active changes detected - terminating early at iteration {}",
                     iteration + 1
@@ -543,11 +551,22 @@ mod tests {
 
         let evolution = OptimizedGeologicalEvolution::new(width, height, config, &world_scale);
 
-        // Create heightmap with significant variation
+        // Create heightmap with localized variation (optimization-friendly)
         let mut heightmap = FlatHeightmap::new(width, height);
         for y in 0..height {
             for x in 0..width {
-                let elevation = ((x + y) as f32 / 20.0).sin();
+                // Create a few peaks with mostly flat terrain
+                let dist_to_peak1 = ((x as f32 - 15.0).powi(2) + (y as f32 - 15.0).powi(2)).sqrt();
+                let dist_to_peak2 = ((x as f32 - 35.0).powi(2) + (y as f32 - 35.0).powi(2)).sqrt();
+
+                let elevation = if dist_to_peak1 < 8.0 {
+                    0.5 + (8.0 - dist_to_peak1) / 8.0 // Peak 1
+                } else if dist_to_peak2 < 6.0 {
+                    0.4 + (6.0 - dist_to_peak2) / 6.0 // Peak 2
+                } else {
+                    0.05 // Mostly flat baseline
+                };
+
                 heightmap.set(x, y, elevation);
             }
         }

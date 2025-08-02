@@ -94,9 +94,9 @@ impl SpatialUpdateTracker {
                     let ny = ny as usize;
                     let index = ny * self.width + nx;
 
-                    // Add to next iteration's active cells
+                    // Add to current active cells for immediate neighbor coupling
                     if propagated_magnitude > self.min_change_threshold * 0.1 {
-                        self.next_active_cells.insert(index);
+                        self.active_cells.insert(index);
                     }
                 }
             }
