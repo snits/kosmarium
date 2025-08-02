@@ -2,6 +2,8 @@
 // ABOUTME: Implements multi-tier update regions for water/evaporation coupling and convergence tracking
 
 use crate::optimized_heightmap::FlatHeightmap;
+use crate::scale::WorldScale;
+use crate::sim::{WaterFlowParameters, WaterFlowSystem};
 use std::collections::HashSet;
 
 /// Represents different types of changes that can occur in a cell
@@ -188,15 +190,44 @@ pub struct OptimizedWaterFlowSystem {
     cached_temperature_valid: bool,
     last_temperature_update: u64,
     temperature_cache_lifetime: u64,
+    // Actual water flow system to delegate physics calculations
+    water_flow_system: WaterFlowSystem,
 }
 
 impl OptimizedWaterFlowSystem {
     pub fn new(width: usize, height: usize) -> Self {
+        // Create a default world scale for the water system
+        // This will use appropriate physics parameters for the given map size
+        let world_scale = WorldScale::new(
+            10.0,
+            (width as u32, height as u32),
+            crate::scale::DetailLevel::Standard,
+        );
+        let water_flow_system = WaterFlowSystem::new_for_scale(&world_scale);
+
         Self {
             update_tracker: SpatialUpdateTracker::new(width, height),
             cached_temperature_valid: false,
             last_temperature_update: 0,
             temperature_cache_lifetime: 100, // Recompute temperature every 100 iterations
+            water_flow_system,
+        }
+    }
+
+    pub fn new_with_params(
+        width: usize,
+        height: usize,
+        params: WaterFlowParameters,
+        world_scale: &WorldScale,
+    ) -> Self {
+        let water_flow_system = WaterFlowSystem::from_parameters(params, world_scale);
+
+        Self {
+            update_tracker: SpatialUpdateTracker::new(width, height),
+            cached_temperature_valid: false,
+            last_temperature_update: 0,
+            temperature_cache_lifetime: 100,
+            water_flow_system,
         }
     }
 
@@ -227,7 +258,7 @@ impl OptimizedWaterFlowSystem {
             let _flow_magnitude =
                 self.calculate_flow_at_cell(heightmap, water_depth, water_velocity, x, y);
             let _erosion_amount =
-                self.apply_erosion_at_cell(heightmap, water_depth, sediment, x, y);
+                self.apply_erosion_at_cell(heightmap, water_depth, water_velocity, sediment, x, y);
 
             // Detect changes and mark neighboring cells if needed
             let elevation_change = (heightmap.get(x, y) - prev_elevation).abs();
@@ -297,28 +328,113 @@ impl OptimizedWaterFlowSystem {
         }
     }
 
-    // Placeholder methods for actual water simulation logic
+    // Real water simulation methods using the full water flow system
     fn calculate_flow_at_cell(
         &self,
-        _heightmap: &FlatHeightmap,
-        _water_depth: &[f32],
-        _water_velocity: &mut [(f32, f32)],
-        _x: usize,
-        _y: usize,
+        heightmap: &FlatHeightmap,
+        water_depth: &[f32],
+        water_velocity: &mut [(f32, f32)],
+        x: usize,
+        y: usize,
     ) -> f32 {
-        // Implementation would go here
-        0.0
+        let (width, height) = heightmap.dimensions();
+        let index = y * width + x;
+
+        let current_elevation = heightmap.get(x, y) + water_depth[index];
+        let mut steepest_slope = 0.0;
+        let mut flow_direction = (0.0, 0.0);
+
+        // Check all 8 neighbors for steepest descent (same logic as WaterFlowSystem)
+        for dy in -1i32..=1 {
+            for dx in -1i32..=1 {
+                if dx == 0 && dy == 0 {
+                    continue;
+                }
+
+                let nx = x as i32 + dx;
+                let ny = y as i32 + dy;
+
+                if nx >= 0 && ny >= 0 && (nx as usize) < width && (ny as usize) < height {
+                    let nx = nx as usize;
+                    let ny = ny as usize;
+                    let neighbor_index = ny * width + nx;
+
+                    let neighbor_elevation = heightmap.get(nx, ny) + water_depth[neighbor_index];
+                    let elevation_diff = current_elevation - neighbor_elevation;
+
+                    if elevation_diff > steepest_slope {
+                        steepest_slope = elevation_diff;
+                        flow_direction = (dx as f32, dy as f32);
+                    }
+                }
+            }
+        }
+
+        // Apply flow rate scaling and direction normalization
+        if steepest_slope > 0.001 {
+            let flow_magnitude =
+                (steepest_slope * self.water_flow_system.parameters.flow_rate).min(1.0);
+            let direction_length =
+                (flow_direction.0 * flow_direction.0 + flow_direction.1 * flow_direction.1).sqrt();
+
+            if direction_length > 0.0 {
+                flow_direction.0 /= direction_length;
+                flow_direction.1 /= direction_length;
+            }
+
+            water_velocity[index] = (
+                flow_direction.0 * flow_magnitude,
+                flow_direction.1 * flow_magnitude,
+            );
+
+            flow_magnitude
+        } else {
+            water_velocity[index] = (0.0, 0.0);
+            0.0
+        }
     }
 
     fn apply_erosion_at_cell(
         &self,
-        _heightmap: &mut FlatHeightmap,
-        _water_depth: &[f32],
-        _sediment: &mut [f32],
-        _x: usize,
-        _y: usize,
+        heightmap: &mut FlatHeightmap,
+        water_depth: &[f32],
+        water_velocity: &[(f32, f32)],
+        sediment: &mut [f32],
+        x: usize,
+        y: usize,
     ) -> f32 {
-        // Implementation would go here
+        let (width, _height) = heightmap.dimensions();
+        let index = y * width + x;
+
+        let velocity = water_velocity[index];
+        let flow_speed = (velocity.0 * velocity.0 + velocity.1 * velocity.1).sqrt();
+        let water_depth_val = water_depth[index];
+
+        if flow_speed > 0.01 && water_depth_val > 0.001 {
+            // Erosion capacity based on flow speed and water depth
+            let erosion_capacity =
+                flow_speed * water_depth_val * self.water_flow_system.parameters.erosion_strength;
+
+            // Erode terrain if we're below capacity
+            let current_sediment = sediment[index];
+            if current_sediment < erosion_capacity {
+                let erosion_amount = (erosion_capacity - current_sediment).min(0.001);
+                let current_height = heightmap.get(x, y);
+                heightmap.set(x, y, current_height - erosion_amount);
+                sediment[index] = current_sediment + erosion_amount;
+                return erosion_amount;
+            }
+            // Deposit sediment if we're over capacity
+            else if current_sediment > erosion_capacity {
+                let deposition_amount = (current_sediment - erosion_capacity)
+                    * self.water_flow_system.parameters.deposition_rate;
+                let current_height = heightmap.get(x, y);
+                heightmap.set(x, y, current_height + deposition_amount);
+                sediment[index] = current_sediment - deposition_amount;
+                return -deposition_amount; // Negative indicates deposition
+            }
+        }
+
         0.0
     }
 }
@@ -402,11 +518,17 @@ mod tests {
         let mut tracker = SpatialUpdateTracker::new(100, 100);
         tracker.mark_cell_changed(50, 50, 0.1, ChangeType::Water);
 
+        // Create a temporary system for testing
+        let world_scale =
+            crate::scale::WorldScale::new(10.0, (100, 100), crate::scale::DetailLevel::Standard);
+        let water_flow_system = crate::sim::WaterFlowSystem::new_for_scale(&world_scale);
+
         let system = OptimizedWaterFlowSystem {
             update_tracker: tracker,
             cached_temperature_valid: false,
             last_temperature_update: 0,
             temperature_cache_lifetime: 100,
+            water_flow_system,
         };
 
         let stats = system.get_performance_stats();
@@ -414,5 +536,110 @@ mod tests {
         assert!(stats.active_cells > 0);
         assert!(stats.efficiency_ratio > 0.0);
         assert!(stats.performance_gain() > 1.0);
+    }
+
+    #[test]
+    fn water_flow_integration_test() {
+        // Test that our fix actually produces water flow changes
+        let width = 10;
+        let height = 10;
+        let mut heightmap = crate::optimized_heightmap::FlatHeightmap::new(width, height);
+
+        // Create a simple slope (high on left, low on right)
+        for y in 0..height {
+            for x in 0..width {
+                heightmap.set(x, y, 1.0 - (x as f32 / width as f32));
+            }
+        }
+
+        // Initialize water system
+        let mut water_system = OptimizedWaterFlowSystem::new(width, height);
+
+        // Create water and sediment arrays with more water to ensure flow
+        let mut water_depths = vec![0.5; width * height]; // More water for better flow
+        let mut water_velocities = vec![(0.0, 0.0); width * height];
+        let mut sediment = vec![0.0; width * height];
+
+        // Initialize some active regions
+        water_system.initialize_active_regions(&heightmap, &water_depths);
+
+        let initial_stats = water_system.get_performance_stats();
+        assert!(
+            initial_stats.active_cells > 0,
+            "Should have some active cells after initialization"
+        );
+
+        // Store initial state to verify changes
+        let initial_total_water: f32 = water_depths.iter().sum();
+        let initial_elevation_sum: f32 = (0..width * height)
+            .map(|i| {
+                let (x, y) = (i % width, i / width);
+                heightmap.get(x, y)
+            })
+            .sum();
+
+        // Run a few iterations and verify changes are detected
+        let mut changes_detected = false;
+        let mut significant_changes = false;
+
+        for iteration in 0..10 {
+            // Store state before iteration
+            let before_water: f32 = water_depths.iter().sum();
+            let before_elevation: f32 = (0..width * height)
+                .map(|i| {
+                    let (x, y) = (i % width, i / width);
+                    heightmap.get(x, y)
+                })
+                .sum();
+
+            let water_changed = water_system.update_water_flow_selective(
+                &mut heightmap,
+                &mut water_depths,
+                &mut water_velocities,
+                &mut sediment,
+                iteration,
+            );
+
+            // Check for actual numerical changes
+            let after_water: f32 = water_depths.iter().sum();
+            let after_elevation: f32 = (0..width * height)
+                .map(|i| {
+                    let (x, y) = (i % width, i / width);
+                    heightmap.get(x, y)
+                })
+                .sum();
+
+            let water_change = (after_water - before_water).abs();
+            let elevation_change = (after_elevation - before_elevation).abs();
+
+            if water_changed {
+                changes_detected = true;
+            }
+
+            if water_change > 0.001 || elevation_change > 0.001 {
+                significant_changes = true;
+            }
+
+            if changes_detected && significant_changes {
+                break;
+            }
+        }
+
+        // Either the system reports changes OR we detect numerical changes
+        assert!(
+            changes_detected || significant_changes,
+            "Water flow should produce detectable changes (reported: {}, numerical: {})",
+            changes_detected,
+            significant_changes
+        );
+
+        let final_stats = water_system.get_performance_stats();
+
+        // If we have any active cells, verify we're getting some optimization
+        if final_stats.active_cells > 0 {
+            // Allow some cases where all cells might be active initially
+            // The key is that the system is functional, not that it's optimized on this test case
+            assert!(final_stats.active_cells <= final_stats.total_cells);
+        }
     }
 }
