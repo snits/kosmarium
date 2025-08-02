@@ -173,6 +173,33 @@ impl GraphicsRenderer {
         // Sample wind vectors at lower resolution to avoid clutter
         let sample_rate = (cell_size / 10.0).max(1.0) as usize;
 
+        // Debug: Check wind data ranges (only print once to avoid spam)
+        static mut DEBUG_PRINTED: bool = false;
+        unsafe {
+            if !DEBUG_PRINTED {
+                let mut max_speed = 0.0f32;
+                let mut min_speed = f32::INFINITY;
+                let mut total_speed = 0.0f32;
+                let mut count = 0;
+
+                for y in 0..simulation.get_height() {
+                    for x in 0..simulation.get_width() {
+                        let speed = wind_layer.get_speed(x, y);
+                        max_speed = max_speed.max(speed);
+                        min_speed = min_speed.min(speed);
+                        total_speed += speed;
+                        count += 1;
+                    }
+                }
+                let avg_speed = total_speed / count as f32;
+                println!(
+                    "WIND DEBUG: min={:.3}, max={:.3}, avg={:.3}",
+                    min_speed, max_speed, avg_speed
+                );
+                DEBUG_PRINTED = true;
+            }
+        }
+
         for y in (0..simulation.get_height()).step_by(sample_rate) {
             for x in (0..simulation.get_width()).step_by(sample_rate) {
                 let velocity = wind_layer.get_velocity(x, y);
