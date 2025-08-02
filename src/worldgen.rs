@@ -703,3 +703,139 @@ impl TectonicGenerator {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_zero_coastal_blending_no_nan() {
+        let config = TectonicConfig {
+            coastal_blending: 0.0,
+            surface_detail: 1.0,
+            enable_geological_evolution: false,
+            geological_evolution_config: None,
+            ..TectonicConfig::default()
+        };
+
+        let generator = TectonicGenerator::new(12345);
+        let heightmap = generator.generate(32, 32, &config);
+
+        for y in 0..heightmap.height() {
+            for x in 0..heightmap.width() {
+                let value = heightmap.get(x, y);
+                assert!(
+                    value.is_finite(),
+                    "Value at ({}, {}) should be finite, got: {}",
+                    x,
+                    y,
+                    value
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_extreme_values_no_nan() {
+        let config = TectonicConfig {
+            surface_detail: 2.0,
+            mountain_scale: 10.0,
+            ocean_depth_scale: 10.0,
+            continental_roughness: 1.0,
+            oceanic_roughness: 1.0,
+            coastal_blending: 1000.0,
+            enable_geological_evolution: false,
+            geological_evolution_config: None,
+            ..TectonicConfig::default()
+        };
+
+        let generator = TectonicGenerator::new(12345);
+        let heightmap = generator.generate(64, 64, &config);
+
+        for y in 0..heightmap.height() {
+            for x in 0..heightmap.width() {
+                let value = heightmap.get(x, y);
+                assert!(
+                    value.is_finite(),
+                    "Value at ({}, {}) should be finite, got: {}",
+                    x,
+                    y,
+                    value
+                );
+                assert!(
+                    value >= -10.0 && value <= 10.0,
+                    "Value at ({}, {}) should be in reasonable bounds, got: {}",
+                    x,
+                    y,
+                    value
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_single_plate_no_nan() {
+        let config = TectonicConfig {
+            num_plates: 1,
+            surface_detail: 0.8,
+            enable_geological_evolution: false,
+            geological_evolution_config: None,
+            ..TectonicConfig::default()
+        };
+
+        let generator = TectonicGenerator::new(12345);
+        let heightmap = generator.generate(32, 32, &config);
+
+        for y in 0..heightmap.height() {
+            for x in 0..heightmap.width() {
+                let value = heightmap.get(x, y);
+                assert!(
+                    value.is_finite(),
+                    "Value at ({}, {}) should be finite, got: {}",
+                    x,
+                    y,
+                    value
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_diamond_square_basic_generation() {
+        let generator = DiamondSquareGenerator::new(42);
+        let config = DiamondSquareConfig::default();
+        let heightmap = generator.generate(64, 64, &config);
+
+        // Verify all values are finite
+        for y in 0..heightmap.height() {
+            for x in 0..heightmap.width() {
+                let value = heightmap.get(x, y);
+                assert!(
+                    value.is_finite(),
+                    "Value at ({}, {}) should be finite, got: {}",
+                    x,
+                    y,
+                    value
+                );
+                assert!(
+                    value >= 0.0 && value <= 1.0,
+                    "Value at ({}, {}) should be normalized, got: {}",
+                    x,
+                    y,
+                    value
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_terrain_generator_trait_compliance() {
+        let ds_generator = DiamondSquareGenerator::new(42);
+        assert_eq!(ds_generator.name(), "Diamond-Square");
+        assert!(ds_generator.supports_arbitrary_dimensions());
+
+        let tectonic_generator = TectonicGenerator::new(42);
+        assert_eq!(tectonic_generator.name(), "Layered Tectonic");
+        assert!(tectonic_generator.supports_arbitrary_dimensions());
+    }
+}
