@@ -1,6 +1,7 @@
 // ABOUTME: Library interface for sim-prototype terrain generation and simulation
 // ABOUTME: Exposes public modules for external use and examples
 
+pub mod agents;
 pub mod atmosphere;
 pub mod cache_system;
 pub mod climate;
