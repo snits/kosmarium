@@ -402,18 +402,18 @@ impl BiomeClassifier {
         precipitation: f32,
         water_depth: f32,
     ) -> BiomeType {
-        // First check for water biomes based on water depth
+        // Check for ice biome first (permanent frozen areas, including frozen water)
+        if temperature <= self.parameters.ice_temperature {
+            return BiomeType::Ice;
+        }
+
+        // Then check for water biomes based on water depth (non-frozen water)
         if water_depth >= self.parameters.ocean_depth_threshold {
             return BiomeType::Ocean;
         } else if water_depth >= self.parameters.lake_depth_threshold {
             return BiomeType::Lake;
         } else if water_depth >= self.parameters.river_depth_threshold {
             return BiomeType::River;
-        }
-
-        // Check for ice biome (permanent frozen)
-        if temperature <= self.parameters.ice_temperature {
-            return BiomeType::Ice;
         }
 
         // Check for alpine biome (high elevation)
@@ -1154,5 +1154,122 @@ mod tests {
         }
 
         // Success: The atmospheric moisture system has been successfully separated from standing water!
+    }
+
+    #[test]
+    fn ice_biome_classification_fix() {
+        let scale = WorldScale::new(1.0, (50, 50), DetailLevel::Standard);
+        let classifier = BiomeClassifier::new_for_scale(&scale);
+
+        // Test Case 1: Cold temperature with significant water depth should return Ice (not Ocean/Lake)
+        // This was the bug - water depth checks happened before ice temperature checks
+        let biome = classifier.classify_biome(
+            0.2,   // elevation (moderate)
+            -20.0, // temperature (well below ice_temperature of -10°C)
+            500.0, // precipitation (moderate)
+            0.15,  // water_depth (above ocean_depth_threshold of 0.1)
+        );
+        assert_eq!(
+            biome,
+            BiomeType::Ice,
+            "Very cold temperature (-20°C) should create Ice biome even with significant water depth"
+        );
+
+        // Test Case 2: Temperature exactly at ice threshold with water depth
+        let biome = classifier.classify_biome(
+            0.3,   // elevation
+            -10.0, // temperature (exactly at ice_temperature threshold)
+            500.0, // precipitation
+            0.05,  // water_depth (above lake_depth_threshold but below ocean threshold)
+        );
+        assert_eq!(
+            biome,
+            BiomeType::Ice,
+            "Temperature exactly at ice threshold (-10°C) should create Ice biome"
+        );
+
+        // Test Case 3: Temperature just above ice threshold should allow water biomes
+        let biome = classifier.classify_biome(
+            0.3,   // elevation
+            -9.9,  // temperature (just above ice_temperature of -10°C)
+            500.0, // precipitation
+            0.15,  // water_depth (above ocean_depth_threshold)
+        );
+        assert_eq!(
+            biome,
+            BiomeType::Ocean,
+            "Temperature above ice threshold should allow water biomes to form"
+        );
+
+        // Test Case 4: Ice formation with different water depths
+        let biome_with_lake_depth = classifier.classify_biome(
+            0.2, -15.0, 500.0, 0.05, // lake-level water depth
+        );
+        assert_eq!(
+            biome_with_lake_depth,
+            BiomeType::Ice,
+            "Ice should form regardless of lake-level water depth"
+        );
+
+        let biome_with_river_depth = classifier.classify_biome(
+            0.2, -15.0, 500.0, 0.02, // river-level water depth
+        );
+        assert_eq!(
+            biome_with_river_depth,
+            BiomeType::Ice,
+            "Ice should form regardless of river-level water depth"
+        );
+
+        // Test Case 5: Warm temperature with water should still form water biomes properly
+        let biome = classifier.classify_biome(
+            0.1,   // elevation
+            15.0,  // temperature (warm)
+            800.0, // precipitation
+            0.12,  // water_depth (ocean level)
+        );
+        assert_eq!(
+            biome,
+            BiomeType::Ocean,
+            "Warm temperature with water depth should form Ocean biome"
+        );
+
+        // Test Case 6: Cold but not ice-cold temperature with water
+        let biome = classifier.classify_biome(
+            0.1,   // elevation
+            -5.0,  // temperature (cold but above ice threshold)
+            800.0, // precipitation
+            0.04,  // water_depth (lake level)
+        );
+        assert_eq!(
+            biome,
+            BiomeType::Lake,
+            "Cold temperature above ice threshold should allow Lake biome"
+        );
+
+        // Test Case 7: Ice formation on land (no water depth)
+        let biome = classifier.classify_biome(
+            0.5,   // elevation
+            -25.0, // temperature (very cold)
+            200.0, // precipitation (low)
+            0.0,   // water_depth (no water)
+        );
+        assert_eq!(
+            biome,
+            BiomeType::Ice,
+            "Very cold temperature should create Ice biome even on dry land"
+        );
+
+        // Test Case 8: Ice takes priority over alpine biome
+        let biome = classifier.classify_biome(
+            0.9,   // elevation (above alpine_elevation of 0.8)
+            -15.0, // temperature (ice temperature)
+            300.0, // precipitation
+            0.0,   // water_depth
+        );
+        assert_eq!(
+            biome,
+            BiomeType::Ice,
+            "Ice temperature should take priority over alpine elevation classification"
+        );
     }
 }
