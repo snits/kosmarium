@@ -308,9 +308,9 @@ impl ClimateSystem {
 
         Self {
             parameters,
-            current_season: 0.0,         // Start in winter
+            current_season: 0.5, // Start in late spring/early summer for reasonable temperatures
             seasonal_rate: 1.0 / 3650.0, // One year = ~3650 ticks (10 ticks per day)
-            pressure_seed: 12345,        // Default seed for reproducible weather
+            pressure_seed: 12345, // Default seed for reproducible weather
         }
     }
 
@@ -320,7 +320,7 @@ impl ClimateSystem {
 
         Self {
             parameters: scaled_params,
-            current_season: 0.0,
+            current_season: 0.5, // Start in late spring/early summer for reasonable temperatures
             seasonal_rate: 1.0 / 3650.0,
             pressure_seed: 12345,
         }

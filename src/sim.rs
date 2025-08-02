@@ -503,9 +503,20 @@ impl Simulation {
         let height = heightmap.height();
         let width = heightmap.width();
 
-        // Default to 10km physical size with standard detail
+        // Scale physical size to accommodate both terrain detail and climate realism
+        let base_area = 240.0 * 120.0;
+        let current_area = (width * height) as f64;
+        let area_ratio = current_area / base_area;
+
+        // Climate systems need larger domains for realistic behavior
+        let climate_scale = 100.0 * (area_ratio / 4.0).sqrt();
+        let terrain_scale = 10.0 * area_ratio.sqrt();
+
+        // Use the larger scale to accommodate both systems
+        let physical_size_km = climate_scale.max(terrain_scale);
+
         let world_scale = WorldScale::new(
-            10.0,
+            physical_size_km,
             (width as u32, height as u32),
             crate::scale::DetailLevel::Standard,
         );
@@ -526,13 +537,10 @@ impl Simulation {
             atmospheric_system.generate_geostrophic_winds(&pressure_layer, &world_scale);
 
         // Create drainage network from heightmap
-        println!("Creating drainage network for {}x{} map...", width, height);
+        // Debug output disabled for clean TUI display
         let drainage_start = std::time::Instant::now();
         let drainage_network = DrainageNetwork::from_heightmap(&heightmap, &world_scale);
-        println!(
-            "Drainage network created in {:.2?}",
-            drainage_start.elapsed()
-        );
+        // Debug timing disabled for clean TUI display
 
         let mut simulation = Self {
             heightmap,
@@ -848,10 +856,10 @@ impl Simulation {
         }
 
         // Apply drainage concentration once to create realistic initial water distribution
-        println!("Applying initial drainage concentration...");
+        // Debug output disabled for clean TUI display
         self.apply_drainage_concentration();
 
-        println!("Initial water distribution complete.");
+        // Debug completion message disabled for clean TUI display
     }
 
     /// Get drainage network statistics for analysis

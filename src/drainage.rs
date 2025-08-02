@@ -171,10 +171,6 @@ impl FlowAccumulationMap {
         let width = flow_directions.width();
         let height = flow_directions.height();
         let total_cells = width * height;
-        println!(
-            "Computing flow accumulation for {}x{} map ({} cells)...",
-            width, height, total_cells
-        );
 
         let mut accumulation = vec![1.0f32; total_cells]; // Each cell contributes 1 unit area
 
@@ -375,11 +371,7 @@ pub struct DrainageNetwork {
 impl DrainageNetwork {
     /// Create drainage network from heightmap with default parameters
     pub fn from_heightmap(heightmap: &HeightMap, scale: &WorldScale) -> Self {
-        println!(
-            "WARNING: Creating new drainage network for {}x{} map!",
-            heightmap.width(),
-            heightmap.height()
-        );
+        // Debug output disabled for clean TUI display
         let parameters = DrainageNetworkParameters::default().derive_parameters(scale);
         Self::from_heightmap_with_parameters(heightmap, parameters)
     }

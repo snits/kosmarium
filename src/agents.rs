@@ -1,6 +1,7 @@
 // ABOUTME: Real-time agent system with high-performance structure-of-arrays storage
 // ABOUTME: Supports NPCs, creatures, and player avatars with social dynamics and cultural evolution
 
+use crate::biome::{BiomeMap, BiomeType};
 use crate::climate::ClimateSystem;
 use crate::heightmap::HeightMap;
 use crate::scale::WorldScale;
@@ -85,6 +86,12 @@ pub struct AgentSystem {
     energy_values: Vec<f32>,  // 4 bytes * n agents
     behavior_states: Vec<u8>, // 1 byte * n agents (state machine index)
 
+    // Biome cache - updated only on cell boundary crossings for performance
+    cached_movement_costs: Vec<f32>,    // 4 bytes * n agents
+    cached_resource_density: Vec<f32>,  // 4 bytes * n agents
+    cached_visibility: Vec<f32>,        // 4 bytes * n agents
+    cached_biome_types: Vec<BiomeType>, // 1 byte * n agents
+
     // Cold data - accessed occasionally
     agent_ids: Vec<AgentId>, // 8 bytes * n agents
 
@@ -150,6 +157,10 @@ impl AgentSystem {
             health_values: Vec::with_capacity(initial_capacity),
             energy_values: Vec::with_capacity(initial_capacity),
             behavior_states: Vec::with_capacity(initial_capacity),
+            cached_movement_costs: Vec::with_capacity(initial_capacity),
+            cached_resource_density: Vec::with_capacity(initial_capacity),
+            cached_visibility: Vec::with_capacity(initial_capacity),
+            cached_biome_types: Vec::with_capacity(initial_capacity),
             agent_ids: Vec::with_capacity(initial_capacity),
             generations: Vec::with_capacity(initial_capacity),
             free_indices: Vec::new(),
@@ -164,12 +175,13 @@ impl AgentSystem {
         }
     }
 
-    /// Spawn new agent at specified position
+    /// Spawn new agent at specified position with biome integration
     pub fn spawn_agent(
         &mut self,
         agent_type: AgentType,
         position: Vec2,
         radius: f32,
+        biome_map: Option<&BiomeMap>,
     ) -> SpawnResult {
         // Validate spawn position
         if !self.world_bounds.contains(position) {
@@ -193,6 +205,10 @@ impl AgentSystem {
             self.health_values.push(0.0);
             self.energy_values.push(0.0);
             self.behavior_states.push(0);
+            self.cached_movement_costs.push(1.0);
+            self.cached_resource_density.push(1.0);
+            self.cached_visibility.push(1.0);
+            self.cached_biome_types.push(BiomeType::Grassland);
             self.agent_ids.push(AgentId::new(0, 0)); // Placeholder
             self.generations.push(self.next_generation);
             self.spatial_grid.agent_cells.push(0);
@@ -211,6 +227,9 @@ impl AgentSystem {
         self.energy_values[agent_index] = 100.0; // Full energy
         self.behavior_states[agent_index] = 0; // Idle state
         self.agent_ids[agent_index] = agent_id;
+
+        // Initialize biome cache
+        self.update_biome_cache(agent_index, position, biome_map);
 
         // Add to spatial grid
         self.add_to_spatial_grid(agent_index, position);
@@ -257,8 +276,13 @@ impl AgentSystem {
         }
     }
 
-    /// Set agent position with spatial grid update
-    pub fn set_position(&mut self, agent_id: AgentId, new_position: Vec2) -> AgentResult<()> {
+    /// Set agent position with spatial grid and biome cache update
+    pub fn set_position(
+        &mut self,
+        agent_id: AgentId,
+        new_position: Vec2,
+        biome_map: Option<&BiomeMap>,
+    ) -> AgentResult<()> {
         let index = agent_id.index();
 
         // Validate agent exists
@@ -275,9 +299,14 @@ impl AgentSystem {
 
         // Update spatial grid if position changed significantly
         let old_position = self.positions[index];
-        if (new_position - old_position).length_squared() > 0.01 {
+        let position_changed = (new_position - old_position).length_squared() > 0.01;
+
+        if position_changed {
             self.remove_from_spatial_grid(index);
             self.add_to_spatial_grid(index, new_position);
+
+            // Update biome cache when crossing cell boundaries
+            self.update_biome_cache(index, new_position, biome_map);
         }
 
         // Update position
@@ -360,6 +389,99 @@ impl AgentSystem {
             self.spatial_grid.cells[cell_index].swap_remove(pos);
         }
     }
+
+    /// Update biome cache for agent at given position
+    fn update_biome_cache(
+        &mut self,
+        agent_index: usize,
+        position: Vec2,
+        biome_map: Option<&BiomeMap>,
+    ) {
+        if let Some(biome_map) = biome_map {
+            // Convert world position (0.0-1.0) to grid coordinates
+            let grid_x = (position.x * (biome_map.width() as f32 - 1.0)) as usize;
+            let grid_y = (position.y * (biome_map.height() as f32 - 1.0)) as usize;
+
+            let grid_x = grid_x.min(biome_map.width() - 1);
+            let grid_y = grid_y.min(biome_map.height() - 1);
+
+            let biome_type = biome_map.get(grid_x, grid_y);
+
+            self.cached_biome_types[agent_index] = biome_type;
+            self.cached_movement_costs[agent_index] = biome_type.movement_cost();
+            self.cached_resource_density[agent_index] = biome_type.resource_density();
+            self.cached_visibility[agent_index] = biome_type.visibility_multiplier();
+        } else {
+            // Default values when no biome map provided
+            self.cached_biome_types[agent_index] = BiomeType::Grassland;
+            self.cached_movement_costs[agent_index] = 1.0;
+            self.cached_resource_density[agent_index] = 1.0;
+            self.cached_visibility[agent_index] = 1.0;
+        }
+    }
+
+    /// Get cached movement cost for agent (hot path optimization)
+    #[inline]
+    pub fn get_movement_cost(&self, agent_id: AgentId) -> Option<f32> {
+        let index = agent_id.index();
+        if index < self.cached_movement_costs.len()
+            && self.generations[index] == agent_id.generation()
+        {
+            Some(self.cached_movement_costs[index])
+        } else {
+            None
+        }
+    }
+
+    /// Get cached resource density for agent
+    #[inline]
+    pub fn get_resource_density(&self, agent_id: AgentId) -> Option<f32> {
+        let index = agent_id.index();
+        if index < self.cached_resource_density.len()
+            && self.generations[index] == agent_id.generation()
+        {
+            Some(self.cached_resource_density[index])
+        } else {
+            None
+        }
+    }
+
+    /// Get cached visibility multiplier for agent
+    #[inline]
+    pub fn get_visibility_multiplier(&self, agent_id: AgentId) -> Option<f32> {
+        let index = agent_id.index();
+        if index < self.cached_visibility.len() && self.generations[index] == agent_id.generation()
+        {
+            Some(self.cached_visibility[index])
+        } else {
+            None
+        }
+    }
+
+    /// Get cached biome type for agent
+    #[inline]
+    pub fn get_biome_type(&self, agent_id: AgentId) -> Option<BiomeType> {
+        let index = agent_id.index();
+        if index < self.cached_biome_types.len() && self.generations[index] == agent_id.generation()
+        {
+            Some(self.cached_biome_types[index])
+        } else {
+            None
+        }
+    }
+
+    /// Find path using A* algorithm with biome-aware costs
+    pub fn find_path(
+        &self,
+        agent_id: AgentId,
+        start: Vec2,
+        goal: Vec2,
+        biome_map: Option<&BiomeMap>,
+    ) -> Option<Vec<Vec2>> {
+        // Simple A* pathfinding implementation
+        let pathfinder = BiomeAwarePathfinder::new(biome_map, &self.world_bounds);
+        pathfinder.find_path(agent_id, start, goal, self)
+    }
 }
 
 /// Extension trait for HeightMap integration
@@ -429,6 +551,226 @@ impl HeightMapAgentExtensions for HeightMap {
     }
 }
 
+/// Simple A* pathfinding with biome-aware costs
+pub struct BiomeAwarePathfinder<'a> {
+    biome_map: Option<&'a BiomeMap>,
+    world_bounds: &'a WorldBounds,
+    grid_resolution: usize, // Grid resolution for pathfinding
+}
+
+impl<'a> BiomeAwarePathfinder<'a> {
+    pub fn new(biome_map: Option<&'a BiomeMap>, world_bounds: &'a WorldBounds) -> Self {
+        Self {
+            biome_map,
+            world_bounds,
+            grid_resolution: 32, // 32x32 pathfinding grid
+        }
+    }
+
+    pub fn find_path(
+        &self,
+        agent_id: AgentId,
+        start: Vec2,
+        goal: Vec2,
+        agent_system: &AgentSystem,
+    ) -> Option<Vec<Vec2>> {
+        use std::cmp::Ordering;
+        use std::collections::{BinaryHeap, HashMap};
+
+        // Simple grid-based A* for now
+        #[derive(Copy, Clone, Eq, PartialEq, Debug)]
+        struct Node {
+            position: (i32, i32),
+            cost: i32, // Use integer cost for BinaryHeap
+            heuristic: i32,
+        }
+
+        impl Ord for Node {
+            fn cmp(&self, other: &Self) -> Ordering {
+                // Reverse ordering for min-heap
+                (other.cost + other.heuristic).cmp(&(self.cost + self.heuristic))
+            }
+        }
+
+        impl PartialOrd for Node {
+            fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+                Some(self.cmp(other))
+            }
+        }
+
+        // Convert world coordinates to grid coordinates
+        let world_size = self.world_bounds.max - self.world_bounds.min;
+        let cell_size = world_size.x.max(world_size.y) / self.grid_resolution as f32;
+
+        let start_grid = (
+            ((start.x - self.world_bounds.min.x) / cell_size) as i32,
+            ((start.y - self.world_bounds.min.y) / cell_size) as i32,
+        );
+
+        let goal_grid = (
+            ((goal.x - self.world_bounds.min.x) / cell_size) as i32,
+            ((goal.y - self.world_bounds.min.y) / cell_size) as i32,
+        );
+
+        let mut open_set = BinaryHeap::new();
+        let mut came_from: HashMap<(i32, i32), (i32, i32)> = HashMap::new();
+        let mut g_score: HashMap<(i32, i32), i32> = HashMap::new();
+
+        g_score.insert(start_grid, 0);
+        open_set.push(Node {
+            position: start_grid,
+            cost: 0,
+            heuristic: manhattan_distance(start_grid, goal_grid),
+        });
+
+        while let Some(current) = open_set.pop() {
+            if current.position == goal_grid {
+                // Reconstruct path
+                let mut path = Vec::new();
+                let mut current_pos = goal_grid;
+
+                while current_pos != start_grid {
+                    // Convert grid coordinates back to world coordinates
+                    let world_x =
+                        self.world_bounds.min.x + (current_pos.0 as f32 + 0.5) * cell_size;
+                    let world_y =
+                        self.world_bounds.min.y + (current_pos.1 as f32 + 0.5) * cell_size;
+                    path.push(Vec2::new(world_x, world_y));
+
+                    current_pos = came_from[&current_pos];
+                }
+
+                path.reverse();
+                return Some(path);
+            }
+
+            // Check neighbors
+            for &(dx, dy) in &[
+                (-1, 0),
+                (1, 0),
+                (0, -1),
+                (0, 1),
+                (-1, -1),
+                (-1, 1),
+                (1, -1),
+                (1, 1),
+            ] {
+                let neighbor = (current.position.0 + dx, current.position.1 + dy);
+
+                // Bounds check
+                if neighbor.0 < 0
+                    || neighbor.0 >= self.grid_resolution as i32
+                    || neighbor.1 < 0
+                    || neighbor.1 >= self.grid_resolution as i32
+                {
+                    continue;
+                }
+
+                // Convert to world coordinates for biome check
+                let world_x = self.world_bounds.min.x + (neighbor.0 as f32 + 0.5) * cell_size;
+                let world_y = self.world_bounds.min.y + (neighbor.1 as f32 + 0.5) * cell_size;
+                let neighbor_world = Vec2::new(world_x, world_y);
+
+                // Check if passable using biome data
+                if !self.is_passable(neighbor_world) {
+                    continue;
+                }
+
+                // Calculate movement cost using agent's cached biome data
+                let movement_cost =
+                    if let Some(cached_cost) = agent_system.get_movement_cost(agent_id) {
+                        cached_cost
+                    } else {
+                        1.0
+                    };
+
+                // Integer cost for A* (multiply by 100 for precision)
+                let edge_cost = if dx != 0 && dy != 0 {
+                    (141 as f32 * movement_cost) as i32 // Diagonal movement ~1.41
+                } else {
+                    (100 as f32 * movement_cost) as i32 // Cardinal movement
+                };
+
+                let tentative_g_score = g_score[&current.position] + edge_cost;
+
+                if tentative_g_score < *g_score.get(&neighbor).unwrap_or(&i32::MAX) {
+                    came_from.insert(neighbor, current.position);
+                    g_score.insert(neighbor, tentative_g_score);
+
+                    open_set.push(Node {
+                        position: neighbor,
+                        cost: tentative_g_score,
+                        heuristic: manhattan_distance(neighbor, goal_grid),
+                    });
+                }
+            }
+        }
+
+        None // No path found
+    }
+
+    fn is_passable(&self, world_pos: Vec2) -> bool {
+        if let Some(biome_map) = self.biome_map {
+            // Convert world coordinates to biome map coordinates
+            let grid_x = (world_pos.x * (biome_map.width() as f32 - 1.0)) as usize;
+            let grid_y = (world_pos.y * (biome_map.height() as f32 - 1.0)) as usize;
+
+            let grid_x = grid_x.min(biome_map.width() - 1);
+            let grid_y = grid_y.min(biome_map.height() - 1);
+
+            biome_map.get(grid_x, grid_y).is_passable()
+        } else {
+            true // Assume passable if no biome map
+        }
+    }
+}
+
+fn manhattan_distance(a: (i32, i32), b: (i32, i32)) -> i32 {
+    (a.0 - b.0).abs() + (a.1 - b.1).abs()
+}
+
+/// Extension trait for biome-aware agent movement
+pub trait BiomeAwareMovement {
+    /// Calculate movement cost using cached biome data
+    fn biome_movement_cost(&self, agent_id: AgentId, from: Vec2, to: Vec2) -> f32;
+
+    /// Check if path is passable using cached biome data
+    fn is_path_passable(&self, agent_id: AgentId, from: Vec2, to: Vec2) -> bool;
+
+    /// Get effective visibility range for agent at current position
+    fn effective_visibility_range(&self, agent_id: AgentId, base_range: f32) -> f32;
+}
+
+impl BiomeAwareMovement for AgentSystem {
+    fn biome_movement_cost(&self, agent_id: AgentId, from: Vec2, to: Vec2) -> f32 {
+        let distance = (to - from).length();
+
+        if let Some(movement_cost) = self.get_movement_cost(agent_id) {
+            // Use cached biome movement cost multiplier
+            distance * movement_cost
+        } else {
+            // Fallback to base distance if agent not found
+            distance
+        }
+    }
+
+    fn is_path_passable(&self, agent_id: AgentId, _from: Vec2, _to: Vec2) -> bool {
+        if let Some(biome_type) = self.get_biome_type(agent_id) {
+            biome_type.is_passable()
+        } else {
+            true // Assume passable if no biome data
+        }
+    }
+
+    fn effective_visibility_range(&self, agent_id: AgentId, base_range: f32) -> f32 {
+        if let Some(visibility_multiplier) = self.get_visibility_multiplier(agent_id) {
+            base_range * visibility_multiplier
+        } else {
+            base_range
+        }
+    }
+}
+
 /// Context provider that integrates all simulation systems
 pub struct SimulationContext<'a> {
     pub heightmap: &'a HeightMap,
@@ -479,7 +821,7 @@ mod tests {
 
         // Spawn agent
         let agent_id = agent_system
-            .spawn_agent(AgentType::NPC, Vec2::new(50.0, 50.0), 1.0)
+            .spawn_agent(AgentType::NPC, Vec2::new(50.0, 50.0), 1.0, None)
             .unwrap();
 
         assert_eq!(agent_system.agent_count(), 1);
@@ -502,13 +844,13 @@ mod tests {
 
         // Spawn agents at different positions
         let agent1 = agent_system
-            .spawn_agent(AgentType::NPC, Vec2::new(10.0, 10.0), 1.0)
+            .spawn_agent(AgentType::NPC, Vec2::new(10.0, 10.0), 1.0, None)
             .unwrap();
         let agent2 = agent_system
-            .spawn_agent(AgentType::NPC, Vec2::new(12.0, 12.0), 1.0)
+            .spawn_agent(AgentType::NPC, Vec2::new(12.0, 12.0), 1.0, None)
             .unwrap();
         let agent3 = agent_system
-            .spawn_agent(AgentType::NPC, Vec2::new(50.0, 50.0), 1.0)
+            .spawn_agent(AgentType::NPC, Vec2::new(50.0, 50.0), 1.0, None)
             .unwrap();
 
         // Query agents near (10, 10)
@@ -531,11 +873,189 @@ mod tests {
             AgentType::NPC,
             Vec2::new(150.0, 150.0), // Outside bounds
             1.0,
+            None,
         );
 
         assert!(result.is_err());
         if let Err(AgentError::InvalidSpawnPosition { position, .. }) = result {
             assert_eq!(position, Vec2::new(150.0, 150.0));
         }
+    }
+
+    #[test]
+    fn agent_pathfinding() {
+        use crate::biome::{BiomeMap, BiomeType};
+
+        let bounds = WorldBounds::new(Vec2::new(0.0, 0.0), Vec2::new(100.0, 100.0));
+        let mut agent_system = AgentSystem::new(bounds, 10);
+
+        // Create a simple biome map for testing
+        let mut biome_map = BiomeMap::new(10, 10, BiomeType::Grassland);
+        // Add some obstacles (ocean)
+        biome_map.set(5, 5, BiomeType::Ocean);
+        biome_map.set(5, 6, BiomeType::Ocean);
+
+        // Spawn agent
+        let agent_id = agent_system
+            .spawn_agent(AgentType::NPC, Vec2::new(10.0, 10.0), 1.0, Some(&biome_map))
+            .unwrap();
+
+        // Test pathfinding from start to goal
+        let start = Vec2::new(10.0, 10.0);
+        let goal = Vec2::new(90.0, 90.0);
+
+        let path = agent_system.find_path(agent_id, start, goal, Some(&biome_map));
+
+        // Should find some path (might go around obstacles)
+        assert!(path.is_some());
+
+        if let Some(path) = path {
+            assert!(!path.is_empty());
+            // Path should lead towards the goal
+            assert!(path.len() > 1);
+        }
+    }
+
+    #[test]
+    fn agent_biome_caching() {
+        use crate::biome::{BiomeMap, BiomeType};
+
+        let bounds = WorldBounds::new(Vec2::new(0.0, 0.0), Vec2::new(100.0, 100.0));
+        let mut agent_system = AgentSystem::new(bounds, 10);
+
+        // Create biome map with forest (higher movement cost)
+        let mut biome_map = BiomeMap::new(10, 10, BiomeType::TemperateForest);
+
+        // Spawn agent in forest
+        let agent_id = agent_system
+            .spawn_agent(AgentType::NPC, Vec2::new(50.0, 50.0), 1.0, Some(&biome_map))
+            .unwrap();
+
+        // Check cached values
+        assert_eq!(
+            agent_system.get_biome_type(agent_id),
+            Some(BiomeType::TemperateForest)
+        );
+        assert_eq!(
+            agent_system.get_movement_cost(agent_id),
+            Some(BiomeType::TemperateForest.movement_cost())
+        );
+        assert_eq!(
+            agent_system.get_resource_density(agent_id),
+            Some(BiomeType::TemperateForest.resource_density())
+        );
+        assert_eq!(
+            agent_system.get_visibility_multiplier(agent_id),
+            Some(BiomeType::TemperateForest.visibility_multiplier())
+        );
+    }
+
+    #[test]
+    fn agent_performance_300_agents() {
+        use crate::biome::{BiomeMap, BiomeType};
+        use std::time::Instant;
+
+        let bounds = WorldBounds::new(Vec2::new(0.0, 0.0), Vec2::new(100.0, 100.0));
+        let mut agent_system = AgentSystem::new(bounds, 300);
+
+        // Create diverse biome map for realistic testing
+        let mut biome_map = BiomeMap::new(50, 50, BiomeType::Grassland);
+        for y in 0..50 {
+            for x in 0..50 {
+                let biome = match (x + y) % 5 {
+                    0 => BiomeType::Grassland,
+                    1 => BiomeType::TemperateForest,
+                    2 => BiomeType::Shrubland,
+                    3 => BiomeType::Desert,
+                    4 => BiomeType::Savanna,
+                    _ => BiomeType::Grassland,
+                };
+                biome_map.set(x, y, biome);
+            }
+        }
+
+        // Spawn 300 agents with performance timing
+        let spawn_start = Instant::now();
+        let mut agent_ids = Vec::new();
+
+        for i in 0..300 {
+            let grid_x = i % 10;
+            let grid_y = i / 10;
+            let x = 5.0 + (grid_x as f32) * 9.0; // Distribute in 10x30 grid within bounds
+            let y = 5.0 + (grid_y as f32) * 3.0;
+            let agent_id = agent_system
+                .spawn_agent(AgentType::NPC, Vec2::new(x, y), 1.0, Some(&biome_map))
+                .unwrap();
+            agent_ids.push(agent_id);
+        }
+        let spawn_duration = spawn_start.elapsed();
+
+        println!("300 agent spawn time: {:?}", spawn_duration);
+        assert_eq!(agent_system.agent_count(), 300);
+
+        // Test spatial queries performance (key for pathfinding)
+        let query_start = Instant::now();
+        let mut total_neighbors = 0;
+
+        for agent_id in &agent_ids {
+            if let Some(position) = agent_system.get_position(*agent_id) {
+                let neighbors = agent_system.agents_in_radius(position, 5.0);
+                total_neighbors += neighbors.len();
+            }
+        }
+        let query_duration = query_start.elapsed();
+
+        println!(
+            "300 spatial queries time: {:?} (avg: {:?})",
+            query_duration,
+            query_duration / 300
+        );
+        println!("Total neighbors found: {}", total_neighbors);
+
+        // Test biome cache access performance
+        let cache_start = Instant::now();
+        let mut total_movement_cost = 0.0;
+
+        for agent_id in &agent_ids {
+            if let Some(cost) = agent_system.get_movement_cost(*agent_id) {
+                total_movement_cost += cost;
+            }
+        }
+        let cache_duration = cache_start.elapsed();
+
+        println!(
+            "300 biome cache accesses time: {:?} (avg: {:?})",
+            cache_duration,
+            cache_duration / 300
+        );
+        println!("Total movement cost: {}", total_movement_cost);
+
+        // Performance targets from Phase 4A spec: <5ms total agent processing per 10Hz tick
+        // That's <500μs per agent budget for all operations
+        let per_agent_spawn_time = spawn_duration.as_nanos() / 300;
+        let per_agent_query_time = query_duration.as_nanos() / 300;
+        let per_agent_cache_time = cache_duration.as_nanos() / 300;
+
+        println!("Per-agent timings (nanoseconds):");
+        println!("  Spawn: {} ns", per_agent_spawn_time);
+        println!("  Spatial query: {} ns", per_agent_query_time);
+        println!("  Cache access: {} ns", per_agent_cache_time);
+
+        // Validate performance targets (generous for debug build)
+        assert!(
+            per_agent_spawn_time < 100_000,
+            "Agent spawn too slow: {} ns",
+            per_agent_spawn_time
+        );
+        assert!(
+            per_agent_query_time < 50_000,
+            "Spatial query too slow: {} ns",
+            per_agent_query_time
+        );
+        assert!(
+            per_agent_cache_time < 1_000,
+            "Cache access too slow: {} ns",
+            per_agent_cache_time
+        );
     }
 }

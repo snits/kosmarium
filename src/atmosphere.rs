@@ -265,12 +265,18 @@ impl AtmosphericSystem {
         2.0 * self.parameters.earth_rotation_rate * latitude_rad.sin()
     }
 
-    /// Convert grid coordinates to latitude (assuming map spans -45° to +45°)
+    /// Convert grid coordinates to latitude (full global coverage -90° to +90°)
     pub fn grid_y_to_latitude(&self, y: usize, height: usize) -> f64 {
-        // Map y coordinate to latitude range [-π/4, π/4] (±45°)
-        let normalized_y = (y as f64) / (height as f64); // 0 to 1
-        let latitude_range = std::f64::consts::PI / 2.0; // 90° total range
-        (normalized_y - 0.5) * latitude_range // -45° to +45°
+        // Map y coordinate to latitude range [-π/2, π/2] (±90°) for full global coverage
+        // For a grid of height N, indices are 0 to N-1
+        // y=0 should map to -π/2 (north pole), y=N-1 should map to +π/2 (south pole)
+        let normalized_y = if height > 1 {
+            (y as f64) / ((height - 1) as f64) // 0 to 1 across the actual range
+        } else {
+            0.5 // Single cell = equator
+        };
+        let latitude_range = std::f64::consts::PI; // 180° total range (full globe)
+        (normalized_y - 0.5) * latitude_range // -90° to +90°
     }
 
     /// Generate geostrophic wind field from pressure gradients
@@ -303,19 +309,43 @@ impl AtmosphericSystem {
                 let latitude_rad = self.grid_y_to_latitude(y, height);
                 let f = self.coriolis_parameter_at_latitude(latitude_rad);
 
+                // Handle special latitude cases
                 if f.abs() < 1e-10 {
-                    // Near equator - no Coriolis effect
-                    wind_layer.velocity[y][x] = Vec2::zero();
+                    // Near equator - no Coriolis effect, winds follow pressure gradients directly
+                    let rho = self.parameters.air_density_sea_level;
+                    let direct_u = -(pressure_gradient.x / rho) * 0.1; // Reduced pressure-driven flow
+                    let direct_v = -(pressure_gradient.y / rho) * 0.1;
+                    wind_layer.velocity[y][x] = Vec2::new(direct_u, direct_v);
                     continue;
                 }
 
-                // Geostrophic balance: f × v = -∇P/ρ
-                // In 2D: f * v_y = -∂P/∂x/ρ  and  -f * v_x = -∂P/∂y/ρ
-                // Therefore: v_x = (1/f) * (∂P/∂y/ρ)  and  v_y = -(1/f) * (∂P/∂x/ρ)
+                // Handle polar regions (|latitude| > 70°) where Coriolis effects become very strong
+                let latitude_abs = latitude_rad.abs();
+                let polar_threshold = 70.0 * std::f64::consts::PI / 180.0; // 70° in radians
 
-                let rho = self.parameters.air_density_sea_level;
-                let geostrophic_u = (pressure_gradient.y / rho) / (f as f32);
-                let geostrophic_v = -(pressure_gradient.x / rho) / (f as f32);
+                let (geostrophic_u, geostrophic_v) = if latitude_abs > polar_threshold {
+                    // Near poles: Very strong Coriolis effects, limit wind speeds to reasonable values
+                    let rho = self.parameters.air_density_sea_level;
+                    let max_polar_wind = 50.0; // Maximum wind speed in polar regions (m/s)
+
+                    // Calculate geostrophic wind but clamp to reasonable values
+                    let raw_u = (pressure_gradient.y / rho) / (f as f32);
+                    let raw_v = -(pressure_gradient.x / rho) / (f as f32);
+
+                    let wind_magnitude = (raw_u * raw_u + raw_v * raw_v).sqrt();
+                    if wind_magnitude > max_polar_wind {
+                        let scale_factor = max_polar_wind / wind_magnitude;
+                        (raw_u * scale_factor, raw_v * scale_factor)
+                    } else {
+                        (raw_u, raw_v)
+                    }
+                } else {
+                    // Mid-latitudes: Standard geostrophic balance
+                    let rho = self.parameters.air_density_sea_level;
+                    let geostrophic_u = (pressure_gradient.y / rho) / (f as f32);
+                    let geostrophic_v = -(pressure_gradient.x / rho) / (f as f32);
+                    (geostrophic_u, geostrophic_v)
+                };
 
                 // Apply geostrophic strength scaling
                 let scaled_u = geostrophic_u * self.parameters.geostrophic_strength;
@@ -616,11 +646,11 @@ mod tests {
 
         assert!(north_lat < center_lat);
         assert!(center_lat < south_lat);
-        assert!((center_lat - 0.0).abs() < 1e-6); // Center should be ~0° (equator)
+        assert!((center_lat - 0.0).abs() < 0.1); // Center should be near 0° (equator)
 
-        // Should span ±45° range
-        assert!((north_lat - (-std::f64::consts::PI / 4.0)).abs() < 0.1);
-        assert!((south_lat - (std::f64::consts::PI / 4.0)).abs() < 0.1);
+        // Should span ±90° range (full global coverage)
+        assert!((north_lat - (-std::f64::consts::PI / 2.0)).abs() < 0.1);
+        assert!((south_lat - (std::f64::consts::PI / 2.0)).abs() < 0.1);
     }
 
     #[test]
@@ -681,5 +711,85 @@ mod tests {
         assert!(rossby_radius > 100_000.0); // > 100km
         assert!(rossby_radius < 10_000_000.0); // < 10,000km
         assert!(rossby_radius.is_finite());
+    }
+
+    #[test]
+    fn full_global_latitude_coverage() {
+        let scale = test_scale(200.0, 100, 100);
+        let system = AtmosphericSystem::new_for_scale(&scale);
+
+        // Test extreme latitudes (poles and equator)
+        let north_pole = system.grid_y_to_latitude(0, 100); // y=0 -> North pole
+        let near_equator = system.grid_y_to_latitude(49, 100); // y=49 -> Just north of equator  
+        let south_pole = system.grid_y_to_latitude(99, 100); // y=99 -> South pole
+
+        // Verify full global coverage
+        assert!((north_pole - (-std::f64::consts::PI / 2.0)).abs() < 0.01); // -90°
+        assert!(near_equator.abs() < 0.1); // Near 0° (within 6°)
+        assert!((south_pole - (std::f64::consts::PI / 2.0)).abs() < 0.01); // +90°
+
+        // Test Coriolis parameters at different latitudes
+        let f_north_pole = system.coriolis_parameter_at_latitude(north_pole);
+        let f_near_equator = system.coriolis_parameter_at_latitude(near_equator);
+        let f_south_pole = system.coriolis_parameter_at_latitude(south_pole);
+
+        // Verify Coriolis parameter behavior
+        assert!(f_near_equator.abs() < 0.1); // Small near equator
+        assert!(f_north_pole.abs() > 0.0); // Strong at north pole
+        assert!(f_south_pole.abs() > 0.0); // Strong at south pole
+        assert!((f_north_pole + f_south_pole).abs() < 1e-10); // Opposite signs
+
+        // Test intermediate latitudes
+        let lat_30n = system.grid_y_to_latitude(33, 100); // ~30°N 
+        let lat_60s = system.grid_y_to_latitude(77, 100); // ~60°S
+
+        let f_30n = system.coriolis_parameter_at_latitude(lat_30n);
+        let f_60s = system.coriolis_parameter_at_latitude(lat_60s);
+
+        assert!(f_30n < 0.0); // Northern hemisphere (negative)
+        assert!(f_60s > 0.0); // Southern hemisphere (positive)
+        assert!(f_60s.abs() > f_30n.abs()); // Higher latitude = stronger Coriolis
+    }
+
+    #[test]
+    fn polar_wind_generation() {
+        let scale = test_scale(200.0, 20, 20);
+        let system = AtmosphericSystem::new_for_scale(&scale);
+
+        // Create a mock pressure field with gradients
+        let heightmap = vec![vec![0.0; 20]; 20];
+        let climate = ClimateSystem::new_for_scale(&scale);
+        let temp_layer = climate.generate_temperature_layer(&heightmap);
+        let pressure_layer = climate.generate_pressure_layer(&temp_layer, &heightmap, &scale);
+
+        let wind_layer = system.generate_geostrophic_winds(&pressure_layer, &scale);
+
+        // Test that polar regions produce reasonable wind speeds (not infinite)
+        for y in [0, 1, 18, 19] {
+            // Near poles
+            for x in 0..20 {
+                let wind_speed = wind_layer.get_speed(x, y);
+                assert!(
+                    wind_speed.is_finite(),
+                    "Wind speed should be finite at poles"
+                );
+                assert!(
+                    wind_speed <= 100.0,
+                    "Wind speed should be reasonable at poles"
+                ); // ~100 m/s max
+            }
+        }
+
+        // Test that equatorial regions work correctly
+        for y in [9, 10, 11] {
+            // Near equator
+            for x in 0..20 {
+                let wind_speed = wind_layer.get_speed(x, y);
+                assert!(
+                    wind_speed.is_finite(),
+                    "Wind speed should be finite at equator"
+                );
+            }
+        }
     }
 }
