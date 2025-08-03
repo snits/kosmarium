@@ -83,10 +83,10 @@ ABOUTME: Tracks what's been tried, what worked, and what to investigate next
 
 **Simulation-Designer Roadmap (6+ Month Development Plan):**
 
-**Phase 1: Environmental Foundation (Months 1-2)**
-1. **Water Flow System** - Water flows to lowest adjacent cell, evaporates based on temperature
-2. **Temperature/Climate Layer** - Enables realistic evaporation patterns
-3. **Basic Erosion/Sediment** - Sediment transport proportional to velocity, deposition when flow slows
+**Phase 1: Environmental Foundation (Completed!)**
+1. **✅ Water Flow System** - Steepest descent flow, hydraulic erosion, evaporation implemented
+2. **🚧 Temperature/Climate Layer** - Next: Enables realistic evaporation patterns  
+3. **✅ Basic Erosion/Sediment** - Sediment transport and deposition complete
 
 **Phase 2: Biome Systems (Month 3)**  
 4. **Precipitation Patterns** - Driven by terrain and temperature
