@@ -4,7 +4,7 @@
 use crate::climate::ClimateSystem;
 use crate::heightmap::HeightMap;
 use crate::scale::WorldScale;
-use crate::sim::WaterLayer;
+use crate::water::WaterLayer;
 use macroquad::prelude::Vec2;
 
 /// Agent system errors

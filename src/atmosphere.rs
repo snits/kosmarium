@@ -3,7 +3,7 @@
 
 use crate::climate::AtmosphericPressureLayer;
 use crate::scale::{ScaleAware, WorldScale};
-use crate::sim::Vec2;
+use crate::water::Vec2;
 
 /// Atmospheric dynamics parameters for large-scale flow effects
 #[derive(Clone, Debug)]

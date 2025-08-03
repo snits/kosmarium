@@ -3,11 +3,14 @@
 
 pub mod agents;
 pub mod atmosphere;
+pub mod atmospheric_moisture;
+pub mod biome;
 pub mod cache_system;
 pub mod climate;
 pub mod convergence;
 pub mod convergence_detection;
 pub mod dimensional;
+pub mod drainage;
 pub mod geological_evolution;
 pub mod graphics_render;
 pub mod heightmap;
@@ -19,4 +22,5 @@ pub mod sim;
 pub mod spatial_partitioning;
 pub mod tectonics;
 pub mod tui;
+pub mod water;
 pub mod worldgen;

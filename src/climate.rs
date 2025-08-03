@@ -2,7 +2,7 @@
 // ABOUTME: Implements elevation-based temperature gradients with scale-aware parameters
 
 use crate::scale::{ScaleAware, WorldScale};
-use crate::sim::Vec2;
+use crate::water::Vec2;
 
 /// Core temperature data layer
 #[derive(Clone, Debug)]

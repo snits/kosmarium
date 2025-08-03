@@ -17,12 +17,13 @@ pub struct GraphicsRenderer {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum DisplayMode {
-    Terrain,
+    Elevation,
     Water,
     Pressure,
     Wind,
     Weather,
     Temperature,
+    Biomes,
 }
 
 impl GraphicsRenderer {
@@ -34,32 +35,33 @@ impl GraphicsRenderer {
         Self {
             camera,
             viewport: Rect::new(0.0, 0.0, width, height),
-            display_mode: DisplayMode::Terrain,
+            display_mode: DisplayMode::Elevation,
             zoom_level: 1.0,
             pan_offset: Vec2::new(0.0, 0.0),
             simulation_paused: false,
         }
     }
 
-    pub fn render_simulation(&mut self, simulation: &Simulation) {
+    pub fn render_simulation(&mut self, simulation: &mut Simulation) {
         clear_background(BLACK);
 
         // Use default camera for consistent coordinate system
         set_default_camera();
 
         match self.display_mode {
-            DisplayMode::Terrain => self.render_terrain(simulation),
+            DisplayMode::Elevation => self.render_elevation(simulation),
             DisplayMode::Water => self.render_water(simulation),
             DisplayMode::Pressure => self.render_pressure_field(simulation),
             DisplayMode::Wind => self.render_wind_field(simulation),
             DisplayMode::Weather => self.render_weather_patterns(simulation),
             DisplayMode::Temperature => self.render_temperature_field(simulation),
+            DisplayMode::Biomes => self.render_biomes(simulation),
         }
 
         self.render_ui(simulation);
     }
 
-    fn render_terrain(&self, simulation: &Simulation) {
+    fn render_elevation(&self, simulation: &Simulation) {
         let cell_size = self.calculate_cell_size(simulation.get_width(), simulation.get_height());
 
         // Center the simulation data in the screen with pan offset
@@ -82,14 +84,14 @@ impl GraphicsRenderer {
     }
 
     fn render_water(&self, simulation: &Simulation) {
-        // Render terrain as base
-        self.render_terrain(simulation);
+        // Render elevation as base
+        self.render_elevation(simulation);
 
         // Overlay water layer if available
         let water_layer = simulation.get_water_layer();
         let cell_size = self.calculate_cell_size(water_layer.width(), water_layer.height());
 
-        // Center the simulation data in the screen (same as terrain mode)
+        // Center the simulation data in the screen (same as elevation mode)
         let total_width = water_layer.width() as f32 * cell_size;
         let total_height = water_layer.height() as f32 * cell_size;
         let offset_x = (self.viewport.w - total_width) * 0.5 + self.pan_offset.x;
@@ -114,7 +116,7 @@ impl GraphicsRenderer {
         let pressure_layer = simulation.get_atmospheric_pressure_layer();
         let cell_size = self.calculate_cell_size(simulation.get_width(), simulation.get_height());
 
-        // Center the simulation data in the screen (same as terrain mode)
+        // Center the simulation data in the screen (same as elevation mode)
         let total_width = simulation.get_width() as f32 * cell_size;
         let total_height = simulation.get_height() as f32 * cell_size;
         let offset_x = (self.viewport.w - total_width) * 0.5 + self.pan_offset.x;
@@ -144,7 +146,7 @@ impl GraphicsRenderer {
         let cell_size = self.calculate_cell_size(simulation.get_width(), simulation.get_height());
         let arrow_scale = cell_size * 0.8;
 
-        // Center the simulation data in the screen (same as terrain mode)
+        // Center the simulation data in the screen (same as elevation mode)
         let total_width = simulation.get_width() as f32 * cell_size;
         let total_height = simulation.get_height() as f32 * cell_size;
         let offset_x = (self.viewport.w - total_width) * 0.5 + self.pan_offset.x;
@@ -188,7 +190,7 @@ impl GraphicsRenderer {
         let weather_analysis = simulation.get_weather_analysis();
         let cell_size = self.calculate_cell_size(simulation.get_width(), simulation.get_height());
 
-        // Center the simulation data in the screen (same as terrain mode)
+        // Center the simulation data in the screen (same as elevation mode)
         let total_width = simulation.get_width() as f32 * cell_size;
         let total_height = simulation.get_height() as f32 * cell_size;
         let offset_x = (self.viewport.w - total_width) * 0.5 + self.pan_offset.x;
@@ -209,7 +211,7 @@ impl GraphicsRenderer {
         let temperature_layer = simulation.get_temperature_layer();
         let cell_size = self.calculate_cell_size(simulation.get_width(), simulation.get_height());
 
-        // Center the simulation data in the screen (same as terrain mode)
+        // Center the simulation data in the screen (same as elevation mode)
         let total_width = simulation.get_width() as f32 * cell_size;
         let total_height = simulation.get_height() as f32 * cell_size;
         let offset_x = (self.viewport.w - total_width) * 0.5 + self.pan_offset.x;
@@ -225,6 +227,35 @@ impl GraphicsRenderer {
 
                 let world_x = offset_x + x as f32 * cell_size;
                 let world_y = offset_y + (simulation.get_height() - 1 - y) as f32 * cell_size;
+
+                draw_rectangle(world_x, world_y, cell_size, cell_size, color);
+            }
+        }
+    }
+
+    fn render_biomes(&self, simulation: &mut Simulation) {
+        // Get dimensions first before the mutable borrow
+        let width = simulation.get_width();
+        let height = simulation.get_height();
+        let cell_size = self.calculate_cell_size(width, height);
+
+        // Now get the biome map (this borrows mutably)
+        let biome_map = simulation.generate_biome_map();
+
+        // Center the simulation data in the screen (same as elevation mode)
+        let total_width = width as f32 * cell_size;
+        let total_height = height as f32 * cell_size;
+        let offset_x = (self.viewport.w - total_width) * 0.5 + self.pan_offset.x;
+        let offset_y = (self.viewport.h - total_height) * 0.5 + self.pan_offset.y;
+
+        for y in 0..height {
+            for x in 0..width {
+                let biome = biome_map.get(x, y);
+                let (r, g, b) = biome.display_color();
+                let color = Color::new(r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0, 1.0);
+
+                let world_x = offset_x + x as f32 * cell_size;
+                let world_y = offset_y + (height - 1 - y) as f32 * cell_size;
 
                 draw_rectangle(world_x, world_y, cell_size, cell_size, color);
             }
@@ -262,7 +293,7 @@ impl GraphicsRenderer {
         set_default_camera();
 
         // Display mode indicator
-        let mode_text = format!("Mode: {:?} (1-6 to switch)", self.display_mode);
+        let mode_text = format!("Mode: {:?} (1-7 to switch)", self.display_mode);
         draw_text(&mode_text, 10.0, 30.0, 20.0, WHITE);
 
         // Zoom level
@@ -290,7 +321,7 @@ impl GraphicsRenderer {
 
         // Instructions
         draw_text(
-            "WASD: Pan, Mouse Wheel: Zoom, R: Reset, SPACE: Pause/Play, 1-6: Display Mode",
+            "WASD: Pan, Mouse Wheel: Zoom, R: Reset, SPACE: Pause/Play, 1-7: Display Mode, ESC: Quit",
             10.0,
             screen_height() - 20.0,
             16.0,
@@ -396,7 +427,7 @@ impl GraphicsRenderer {
     pub fn handle_input(&mut self) {
         // Display mode switching
         if is_key_pressed(KeyCode::Key1) {
-            self.display_mode = DisplayMode::Terrain;
+            self.display_mode = DisplayMode::Elevation;
         }
         if is_key_pressed(KeyCode::Key2) {
             self.display_mode = DisplayMode::Water;
@@ -412,6 +443,9 @@ impl GraphicsRenderer {
         }
         if is_key_pressed(KeyCode::Key6) {
             self.display_mode = DisplayMode::Temperature;
+        }
+        if is_key_pressed(KeyCode::Key7) {
+            self.display_mode = DisplayMode::Biomes;
         }
 
         // Simulation control

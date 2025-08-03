@@ -2,6 +2,7 @@
 
 use crate::geological_evolution::{GeologicalEvolution, GeologicalEvolutionConfig};
 use crate::heightmap::HeightMap;
+use crate::scale::{ScaleAware, WorldScale};
 use crate::tectonics::TectonicSystem;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
@@ -151,20 +152,46 @@ impl DiamondSquareGenerator {
         if count > 0 { sum / count as f32 } else { 0.0 }
     }
 
-    /// Sample a larger grid down to requested dimensions
-    fn sample_to_dimensions(&self, full_map: HeightMap, width: usize, height: usize) -> HeightMap {
+    /// Sample a larger grid down to requested dimensions using variance-preserving interpolation
+    fn variance_preserving_sample(
+        &self,
+        full_map: HeightMap,
+        width: usize,
+        height: usize,
+    ) -> HeightMap {
         let full_size = full_map.width();
         let mut result = HeightMap::new(width, height, 0.0);
 
+        // Calculate sampling ratios
+        let x_ratio = (full_size - 1) as f32 / (width - 1).max(1) as f32;
+        let y_ratio = (full_size - 1) as f32 / (height - 1).max(1) as f32;
+
         for y in 0..height {
             for x in 0..width {
-                let src_x = (x * (full_size - 1)) / (width - 1).max(1);
-                let src_y = (y * (full_size - 1)) / (height - 1).max(1);
-                result.set(
-                    x,
-                    y,
-                    full_map.get(src_x.min(full_size - 1), src_y.min(full_size - 1)),
-                );
+                // Use bilinear interpolation to preserve terrain characteristics
+                let src_x = x as f32 * x_ratio;
+                let src_y = y as f32 * y_ratio;
+
+                // Get integer and fractional parts
+                let x0 = src_x.floor() as usize;
+                let y0 = src_y.floor() as usize;
+                let x1 = (x0 + 1).min(full_size - 1);
+                let y1 = (y0 + 1).min(full_size - 1);
+
+                let fx = src_x - x0 as f32;
+                let fy = src_y - y0 as f32;
+
+                // Bilinear interpolation
+                let top_left = full_map.get(x0, y0);
+                let top_right = full_map.get(x1, y0);
+                let bottom_left = full_map.get(x0, y1);
+                let bottom_right = full_map.get(x1, y1);
+
+                let top = top_left * (1.0 - fx) + top_right * fx;
+                let bottom = bottom_left * (1.0 - fx) + bottom_right * fx;
+                let interpolated = top * (1.0 - fy) + bottom * fy;
+
+                result.set(x, y, interpolated);
             }
         }
 
@@ -194,14 +221,18 @@ impl TerrainGenerator for DiamondSquareGenerator {
     type Config = DiamondSquareConfig;
 
     fn generate(&self, width: usize, height: usize, config: &Self::Config) -> HeightMap {
-        // Handle arbitrary dimensions by generating on power-of-2 grid then sampling
-        let power_size = (width.max(height).next_power_of_two()).max(8);
+        // Generate directly at target resolution to preserve fractal characteristics
+        // Use smallest power-of-2 that encompasses the target dimensions
+        let power_width = width.next_power_of_two() + 1;
+        let power_height = height.next_power_of_two() + 1;
+        let power_size = power_width.max(power_height);
+
         let full_map = self.generate_power_of_two(power_size, config);
 
-        // Sample down to requested dimensions
-        let mut result = self.sample_to_dimensions(full_map, width, height);
+        // Use improved sampling that preserves terrain variance
+        let mut result = self.variance_preserving_sample(full_map, width, height);
 
-        // Normalize to 0.0-1.0 range
+        // Normalize to consistent range
         self.normalize_map(&mut result);
 
         result
@@ -250,6 +281,46 @@ impl Default for TectonicConfig {
             // Geological evolution defaults
             enable_geological_evolution: true, // Enable by default for realistic terrain
             geological_evolution_config: Some(GeologicalEvolutionConfig::default()),
+        }
+    }
+}
+
+impl ScaleAware for TectonicConfig {
+    /// Derive scale-aware tectonic config based on world dimensions
+    fn derive_parameters(&self, world_scale: &WorldScale) -> Self {
+        // Calculate realistic plate count based on Earth's plate density
+        // Earth has ~15 major plates for ~510M km², giving ~34M km² per plate
+        let physical_area_km2 = world_scale.physical_size_km * world_scale.physical_size_km;
+        let plates_per_million_km2 = 15.0 / 510.0; // Earth's ratio
+        let num_plates = (physical_area_km2 * plates_per_million_km2 / 1_000_000.0)
+            .round()
+            .max(4.0)
+            .min(20.0) as usize;
+
+        // Coastal blending should be ~100km in real world terms
+        // Convert 100km to pixels using the world scale
+        let km_per_pixel = world_scale.physical_size_km
+            / world_scale.resolution.0.max(world_scale.resolution.1) as f64;
+        let coastal_blending = (100.0 / km_per_pixel).max(5.0).min(50.0) as f32;
+
+        // Scale other parameters based on resolution relative to reference
+        let scale_factor = world_scale.scale_factor_from_reference(crate::scale::REFERENCE_SCALE);
+        let resolution_factor = (1.0 / scale_factor).sqrt().clamp(0.5, 2.0) as f32;
+
+        Self {
+            num_plates,
+            surface_detail: self.surface_detail,
+            mountain_scale: self.mountain_scale,
+            ocean_depth_scale: self.ocean_depth_scale,
+            continental_roughness: self.continental_roughness * resolution_factor,
+            oceanic_roughness: self.oceanic_roughness * resolution_factor,
+            detail_persistence: self.detail_persistence,
+            tectonic_influence: self.tectonic_influence,
+            coastal_blending,
+
+            // Geological evolution settings
+            enable_geological_evolution: self.enable_geological_evolution,
+            geological_evolution_config: self.geological_evolution_config.clone(),
         }
     }
 }
@@ -623,11 +694,11 @@ impl TectonicGenerator {
             max_val - min_val
         );
 
-        // Normalize to -0.5 to 1.0 range (more land than water)
+        // Normalize to 0.0 to 1.0 range for consistency with Diamond-Square
         let range = max_val - min_val;
         if range > 0.0 {
             for val in heightmap.iter_mut() {
-                *val = (*val - min_val) / range * 1.5 - 0.5;
+                *val = (*val - min_val) / range;
             }
         }
     }

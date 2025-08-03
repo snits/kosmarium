@@ -2,80 +2,22 @@
 // ABOUTME: Manages heightmap terrain with real-time water flow, accumulation, and hydraulic erosion
 
 use crate::atmosphere::{AtmosphericSystem, WeatherAnalysis, WindLayer};
+use crate::biome::{BiomeClassifier, BiomeMap};
 use crate::climate::{AtmosphericPressureLayer, ClimateSystem, TemperatureLayer};
 use crate::dimensional::{DimensionalAnalysis, DimensionalWaterFlowParameters, PhysicalQuantity};
-use crate::heightmap::{HeightMap, Vec2Map};
+use crate::drainage::{DrainageNetwork, DrainageNetworkStatistics};
+use crate::heightmap::HeightMap;
 use crate::scale::{REFERENCE_SCALE, ScaleAware, WorldScale};
+use crate::water::{Vec2, WaterLayer};
 
-#[derive(Clone, Debug)]
-pub struct Vec2 {
-    pub x: f32,
-    pub y: f32,
-}
-
-impl Vec2 {
-    pub fn new(x: f32, y: f32) -> Self {
-        Self { x, y }
-    }
-
-    pub fn zero() -> Self {
-        Self::new(0.0, 0.0)
-    }
-
-    pub fn magnitude(&self) -> f32 {
-        (self.x * self.x + self.y * self.y).sqrt()
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct WaterLayer {
-    pub depth: HeightMap,    // Water depth at each cell
-    pub velocity: Vec2Map,   // Flow direction and speed
-    pub sediment: HeightMap, // Carried sediment for erosion
-    width: usize,
-    height: usize,
-}
-
-impl WaterLayer {
-    pub fn new(width: usize, height: usize) -> Self {
-        Self {
-            depth: HeightMap::new(width, height, 0.0),
-            velocity: Vec2Map::new(width, height),
-            sediment: HeightMap::new(width, height, 0.0),
-            width,
-            height,
-        }
-    }
-
-    pub fn get_total_water(&self) -> f32 {
-        self.depth.iter().sum()
-    }
-
-    pub fn add_water(&mut self, x: usize, y: usize, amount: f32) {
-        if x < self.width && y < self.height {
-            let current = self.depth.get(x, y);
-            self.depth.set(x, y, current + amount);
-        }
-    }
-
-    /// Get water depth at specific coordinates
-    pub fn get_water_depth(&self, x: usize, y: usize) -> f32 {
-        if x < self.width && y < self.height {
-            self.depth.get(x, y)
-        } else {
-            0.0
-        }
-    }
-
-    /// Get width of water layer
-    pub fn width(&self) -> usize {
-        self.width
-    }
-
-    /// Get height of water layer
-    pub fn height(&self) -> usize {
-        self.height
-    }
+/// Simulation time information for display
+#[derive(Debug, Clone)]
+pub struct SimulationTime {
+    pub tick_count: u64,
+    pub days: u32,
+    pub hours: u32,
+    pub minutes: u32,
+    pub total_hours: u32,
 }
 
 /// Raw, scale-independent water flow parameters
@@ -405,8 +347,8 @@ impl WaterFlowSystem {
     fn move_water(&self, water: &mut WaterLayer) {
         let mut new_depth = water.depth.clone();
 
-        for y in 0..water.height {
-            for x in 0..water.width {
+        for y in 0..water.height() {
+            for x in 0..water.width() {
                 let (vx, vy) = water.velocity.get(x, y);
                 let velocity_mag = (vx * vx + vy * vy).sqrt();
                 let flow_amount = water.depth.get(x, y) * velocity_mag.min(1.0);
@@ -418,9 +360,9 @@ impl WaterFlowSystem {
 
                     // Move water if target is in bounds
                     if target_x >= 0
-                        && target_x < water.width as i32
+                        && target_x < water.width() as i32
                         && target_y >= 0
-                        && target_y < water.height as i32
+                        && target_y < water.height() as i32
                     {
                         let current_depth = new_depth.get(x, y);
                         new_depth.set(x, y, current_depth - flow_amount);
@@ -439,8 +381,8 @@ impl WaterFlowSystem {
     }
 
     fn apply_erosion(&self, heightmap: &mut HeightMap, water: &mut WaterLayer) {
-        for y in 0..water.height {
-            for x in 0..water.width {
+        for y in 0..water.height() {
+            for x in 0..water.width() {
                 let velocity = water.velocity.get(x, y);
                 let flow_speed = (velocity.0 * velocity.0 + velocity.1 * velocity.1).sqrt();
                 let water_depth = water.depth.get(x, y);
@@ -483,8 +425,8 @@ impl WaterFlowSystem {
         }
 
         // Also evaporate sediment when water disappears
-        for y in 0..water.height {
-            for x in 0..water.width {
+        for y in 0..water.height() {
+            for x in 0..water.width() {
                 if water.depth.get(x, y) < self.evaporation_threshold {
                     let current_sediment = water.sediment.get(x, y);
                     water.sediment.set(x, y, current_sediment * 0.5); // Sediment settles when water dries up
@@ -500,8 +442,8 @@ impl WaterFlowSystem {
         temperature_layer: &TemperatureLayer,
         climate_system: &ClimateSystem,
     ) {
-        for y in 0..water.height {
-            for x in 0..water.width {
+        for y in 0..water.height() {
+            for x in 0..water.width() {
                 // Get current temperature at this location
                 let temperature_c =
                     temperature_layer.get_current_temperature(x, y, climate_system.current_season);
@@ -526,8 +468,8 @@ impl WaterFlowSystem {
         }
 
         // Handle sediment settling when water disappears
-        for y in 0..water.height {
-            for x in 0..water.width {
+        for y in 0..water.height() {
+            for x in 0..water.width() {
                 if water.depth.get(x, y) < self.evaporation_threshold {
                     let current_sediment = water.sediment.get(x, y);
                     water.sediment.set(x, y, current_sediment * 0.5); // Sediment settles when water dries up
@@ -541,6 +483,7 @@ pub struct Simulation {
     pub heightmap: HeightMap,
     pub water: WaterLayer,
     pub water_system: WaterFlowSystem,
+    pub drainage_network: DrainageNetwork,
     pub climate_system: ClimateSystem,
     pub temperature_layer: TemperatureLayer,
     pub atmospheric_system: AtmosphericSystem,
@@ -549,6 +492,9 @@ pub struct Simulation {
     pub weather_analysis: WeatherAnalysis,
     pub _world_scale: WorldScale,
     pub tick_count: u64,
+    // Cached biome map to avoid expensive recalculation every frame
+    cached_biome_map: Option<BiomeMap>,
+    biome_cache_valid: bool,
 }
 
 impl Simulation {
@@ -579,10 +525,20 @@ impl Simulation {
         let wind_layer =
             atmospheric_system.generate_geostrophic_winds(&pressure_layer, &world_scale);
 
-        Self {
+        // Create drainage network from heightmap
+        println!("Creating drainage network for {}x{} map...", width, height);
+        let drainage_start = std::time::Instant::now();
+        let drainage_network = DrainageNetwork::from_heightmap(&heightmap, &world_scale);
+        println!(
+            "Drainage network created in {:.2?}",
+            drainage_start.elapsed()
+        );
+
+        let mut simulation = Self {
             heightmap,
             water: WaterLayer::new(width, height),
             water_system: WaterFlowSystem::new_for_scale(&world_scale),
+            drainage_network,
             climate_system,
             temperature_layer,
             atmospheric_system,
@@ -591,7 +547,14 @@ impl Simulation {
             weather_analysis: WeatherAnalysis::default(),
             _world_scale: world_scale,
             tick_count: 0,
-        }
+            cached_biome_map: None,
+            biome_cache_valid: false,
+        };
+
+        // Apply initial water distribution for realistic starting biomes
+        simulation.initialize_water_distribution();
+
+        simulation
     }
 
     /// Create a simulation with explicit world scale
@@ -614,10 +577,14 @@ impl Simulation {
         let wind_layer =
             atmospheric_system.generate_geostrophic_winds(&pressure_layer, &world_scale);
 
-        Self {
+        // Create drainage network from heightmap
+        let drainage_network = DrainageNetwork::from_heightmap(&heightmap, &world_scale);
+
+        let mut simulation = Self {
             heightmap,
             water: WaterLayer::new(width, height),
             water_system: WaterFlowSystem::new_for_scale(&world_scale),
+            drainage_network,
             climate_system,
             temperature_layer,
             atmospheric_system,
@@ -626,7 +593,14 @@ impl Simulation {
             weather_analysis: WeatherAnalysis::default(),
             _world_scale: world_scale,
             tick_count: 0,
-        }
+            cached_biome_map: None,
+            biome_cache_valid: false,
+        };
+
+        // Apply initial water distribution for realistic starting biomes
+        simulation.initialize_water_distribution();
+
+        simulation
     }
 
     /// Advance simulation by one time step with climate integration
@@ -639,6 +613,9 @@ impl Simulation {
         self.temperature_layer = self
             .climate_system
             .generate_temperature_layer(&heightmap_nested);
+
+        // Invalidate biome cache due to temperature changes
+        self.biome_cache_valid = false;
 
         // Regenerate pressure layer (coupled to temperature changes)
         self.pressure_layer = self.climate_system.generate_pressure_layer(
@@ -667,7 +644,41 @@ impl Simulation {
             &self.climate_system,
         );
 
+        // Invalidate biome cache due to water changes
+        self.biome_cache_valid = false;
+
+        // Apply drainage network concentration VERY infrequently for realistic water bodies
+        // This creates concentrated rivers and lakes from dispersed surface water
+        // Changed from every 10 ticks to every 1000 ticks to prevent graphics mode flickering
+        if self.tick_count % 1000 == 0 && self.tick_count > 0 {
+            self.apply_drainage_concentration();
+        }
+
+        // Update drainage network periodically to account for terrain changes from erosion
+        self.update_drainage_for_erosion();
+
         self.tick_count += 1;
+    }
+
+    /// Get simulation time information for display
+    pub fn get_simulation_time(&self) -> SimulationTime {
+        // Assuming 10Hz simulation rate, each tick = 6 minutes of simulation time
+        // This gives reasonable atmospheric dynamics timing
+        const MINUTES_PER_TICK: f32 = 6.0;
+
+        let total_minutes = self.tick_count as f32 * MINUTES_PER_TICK;
+        let total_hours = total_minutes / 60.0;
+        let days = (total_hours / 24.0) as u32;
+        let hours = (total_hours % 24.0) as u32;
+        let minutes = (total_minutes % 60.0) as u32;
+
+        SimulationTime {
+            tick_count: self.tick_count,
+            days,
+            hours,
+            minutes,
+            total_hours: total_hours as u32,
+        }
     }
 
     /// Get the total water + terrain elevation at a position
@@ -750,6 +761,35 @@ impl Simulation {
         &self.water
     }
 
+    /// Generate biome map from current environmental state (cached for performance)
+    pub fn generate_biome_map(&mut self) -> &BiomeMap {
+        if !self.biome_cache_valid || self.cached_biome_map.is_none() {
+            let classifier = BiomeClassifier::new_for_scale(&self._world_scale);
+            let biome_map = classifier.generate_biome_map_with_drainage(
+                &self.heightmap,
+                &self.temperature_layer,
+                &self.water,
+                &self.climate_system,
+                &self.drainage_network,
+            );
+            self.cached_biome_map = Some(biome_map);
+            self.biome_cache_valid = true;
+        }
+
+        self.cached_biome_map.as_ref().unwrap()
+    }
+
+    /// Generate biome map without drainage network (legacy method)
+    pub fn generate_biome_map_basic(&self) -> BiomeMap {
+        let classifier = BiomeClassifier::new_for_scale(&self._world_scale);
+        classifier.generate_biome_map(
+            &self.heightmap,
+            &self.temperature_layer,
+            &self.water,
+            &self.climate_system,
+        )
+    }
+
     /// Get reference to atmospheric pressure layer for graphics rendering
     pub fn get_atmospheric_pressure_layer(&self) -> &AtmosphericPressureLayer {
         &self.pressure_layer
@@ -786,6 +826,73 @@ impl Simulation {
             self.heightmap.get(x, y)
         } else {
             0.0
+        }
+    }
+
+    /// Apply drainage network water concentration to create realistic water bodies
+    pub fn apply_drainage_concentration(&mut self) {
+        self.drainage_network.concentrate_water(&mut self.water);
+    }
+
+    /// Initialize water distribution for realistic starting biomes
+    /// Adds base water level and applies drainage concentration once
+    fn initialize_water_distribution(&mut self) {
+        println!("Initializing water distribution...");
+
+        // Add a small base amount of water everywhere (representing natural precipitation)
+        let base_water_amount = self.water_system.effective_rainfall_rate / 10.0; // Small initial amount
+        for y in 0..self.water.height() {
+            for x in 0..self.water.width() {
+                self.water.add_water(x, y, base_water_amount);
+            }
+        }
+
+        // Apply drainage concentration once to create realistic initial water distribution
+        println!("Applying initial drainage concentration...");
+        self.apply_drainage_concentration();
+
+        println!("Initial water distribution complete.");
+    }
+
+    /// Get drainage network statistics for analysis
+    pub fn get_drainage_statistics(&self) -> DrainageNetworkStatistics {
+        self.drainage_network.get_statistics()
+    }
+
+    /// Check if location is part of a river system
+    pub fn is_river(&self, x: usize, y: usize) -> bool {
+        self.drainage_network.is_river(x, y)
+    }
+
+    /// Check if location is part of a major river system
+    pub fn is_major_river(&self, x: usize, y: usize) -> bool {
+        self.drainage_network.is_major_river(x, y)
+    }
+
+    /// Check if location is in a drainage depression (potential lake)
+    pub fn is_depression(&self, x: usize, y: usize) -> bool {
+        self.drainage_network.is_depression(x, y)
+    }
+
+    /// Get flow accumulation at coordinates (upstream drainage area)
+    pub fn get_flow_accumulation(&self, x: usize, y: usize) -> f32 {
+        self.drainage_network.get_flow_accumulation(x, y)
+    }
+
+    /// Regenerate drainage network from current heightmap (use after significant terrain changes)
+    pub fn regenerate_drainage_network(&mut self) {
+        self.drainage_network =
+            DrainageNetwork::from_heightmap(&self.heightmap, &self._world_scale);
+        // Invalidate biome cache due to drainage network changes
+        self.biome_cache_valid = false;
+    }
+
+    /// Update drainage network periodically to account for erosion effects
+    pub fn update_drainage_for_erosion(&mut self) {
+        // Only regenerate drainage network occasionally due to computational cost
+        // In practice, erosion changes are usually gradual
+        if self.tick_count % 100 == 0 {
+            self.regenerate_drainage_network();
         }
     }
 }
@@ -855,8 +962,8 @@ mod tests {
     #[test]
     fn water_layer_new_creates_correct_dimensions() {
         let layer = WaterLayer::new(10, 5);
-        assert_eq!(layer.width, 10);
-        assert_eq!(layer.height, 5);
+        assert_eq!(layer.width(), 10);
+        assert_eq!(layer.height(), 5);
         assert_eq!(layer.depth.height(), 5); // height rows
         assert_eq!(layer.depth.width(), 10); // width columns
         assert_eq!(layer.velocity.height(), 5);
@@ -870,15 +977,15 @@ mod tests {
         let layer = WaterLayer::new(3, 3);
 
         // All depths should be zero
-        for y in 0..layer.height {
-            for x in 0..layer.width {
+        for y in 0..layer.height() {
+            for x in 0..layer.width() {
                 assert_eq!(layer.depth.get(x, y), 0.0);
             }
         }
 
         // All velocities should be zero
-        for y in 0..layer.height {
-            for x in 0..layer.width {
+        for y in 0..layer.height() {
+            for x in 0..layer.width() {
                 let velocity = layer.velocity.get(x, y);
                 assert_eq!(velocity.0, 0.0);
                 assert_eq!(velocity.1, 0.0);
@@ -886,8 +993,8 @@ mod tests {
         }
 
         // All sediment should be zero
-        for y in 0..layer.height {
-            for x in 0..layer.width {
+        for y in 0..layer.height() {
+            for x in 0..layer.width() {
                 assert_eq!(layer.sediment.get(x, y), 0.0);
             }
         }
@@ -984,8 +1091,8 @@ mod tests {
         system.calculate_flow_directions(&heightmap, &mut water);
 
         // On flat terrain, there should be no flow
-        for y in 0..water.height {
-            for x in 0..water.width {
+        for y in 0..water.height() {
+            for x in 0..water.width() {
                 let velocity = water.velocity.get(x, y);
                 assert_eq!(velocity.0, 0.0);
                 assert_eq!(velocity.1, 0.0);
@@ -1075,8 +1182,8 @@ mod tests {
         // Corner cells should only consider their available neighbors
         // This test ensures we don't access out-of-bounds indices
         // Just check that it doesn't panic - the exact flow values depend on implementation
-        for y in 0..water.height {
-            for x in 0..water.width {
+        for y in 0..water.height() {
+            for x in 0..water.width() {
                 let velocity = water.velocity.get(x, y);
                 let magnitude = (velocity.0 * velocity.0 + velocity.1 * velocity.1).sqrt();
                 assert!(magnitude.is_finite());
@@ -1096,8 +1203,8 @@ mod tests {
 
         system.add_rainfall(&mut water);
 
-        for y in 0..water.height {
-            for x in 0..water.width {
+        for y in 0..water.height() {
+            for x in 0..water.width() {
                 assert_eq!(water.depth.get(x, y), system.effective_rainfall_rate);
             }
         }

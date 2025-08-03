@@ -89,7 +89,7 @@ impl Viewport {
     /// Extract visible portion of water layer for rendering with zoom support
     pub fn extract_visible_water(
         &self,
-        water_layer: &crate::sim::WaterLayer,
+        water_layer: &crate::water::WaterLayer,
         zoom_level: u32,
     ) -> Vec<Vec<f32>> {
         let world_height = water_layer.depth.len();
@@ -128,9 +128,9 @@ impl Viewport {
     /// Extract visible portion of water velocity for flow direction arrows
     pub fn extract_visible_water_velocity(
         &self,
-        water_layer: &crate::sim::WaterLayer,
+        water_layer: &crate::water::WaterLayer,
         zoom_level: u32,
-    ) -> Vec<Vec<crate::sim::Vec2>> {
+    ) -> Vec<Vec<crate::water::Vec2>> {
         let world_height = water_layer.velocity.height();
         let world_width = water_layer.velocity.width();
 
@@ -150,9 +150,9 @@ impl Viewport {
                 // Sample from water velocity (with bounds checking)
                 if world_y < world_height && world_x < world_width {
                     let (vx, vy) = water_layer.velocity.get(world_x, world_y);
-                    row.push(crate::sim::Vec2::new(vx, vy));
+                    row.push(crate::water::Vec2::new(vx, vy));
                 } else {
-                    row.push(crate::sim::Vec2::zero()); // Default value for out-of-bounds
+                    row.push(crate::water::Vec2::zero()); // Default value for out-of-bounds
                 }
             }
             visible.push(row);
@@ -464,7 +464,7 @@ fn get_atmospheric_display(
 }
 
 /// Convert velocity vector to directional arrow character
-fn velocity_to_arrow(velocity: &crate::sim::Vec2) -> char {
+fn velocity_to_arrow(velocity: &crate::water::Vec2) -> char {
     let magnitude = velocity.magnitude();
     if magnitude < 0.01 {
         return ' '; // No significant flow
@@ -544,10 +544,10 @@ fn render_terrain_with_overlays(
                     if row_idx < velocity_data.len() && col_idx < velocity_data[row_idx].len() {
                         &velocity_data[row_idx][col_idx]
                     } else {
-                        &crate::sim::Vec2::zero()
+                        &crate::water::Vec2::zero()
                     }
                 } else {
-                    &crate::sim::Vec2::zero()
+                    &crate::water::Vec2::zero()
                 };
 
                 // Render water if present, otherwise terrain
@@ -619,7 +619,7 @@ fn render_terrain_with_overlays(
 /// Render mini-map with viewport indicator and optional water overlay
 fn render_minimap_with_viewport(
     heightmap: &[Vec<f32>],
-    water_layer: Option<&crate::sim::WaterLayer>,
+    water_layer: Option<&crate::water::WaterLayer>,
     show_water: bool,
     viewport: &Viewport,
     minimap_width: usize,

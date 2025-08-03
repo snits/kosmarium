@@ -4,8 +4,9 @@
 use crate::climate::{ClimateSystem, TemperatureLayer};
 use crate::heightmap::HeightMap;
 use crate::scale::{DetailLevel, WorldScale};
-use crate::sim::{WaterFlowParameters, WaterFlowSystem, WaterLayer};
+use crate::sim::{WaterFlowParameters, WaterFlowSystem};
 use crate::tectonics::TectonicSystem;
+use crate::water::WaterLayer;
 
 /// Configuration for geological time scale evolution
 #[derive(Clone, Debug)]

@@ -1,23 +1,33 @@
 // sim-prototype/src/main.rs
 
+pub mod agents;
 pub mod atmosphere;
+pub mod atmospheric_moisture;
+pub mod biome;
+pub mod cache_system;
 pub mod climate;
 pub mod convergence;
+pub mod convergence_detection;
 pub mod dimensional;
+pub mod drainage;
 pub mod geological_evolution;
 pub mod graphics_render;
 pub mod heightmap;
+pub mod optimized_geological_evolution;
+pub mod optimized_heightmap;
 pub mod render;
 pub mod scale;
 pub mod sim;
+pub mod spatial_partitioning;
 pub mod tectonics;
 pub mod tui;
+pub mod water;
 pub mod worldgen;
 
 use clap::Parser;
 use graphics_render::GraphicsRenderer;
 use macroquad::prelude::*;
-use render::ascii_render;
+use render::{ascii_render, ascii_render_biomes};
 use sim::Simulation;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tui::run_tui;
@@ -61,6 +71,10 @@ struct Args {
     /// Use tectonic plate generation instead of Diamond-Square
     #[arg(long)]
     tectonic: bool,
+
+    /// Show biome classification instead of elevation (ASCII mode only)
+    #[arg(long)]
+    biomes: bool,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -127,7 +141,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     // Step 3: Run simulation setup (placeholder for now)
-    let sim = Simulation::new(heightmap);
+    println!("Creating simulation...");
+    let start_time = std::time::Instant::now();
+    let mut sim = Simulation::new(heightmap);
+    println!("Simulation created in {:.2?}", start_time.elapsed());
 
     // Choose between graphics, TUI, and ASCII rendering
     if args.graphics {
@@ -147,7 +164,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         macroquad::Window::from_config(window_config, run_graphics(sim));
     } else if args.ascii {
         // Step 4b: Static ASCII render (legacy mode)
-        ascii_render(&sim);
+        if args.biomes {
+            // Show biome classification
+            let biome_map = sim.generate_biome_map();
+            ascii_render_biomes(&biome_map);
+            println!("\nBiome classification using Whittaker model");
+        } else {
+            // Show elevation data (default)
+            ascii_render(&sim);
+        }
 
         // Debug info
         println!("\nGenerated using: {}", generator_name);
@@ -180,7 +205,7 @@ async fn run_graphics(mut simulation: Simulation) {
         }
 
         // Render
-        renderer.render_simulation(&simulation);
+        renderer.render_simulation(&mut simulation);
 
         // Exit on Escape
         if is_key_pressed(KeyCode::Escape) {
