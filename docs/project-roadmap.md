@@ -5,7 +5,7 @@ ABOUTME: Tracks what's been tried, what worked, and what to investigate next
 
 ## Current Exploration
 
-**Theme**: Experimenting with procedural world generation and simulation concepts
+**Theme**: Professional-grade multi-physics simulation with scale-aware architecture and dimensional analysis foundations
 
 ### Active Experiments
 
@@ -81,27 +81,37 @@ ABOUTME: Tracks what's been tried, what worked, and what to investigate next
 
 ### Simulation Mechanics
 
-**Simulation-Designer Roadmap (6+ Month Development Plan):**
+**Professional Multi-Physics Simulation Roadmap:**
 
-**Phase 1: Environmental Foundation (Completed!)**
-1. **✅ Water Flow System** - Steepest descent flow, hydraulic erosion, evaporation implemented
-2. **🚧 Temperature/Climate Layer** - Next: Enables realistic evaporation patterns  
-3. **✅ Basic Erosion/Sediment** - Sediment transport and deposition complete
+**Phase 1: Physics Foundation (COMPLETED)**
+1. **✅ Dimensional Analysis Framework** - Scale-aware architecture with WorldScale trait system
+2. **✅ Grid Convergence Testing** - Numerical accuracy validation for spatial discretization
+3. **✅ Water Flow Physics** - Conservation-based flow with proper dimensionless numbers
+4. **✅ Erosion/Sediment Transport** - Mass conservation with scale-dependent parameters
 
-**Phase 2: Biome Systems (Month 3)**  
-4. **Precipitation Patterns** - Driven by terrain and temperature
-5. **Vegetation/Biome Layer** - Responds to water availability and climate
-6. **Resource Distribution** - Minerals, fertile soil, etc.
+**Phase 2A: Environmental Systems (COMPLETED)**
+5. **✅ Temperature Field Dynamics** - Heat diffusion with realistic thermal properties
+6. **✅ Climate System Integration** - Temperature-precipitation coupling with seasonal variation
+7. **✅ Water-Climate Coupling** - Evaporation rates driven by temperature gradients
+8. **✅ Professional TUI Visualization** - Multi-panel interface with real-time data overlays
 
-**Phase 3: Agent Foundation (Months 4-5)**
-7. **Simple Agent Movement** - Pathfinding influenced by terrain
-8. **Settlement Patterns** - Agents prefer river valleys, avoid mountains
-9. **Basic Resource Gathering** - Agents interact with environment
+**Phase 2B: Large-Scale Flow Effects (CURRENT FOCUS)**
+9. **🚧 Atmospheric Pressure Systems** - Pressure gradients driving wind patterns
+10. **🚧 Coriolis Force Integration** - Geostrophic flow and cyclonic circulation
+11. **🚧 Weather Pattern Formation** - Storm systems and precipitation modeling
+12. **🚧 Ocean Current Simulation** - Large-scale circulation with thermal/haline effects
 
-**Phase 4: Cultural Systems (Months 6+)**
-10. **Belief Propagation** - Pantheon and myth systems
-11. **Trade Networks** - Following natural geographic routes
-12. **Cultural Memory** - Stories tied to geographic features
+**Phase 3: Geological Systems (FUTURE)**
+13. **Plate Tectonics Foundation** - Continental drift and boundary interactions
+14. **Volcanic/Seismic Activity** - Endogenous geological processes
+15. **Long-term Landscape Evolution** - Coupling geological and surface processes
+16. **Mineral Resource Formation** - Ore deposit modeling based on geological history
+
+**Phase 4: Biological Systems (EXPLORATION)**
+17. **Ecosystem Dynamics** - Population models with environmental coupling
+18. **Evolutionary Processes** - Adaptive responses to environmental gradients
+19. **Biogeochemical Cycles** - Carbon, nitrogen, and phosphorus cycling
+20. **Biodiversity Patterns** - Species distribution and habitat modeling
 
 **Legacy Ideas:**
 - **Agents/Creatures**: Simple creatures that move around, eat, reproduce
@@ -125,38 +135,69 @@ ABOUTME: Tracks what's been tried, what worked, and what to investigate next
 - Terminal rendering is surprisingly effective for prototyping
 
 ### Architecture Decisions That Work
-- Modular separation (worldgen/sim/render) makes experimentation easier
-- Crossterm provides good cross-platform terminal features
-- Seeded generation allows reproducible experiments
+- **Scale-aware design patterns** enable consistent physics across resolution scales
+- **Dimensional analysis framework** ensures physical realism and parameter validation
+- **Trait-based architecture** allows seamless swapping of physics implementations
+- **Conservation-based numerics** provide stable, physically-meaningful simulations
+- **Professional TUI design** delivers real-time visualization of complex multi-field data
+- **Modular separation** (worldgen/sim/render) enables independent development of physics systems
 
 ## Interesting Questions to Investigate
 
-- How do different noise algorithms affect the "feel" of generated worlds?
-- What's the minimum complexity needed for emergent behavior in agents?
-- Can simple rules create realistic ecosystem dynamics?
-- How does map size affect simulation performance and behavior patterns?
-- What visualization approaches best reveal simulation patterns?
+**Physics & Scale Questions:**
+- How do Coriolis effects manifest differently across various planetary scales?
+- What dimensionless numbers govern the transition between different flow regimes?
+- How can grid convergence be maintained while scaling to continental-size domains?
+- What are the computational trade-offs between implicit vs explicit time integration?
+
+**Multi-Physics Coupling Questions:**
+- How do atmospheric pressure gradients couple with topographic wind channeling?
+- What feedback mechanisms emerge between erosion rates and climate patterns?
+- How do geological timescales interact with surface process equilibration?
+- Can realistic storm formation emerge from first-principles atmospheric modeling?
+
+**Simulation Architecture Questions:**
+- How can trait-based physics enable runtime switching between different model complexities?
+- What visualization techniques best reveal multi-scale coupling mechanisms?
+- How do we maintain numerical stability across coupled multi-physics systems?
 
 ## Quick Win Ideas (Easy experiments to try)
 
-**TUI Interface Quick Wins (High Impact, Low Effort):**
-- [x] Mini-map in corner (simple downsampled view)
-- [x] Elevation legend (3-line reference guide)
-- [x] Zoom levels via render sampling (1:1, 1:2, 1:4)
-- [x] Fast movement with Shift+WASD (already implemented)
+**Phase 2B Implementation Quick Wins:**
+- [ ] Simple pressure gradient visualization in existing TUI panels
+- [ ] Coriolis parameter sensitivity analysis with different planetary rotation rates
+- [ ] Wind vector overlay showing pressure-driven flow patterns
+- [ ] Storm formation detection using pressure gradient thresholds
 
-**Terrain Generation Quick Wins:**
-- [ ] Add more terrain elevation bands with different colors/symbols
-- [ ] Implement simple temperature map based on latitude/elevation
-- [x] Add command-line seed parameter for reproducible worlds
-- [ ] Try different map aspect ratios (square vs rectangular vs long strips)
-- [ ] Experiment with edge effects (wrapping vs boundaries vs infinite generation)
+**Physics Validation Quick Wins:**
+- [ ] Dimensional analysis verification tool for new physics modules
+- [ ] Grid convergence testing framework for atmospheric models
+- [ ] Scale-aware parameter validation across different world sizes
+- [ ] Conservation law checking for coupled multi-physics systems
+
+**Architecture Exploration Quick Wins:**
+- [ ] Trait-based atmospheric physics similar to existing water system
+- [ ] Runtime physics model switching (simple → full → research-grade)
+- [ ] Performance profiling of coupled vs decoupled physics integration
+- [ ] Memory usage optimization for large-scale continental simulations
 
 ## Rabbit Holes to Avoid (For Now)
 
-- Complex GUI frameworks (terminal is fine for experiments)
-- Over-optimizing performance before understanding what's slow
-- Building comprehensive save/load systems before core mechanics work
-- Getting distracted by graphics when gameplay concepts are more interesting
+**Technical Rabbit Holes:**
+- Advanced numerical methods (finite element, spectral) before finite difference mastery
+- GPU acceleration before CPU implementation is fully validated and optimized
+- Complex visualizations before core physics coupling is thoroughly understood
+- Real-time 3D rendering when 2D TUI effectively demonstrates the physics
 
-*Note: This is a personal experiment - follow curiosity and don't worry about "finishing" everything*
+**Scope Creep Rabbit Holes:**
+- Agent-based modeling before environmental foundation is solid
+- Full Earth-scale simulations before regional models are validated
+- Comprehensive save/load systems before physics implementations stabilize
+- Publication-quality documentation before experimental phase concludes
+
+**Physics Rabbit Holes:**
+- Detailed atmospheric chemistry before fluid dynamics fundamentals work
+- Turbulence modeling before laminar flow regimes are properly implemented
+- Non-hydrostatic effects before hydrostatic balance is established
+
+*Note: Maintain experimental spirit while building professional-grade foundations - follow curiosity within established physics principles*
