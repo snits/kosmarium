@@ -6,10 +6,10 @@ ABOUTME: Tracks active development state for smooth transitions between sessions
 ## Current Implementation Status
 
 ### Active Development State
-- **Project Phase**: Educational Deep Dive Sessions - 🎓 IN PROGRESS  
-- **Current Branch**: cyberiad-fantasy-physics (clean, all changes committed)
-- **Last Session Focus**: Session 1 - Scale-Aware Architecture & Dimensional Analysis
-- **Education Plan**: Updated and ready (10/14 sessions have complete implementations)
+- **Project Phase**: Continental-Scale Weather System Debugging - 🐛 IN PROGRESS  
+- **Current Branch**: cyberiad-fantasy-physics (active fixes in progress)
+- **Last Session Focus**: Atmospheric System Stability & Water Accumulation Issues
+- **System Status**: Performance restored, biome classification working, atmospheric instability persists
 
 ### System Status
 - **Build Status**: ✅ Production Ready (`cargo build` succeeds, all targets functional)
@@ -19,20 +19,22 @@ ABOUTME: Tracks active development state for smooth transitions between sessions
 - **Performance Foundation**: ✅ HeightMap flat memory layout committed (achieved 2-3x improvement foundation)
 
 ### Recently Completed (This Session)
-- ✅ **Education Plan Updated:**
-  - **Status Assessment**: 10/14 sessions ready with complete implementations 
-  - **Roadmap Reorganization**: Marked completed systems vs design-phase systems
-  - **Priority Identification**: Session 1 (foundations), Session 9 (agents), Session 6 (performance) as high-value starting points
-- ✅ **Session 1: Scale-Aware Architecture Deep Dive:**
-  - **WorldScale Foundation**: Core separation of physical vs resolution scale
-  - **ScaleAware Trait**: Universal scaling pattern as mathematical functor
-  - **Dimensional Analysis**: Professional physics unit system preventing NASA-style unit errors
-  - **CFL Stability**: Numerical stability mathematics and automatic timestep calculation
-  - **Scale Conflicts Identified**: Weather (wants large scale) vs Agents (wants small scale)
-- ✅ **Architectural Insights Discovered:**
-  - **Multi-Scale Potential**: Architecture supports hierarchical grids (weather at 100km, agents at 10m)
-  - **Modular Library Opportunity**: Systems are loosely coupled, could compose into specialized apps
-  - **Computational Budget Tension**: Current 50km compromise satisfies neither weather nor agents optimally
+- ✅ **Biome Classification System Fixed:**
+  - **Water thresholds recalibrated**: From (0.01, 0.03, 0.1) to (0.05, 0.15, 0.3) for continental-scale water system
+  - **Realistic biome distributions**: 80-90% terrestrial with diverse grassland/forest patterns
+  - **Scale-aware parameter derivation**: Proper continental vs global threshold handling
+- ✅ **Atmospheric System Scale-Aware Fixes:**
+  - **Coriolis latitude mapping**: Fixed 200km continental treated as full globe (Arctic to Antarctic)
+  - **Continental vs global behavior**: Single 45°N latitude for ≤1000km domains, full range for >1000km
+  - **WorldScale integration**: Atmospheric system now properly stores and uses scale context
+- ✅ **Water System Drainage Improvements:**
+  - **Periodic concentration eliminated**: Removed problematic 1000-tick water redistribution "switch flip"
+  - **Gradual flow system**: Continuous drainage enhancement instead of nuclear redistribution
+  - **Boundary outlet conditions**: Water can exit domain edges for continental-scale realism
+- ✅ **Performance Optimization Success:**
+  - **SIMD and parallel processing**: Rayon parallelization with optimized memory access patterns
+  - **Continental-scale specialization**: Hardcoded optimizations for 240x120 @ 200km use case
+  - **Memory layout improvements**: Direct HeightMap access eliminating expensive conversions
 
 **🎉 COMPLETED: Phase 4A Agent System Foundation** (Production Ready - Committed 9e51af6d7de3)
 
@@ -88,26 +90,43 @@ ABOUTME: Tracks active development state for smooth transitions between sessions
 
 ## Handoff Notes for Next Session
 
-### Current Educational Progress
+### Critical Issues Requiring Resolution
 
-**📚 SESSION 1: Scale-Aware Architecture & Dimensional Analysis**
-- **Status**: ~70% Complete (7/10 sections)
-- **Document**: `docs/session-1-scale-aware-architecture.md`
-- **✅ Completed**: WorldScale, ScaleAware trait, dimensional analysis, CFL conditions, 50km constraints, Jerry's insights
-- **❌ Remaining**: Grid Convergence Testing, Conservation Laws, Water Flow Integration
+**🚨 PRIMARY ISSUE: Atmospheric System Instability**
+- **Problem**: Atmospheric system starts with realistic pressure/wind patterns but degrades over time
+- **Symptoms**: Solid red pressure visualization, extreme wind speeds, rapid water accumulation leading to "water world"
+- **Timeline**: Degradation happens within simulation days, causing water world in ~6 days instead of previous 7 hours
+- **Impact**: All other systems (biomes, water, climate) become corrupted when atmospheric system fails
 
-**🤖 SESSION 9: Agent System Architecture** 
-- **Status**: ~65% Complete (7/11 sections)
-- **Document**: `docs/session-9-agent-system-architecture.md`  
-- **✅ Completed**: SoA memory layout, generational safety, spatial indexing, A* pathfinding, Jerry's deep dive questions
-- **❌ Remaining**: Terrain integration, biome caching, multi-system integration, extension traits
+**🔍 DEBUGGING TARGETS:**
+1. **Atmospheric boundary conditions**: Wind vectors accumulating at western edge instead of flowing off domain
+2. **Time-dependent instability**: Why atmospheric system degrades from good initial state
+3. **Cross-system feedback**: How corrupted atmospheric conditions drive unrealistic precipitation
+4. **Pressure calculation stability**: Root cause of return to solid red "extreme pressure everywhere"
 
-### Immediate Educational Options
-- **🎓 CONTINUE: Session 1** - Grid Convergence Testing, Conservation Laws, Water Flow Integration
-- **🎓 CONTINUE: Session 9** - Terrain Integration, Biome Caching, Multi-System Integration  
-- **🎓 NEW SESSION: Session 6** - HeightMap Performance Revolution (2-3x measured improvements)
-- **🎓 NEW SESSION: Session 4** - TUI Architecture & User Experience patterns
-- **🎓 NEW SESSION: Session 8** - Rust Performance Patterns & Memory Management
+### Working Systems Status
+
+**✅ SYSTEMS THAT WORK WELL:**
+- **Biome classification**: Excellent diversity when atmospheric system is stable
+- **Performance**: Fast simulation at 240x120 @ 200km scale  
+- **Scale-aware architecture**: Continental vs global behavior properly implemented
+- **Water drainage**: No more periodic "switch flip" redistribution
+- **Graphics interface**: All display modes functional with good visualization
+
+**❌ UNSTABLE SYSTEM:**
+- **Atmospheric system**: Fundamental instability leading to cascading failures
+
+### Next Session Options
+
+**🔥 PRIORITY: Debug Atmospheric System Instability**
+- Call debug-specialist to investigate time-dependent atmospheric degradation
+- Focus on boundary condition implementation for continental domains
+- Analyze why atmospheric system can't maintain stable pressure patterns
+
+**🎓 ALTERNATIVE: Educational Deep Dive (if debugging stalls)**
+- Session 1: Scale-Aware Architecture & Dimensional Analysis (70% complete)
+- Session 9: Agent System Architecture (65% complete)
+- Session 6: HeightMap Performance Revolution
 
 ### Key Architectural Discovery - Modular Library Potential
 - **Insight**: Systems are loosely coupled, could compose into specialized applications
@@ -116,9 +135,10 @@ ABOUTME: Tracks active development state for smooth transitions between sessions
 - **Foundation**: ScaleAware architecture enables both through universal scaling interface
 
 ### Implementation Priorities (If Continuing Development)
-- **🚀 Fantasy Physics Wind System**: 79% computational reduction, complete specification ready
-- **🔧 Tectonic Parameter Fixes**: Extreme base elevations causing terrain issues
-- **⚡ Spatial Partitioning Debug**: Claims 5-20% active cells but processes 100%
+- **🚨 Atmospheric System Stability**: Critical instability causing cascading system failures
+- **🌊 Boundary Condition Implementation**: Proper continental-scale atmospheric/water boundaries  
+- **🔧 Cross-System Integration**: Prevent atmospheric corruption from affecting water/biome systems
+- **⏱️ Time Control Systems**: Tick scaler for variable simulation speed (currently pending)
 
 ### Context to Load
 - **docs/fantasy-physics-solo-analysis.md**: Complete fantasy physics implementation specification (1,047 lines)
@@ -129,23 +149,24 @@ ABOUTME: Tracks active development state for smooth transitions between sessions
 - **src/spatial_partitioning.rs**: Broken spatial optimization system needing debug
 
 ### Key Decisions Made This Session
-- **Temperature Scaling Architecture**: Implemented climate-aware scaling that accommodates both terrain detail (~10km) and climate realism (~100km+)
-- **Plate Tectonic Analysis**: Expert consensus that current architecture is excellent, only parameter tuning needed
-- **Geological Evolution Role**: System exists primarily to compensate for extreme tectonic parameters, not fundamental design flaws
-- **Two-Track Implementation**: Parallel fixes for tectonic parameters (quality) and spatial partitioning (performance)
-- **TUI Debug Output**: All debug messages removed/disabled for clean terminal interface
+- **Biome System Recalibration**: Water thresholds adjusted to match continental-scale water system behavior
+- **Scale-Aware Atmospheric Architecture**: Proper continental vs global physics based on domain size thresholds
+- **Drainage System Redesign**: Eliminated periodic redistribution in favor of continuous gradual flow
+- **Performance vs Correctness Balance**: Achieved fast performance while maintaining realistic physics
+- **Boundary Condition Recognition**: Identified need for proper continental-scale atmospheric outlets
 
 ### Technical Architecture Status
-- **Climate System**: Fixed temperature scaling bug, now produces realistic biome diversity on all map sizes
-- **Plate Tectonic Generation**: Architecture validated as professionally designed, parameters identified for tuning
-- **Geological Evolution**: Linear O(n) performance confirmed, spatial partitioning system broken but repairable
-- **TUI Interface**: Clean display achieved, ready for biome overlay enhancement
+- **Biome Classification**: Working excellently when atmospheric system is stable (80-90% terrestrial diversity)
+- **Water System**: Drainage flow properly implemented, no more periodic redistribution artifacts
+- **Atmospheric System**: Scale-aware architecture implemented but suffers from time-dependent instability
+- **Performance**: Continental-scale simulations running at target speeds with SIMD optimizations
+- **Graphics Interface**: All 7 display modes functional with real-time visualization
 
 ### Implementation Readiness
-- **Tectonic Parameter Fixes**: Specific values identified for base elevations, mountain amplification, and distance effects
-- **Spatial Partitioning Debug**: Root cause analysis complete, debugging path established
-- **Biome Overlay Implementation**: TUI infrastructure ready, DisplayMode enum needs Biome variant
-- **Expert Analysis Complete**: Architecture validated, implementation roadmap defined
+- **Atmospheric Stability Investigation**: Ready for debug-specialist analysis of time-dependent failures
+- **Boundary Condition Implementation**: Continental-scale outlet specifications needed for all physics systems
+- **Cross-System Isolation**: Prevent atmospheric instability from corrupting water/biome calculations
+- **Time Control System**: Tick scaler implementation ready for next development phase
 
 ### Development Philosophy
 - **Performance-First Approach**: Optimize core data structures before adding gameplay complexity
