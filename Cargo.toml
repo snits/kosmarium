@@ -4,9 +4,42 @@ version = "0.1.0"
 edition = "2024"
 default-run = "sim-protoype"
 
+[features]
+default = ["simd"]
+simd = []
+
 [lib]
 name = "sim_protoype"
 path = "src/lib.rs"
+
+# Debug and analysis tools
+[[bin]]
+name = "debug_drainage_regression"
+path = "debug_binaries_tmp/debug_drainage_regression.rs"
+
+[[bin]]
+name = "debug_coordinate_system"
+path = "debug_binaries_tmp/debug_coordinate_system.rs"
+
+[[bin]]
+name = "debug_diamond_square"
+path = "debug_binaries_tmp/debug_diamond_square.rs"
+
+[[bin]]
+name = "debug_water_system"
+path = "debug_binaries_tmp/debug_water_system.rs"
+
+[[bin]]
+name = "debug_scaling"
+path = "debug_binaries_tmp/debug_scaling.rs"
+
+[[bin]]
+name = "performance_test_debug"
+path = "debug_binaries_tmp/performance_test.rs"
+
+[[bin]]
+name = "validate_opengl_data"
+path = "debug_binaries_tmp/validate_opengl_data.rs"
 
 [dependencies]
 rand = "0.8"
@@ -17,4 +50,5 @@ futures = "0.3"
 atty = "0.2"
 clap = { version = "4.0", features = ["derive"] }
 macroquad = "0.4"
+rayon = "1.8"
 

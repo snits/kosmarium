@@ -1,8 +1,10 @@
 // ABOUTME: Validation script to test OpenGL data safety for layered terrain generation
 // ABOUTME: Implements defensive programming patterns and validates all floating point values
 
-use sim_protoype::sim::Simulation;
-use sim_protoype::worldgen::{TectonicConfig, TectonicGenerator, TerrainGenerator};
+use sim_protoype::engine::physics::worldgen::{
+    TectonicConfig, TectonicGenerator, TerrainGenerator,
+};
+use sim_protoype::engine::sim::Simulation;
 
 fn main() {
     println!("=== OpenGL Data Validation for Layered Terrain ===\n");

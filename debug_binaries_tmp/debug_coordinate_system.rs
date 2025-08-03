@@ -17,7 +17,13 @@ async fn main() {
         let screen_w = screen_width();
         let screen_h = screen_height();
         draw_rectangle(screen_w - 60.0, screen_h - 60.0, 50.0, 50.0, BLUE);
-        draw_text("BOTTOM-RIGHT", screen_w - 120.0, screen_h - 35.0, 20.0, WHITE);
+        draw_text(
+            "BOTTOM-RIGHT",
+            screen_w - 120.0,
+            screen_h - 35.0,
+            20.0,
+            WHITE,
+        );
 
         // Draw a grid to show coordinate progression
         for i in 0..10 {
@@ -28,8 +34,20 @@ async fn main() {
         }
 
         // Instructions
-        draw_text("Macroquad Coordinate System Test", 10.0, screen_h - 20.0, 20.0, YELLOW);
-        draw_text("Y should increase DOWNWARD (standard graphics)", 10.0, screen_h - 40.0, 16.0, LIGHTGRAY);
+        draw_text(
+            "Macroquad Coordinate System Test",
+            10.0,
+            screen_h - 20.0,
+            20.0,
+            YELLOW,
+        );
+        draw_text(
+            "Y should increase DOWNWARD (standard graphics)",
+            10.0,
+            screen_h - 40.0,
+            16.0,
+            LIGHTGRAY,
+        );
 
         next_frame().await;
     }
