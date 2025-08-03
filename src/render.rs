@@ -1,8 +1,11 @@
 // sim-prototype/src/render.rs
 
 use crate::sim::Simulation;
-use crossterm::{style::{Stylize, PrintStyledContent}, execute};
-use std::io::{stdout, Write};
+use crossterm::{
+    execute,
+    style::{PrintStyledContent, Stylize},
+};
+use std::io::{Write, stdout};
 
 pub fn ascii_render(sim: &Simulation) {
     let mut stdout = stdout();
@@ -13,7 +16,7 @@ pub fn ascii_render(sim: &Simulation) {
                 x if x < 0.2 => '.'.blue(),
                 x if x < 0.4 => '~'.cyan(),
                 x if x < 0.6 => '^'.green(),
-                x if x < 0.8 => '#' .yellow(),
+                x if x < 0.8 => '#'.yellow(),
                 _ => '@'.red(),
             };
             let _ = execute!(stdout, PrintStyledContent(symbol));
@@ -21,4 +24,3 @@ pub fn ascii_render(sim: &Simulation) {
         let _ = writeln!(stdout);
     }
 }
-

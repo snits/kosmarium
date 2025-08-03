@@ -1,7 +1,7 @@
 // sim-prototype/src/worldgen.rs
 
-use rand::{Rng, SeedableRng};
 use rand::rngs::StdRng;
+use rand::{Rng, SeedableRng};
 
 pub struct DiamondSquareGenerator {
     seed: u64,

@@ -1,12 +1,12 @@
 // sim-prototype/src/main.rs
 
-mod worldgen;
-mod sim;
 mod render;
+mod sim;
+mod worldgen;
 
-use worldgen::DiamondSquareGenerator;
-use sim::Simulation;
 use render::ascii_render;
+use sim::Simulation;
+use worldgen::DiamondSquareGenerator;
 
 fn main() {
     // Step 1: Generate the map
@@ -19,4 +19,3 @@ fn main() {
     // Step 3: Render the current world state
     ascii_render(&sim);
 }
-
