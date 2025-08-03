@@ -205,10 +205,10 @@ impl Default for WeatherAnalysis {
         Self {
             patterns: Vec::new(),
             vorticity_field: Vec::new(),
-            low_pressure_threshold: 500.0,  // 5 hPa below average
-            high_pressure_threshold: 500.0, // 5 hPa above average
-            vorticity_threshold: 1e-4,      // 10⁻⁴ s⁻¹ (typical for weather systems)
-            wind_speed_threshold: 10.0,     // 10 m/s (strong breeze)
+            low_pressure_threshold: 200.0, // 2 hPa below average (more realistic)
+            high_pressure_threshold: 200.0, // 2 hPa above average (more realistic)
+            vorticity_threshold: 5e-5,     // 5×10⁻⁵ s⁻¹ (reduced for stability)
+            wind_speed_threshold: 5.0,     // 5 m/s (moderate breeze)
         }
     }
 }
@@ -309,15 +309,22 @@ impl AtmosphericSystem {
                 let latitude_rad = self.grid_y_to_latitude(y, height);
                 let f = self.coriolis_parameter_at_latitude(latitude_rad);
 
-                // Handle special latitude cases
+                // Handle special latitude cases and numerical stability
                 if f.abs() < 1e-10 {
                     // Near equator - no Coriolis effect, winds follow pressure gradients directly
                     let rho = self.parameters.air_density_sea_level;
-                    let direct_u = -(pressure_gradient.x / rho) * 0.1; // Reduced pressure-driven flow
-                    let direct_v = -(pressure_gradient.y / rho) * 0.1;
+                    let direct_u = -(pressure_gradient.x / rho) * 0.01; // Greatly reduced pressure-driven flow
+                    let direct_v = -(pressure_gradient.y / rho) * 0.01;
                     wind_layer.velocity[y][x] = Vec2::new(direct_u, direct_v);
                     continue;
                 }
+
+                // Apply numerical stability limit for very small Coriolis parameters
+                let f_stable = if f.abs() < 1e-8 {
+                    if f >= 0.0 { 1e-8 } else { -1e-8 }
+                } else {
+                    f
+                };
 
                 // Handle polar regions (|latitude| > 70°) where Coriolis effects become very strong
                 let latitude_abs = latitude_rad.abs();
@@ -340,11 +347,22 @@ impl AtmosphericSystem {
                         (raw_u, raw_v)
                     }
                 } else {
-                    // Mid-latitudes: Standard geostrophic balance
+                    // Mid-latitudes: Standard geostrophic balance with stability limits
                     let rho = self.parameters.air_density_sea_level;
-                    let geostrophic_u = (pressure_gradient.y / rho) / (f as f32);
-                    let geostrophic_v = -(pressure_gradient.x / rho) / (f as f32);
-                    (geostrophic_u, geostrophic_v)
+                    let geostrophic_u = (pressure_gradient.y / rho) / (f_stable as f32);
+                    let geostrophic_v = -(pressure_gradient.x / rho) / (f_stable as f32);
+
+                    // Apply global wind speed limit for numerical stability
+                    let wind_magnitude =
+                        (geostrophic_u * geostrophic_u + geostrophic_v * geostrophic_v).sqrt();
+                    let max_realistic_wind = 100.0; // 100 m/s maximum (hurricane force)
+
+                    if wind_magnitude > max_realistic_wind {
+                        let scale_factor = max_realistic_wind / wind_magnitude;
+                        (geostrophic_u * scale_factor, geostrophic_v * scale_factor)
+                    } else {
+                        (geostrophic_u, geostrophic_v)
+                    }
                 };
 
                 // Apply geostrophic strength scaling
@@ -415,8 +433,14 @@ impl AtmosphericSystem {
             0
         };
 
-        // Use a coarser grid for pattern detection to avoid noise
-        let step = 5.max(width / 20); // Sample every ~5% of domain width
+        // Use adaptive grid for pattern detection based on resolution
+        // For high-resolution domains, use finer sampling to capture natural patterns
+        let target_samples = if scale.meters_per_pixel() < 500.0 {
+            50 // Fine sampling for high-resolution domains
+        } else {
+            20 // Coarse sampling for low-resolution domains
+        };
+        let step = (width / target_samples).max(5).min(25); // Adaptive step size with bounds
 
         for y in (step..height - step).step_by(step) {
             for x in (step..width - step).step_by(step) {

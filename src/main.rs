@@ -4,10 +4,10 @@
 mod applications;
 mod engine;
 
-use applications::run_terrain_explorer;
+use applications::run_weather_demo;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // For now, just run the terrain explorer
-    // In the future, this could dispatch to different applications based on CLI args
-    run_terrain_explorer()
+    // For weather system testing, run the weather demo
+    // This demonstrates atmospheric dynamics and weather pattern visualization
+    run_weather_demo()
 }

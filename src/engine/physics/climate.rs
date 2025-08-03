@@ -261,9 +261,17 @@ impl ScaleAware for ClimateParameters {
             // Seasonal amplitude might vary with map size (larger areas = more continental)
             seasonal_amplitude: self.seasonal_amplitude * (1.0 + physical_extent_km / 1000.0 * 0.1),
 
-            // Latitude gradient scales with map coverage
-            // Larger maps span more latitudes = more temperature variation
-            latitude_gradient: self.latitude_gradient * (physical_extent_km / 100.0).min(5.0),
+            // Continental-scale temperature gradient (north-south)
+            // For continental domains, use realistic gradients: ~0.1°C/km = 10°C per 100km
+            // Scale appropriately for domain size, avoiding global-scale assumptions
+            latitude_gradient: {
+                let continental_gradient_per_km = 0.1; // °C per kilometer (realistic continental gradient)
+                let domain_half_extent_km = physical_extent_km / 2.0; // Half domain = center to edge distance
+                let total_temperature_variation =
+                    continental_gradient_per_km * domain_half_extent_km;
+                // Clamp to reasonable bounds for continental domains (5-25°C variation)
+                total_temperature_variation.max(5.0).min(25.0)
+            },
 
             // Temperature limits remain physical constants
             min_temperature: self.min_temperature,
@@ -281,9 +289,24 @@ impl ScaleAware for ClimateParameters {
             seasonal_pressure_amplitude: self.seasonal_pressure_amplitude
                 * (1.0 + physical_extent_km / 1000.0 * 0.2),
 
-            // Weather noise scales with map size (larger maps = more weather systems)
-            pressure_noise_amplitude: self.pressure_noise_amplitude
-                * (physical_extent_km / 100.0).min(2.0),
+            // Weather noise scales with map size but is reduced for high-resolution domains
+            // to prevent numerical instability in wind calculations
+            pressure_noise_amplitude: {
+                let base_scaling = (physical_extent_km / 100.0).min(2.0);
+                let resolution_damping = if physical_extent_km > 200.0 {
+                    // For large, high-resolution domains, reduce noise to prevent wind instability
+                    let meters_per_pixel = (physical_extent_km * 1000.0)
+                        / (scale.resolution.0 as f32).max(scale.resolution.1 as f32);
+                    if meters_per_pixel < 500.0 {
+                        0.3 // Greatly reduced noise for high-resolution domains
+                    } else {
+                        0.7 // Moderately reduced noise
+                    }
+                } else {
+                    1.0 // Full noise for small domains
+                };
+                self.pressure_noise_amplitude * base_scaling * resolution_damping
+            },
         }
     }
 }
@@ -335,18 +358,18 @@ impl ClimateSystem {
         }
     }
 
-    /// Generate temperature layer from heightmap
+    /// Generate temperature layer from heightmap with scale-aware continental climate
+    /// This version uses the climate system's pre-scaled parameters
     pub fn generate_temperature_layer(&self, heightmap: &[Vec<f32>]) -> TemperatureLayer {
         let height = heightmap.len();
         let width = if height > 0 { heightmap[0].len() } else { 0 };
 
         let mut temp_layer = TemperatureLayer::new(width, height);
 
-        // Calculate temperature for each cell
+        // Calculate temperature for each cell with continental-scale gradients
         for y in 0..height {
             for x in 0..width {
                 let elevation = heightmap[y][x];
-                let latitude_factor = (y as f32) / (height as f32); // 0.0 = north, 1.0 = south
 
                 // Base temperature calculation
                 let mut temperature = self.parameters.base_temperature_c;
@@ -354,9 +377,13 @@ impl ClimateSystem {
                 // Apply elevation-based cooling (higher = colder)
                 temperature -= elevation.max(0.0) * self.parameters.elevation_lapse_rate * 1000.0;
 
-                // Apply latitude-based variation (assume symmetric about equator)
-                let latitude_from_equator = (latitude_factor - 0.5).abs() * 2.0; // 0.0 = equator, 1.0 = pole
-                temperature -= latitude_from_equator * self.parameters.latitude_gradient * 90.0; // 90 degrees from equator to pole
+                // Apply continental-scale north-south temperature gradient
+                // Use normalized position within domain (0.0 = north edge, 1.0 = south edge)
+                let north_south_position = (y as f32) / (height as f32).max(1.0);
+                // Apply symmetric gradient around center (maximum cooling at edges)
+                let distance_from_center = (north_south_position - 0.5).abs() * 2.0; // 0.0 = center, 1.0 = edge
+                // Scale by domain-appropriate gradient (already scaled by ScaleAware)
+                temperature -= distance_from_center * self.parameters.latitude_gradient;
 
                 // Clamp to reasonable limits
                 temperature = temperature
@@ -365,13 +392,102 @@ impl ClimateSystem {
 
                 temp_layer.temperature[y][x] = temperature;
 
-                // Seasonal variation (higher latitudes have more variation)
+                // Seasonal variation scales with distance from center (continental effect)
                 temp_layer.seasonal_variation[y][x] =
-                    self.parameters.seasonal_amplitude * (0.5 + latitude_from_equator * 0.5); // More variation at poles
+                    self.parameters.seasonal_amplitude * (0.7 + distance_from_center * 0.3);
             }
         }
 
+        // Apply spatial smoothing to eliminate banding artifacts
+        self.apply_spatial_smoothing(&mut temp_layer);
+
         temp_layer
+    }
+
+    /// Generate temperature layer with explicit scale context for debugging/analysis
+    /// Useful for understanding how scale affects temperature patterns
+    pub fn generate_temperature_layer_with_scale(
+        &self,
+        heightmap: &[Vec<f32>],
+        scale: &WorldScale,
+    ) -> TemperatureLayer {
+        // Log scale-dependent parameters for debugging
+        let domain_size = scale.physical_size_km;
+        let expected_variation = (domain_size / 2.0) * 0.1; // 0.1°C/km * half-domain
+
+        eprintln!("Generating temperature for {:.1}km domain:", domain_size);
+        eprintln!(
+            "  Expected N-S temperature variation: {:.1}°C",
+            expected_variation
+        );
+        eprintln!(
+            "  Actual latitude_gradient parameter: {:.1}°C",
+            self.parameters.latitude_gradient
+        );
+        eprintln!(
+            "  Resolution: {}x{} ({:.0}m/pixel)",
+            scale.resolution.0,
+            scale.resolution.1,
+            scale.meters_per_pixel()
+        );
+
+        // Use the standard generation method
+        self.generate_temperature_layer(heightmap)
+    }
+
+    /// Apply spatial smoothing to eliminate temperature banding artifacts
+    /// Uses a simple 3x3 gaussian-like kernel for natural thermal diffusion
+    fn apply_spatial_smoothing(&self, temp_layer: &mut TemperatureLayer) {
+        let height = temp_layer.height();
+        let width = temp_layer.width();
+
+        if height < 3 || width < 3 {
+            return; // Skip smoothing for very small maps
+        }
+
+        // Create a copy of original temperatures
+        let original_temps: Vec<Vec<f32>> = temp_layer.temperature.clone();
+
+        // Apply smoothing with thermal diffusion kernel
+        for y in 1..height - 1 {
+            for x in 1..width - 1 {
+                // 3x3 gaussian-like kernel for natural heat distribution
+                // Center weight higher to preserve original values while smoothing
+                let center_weight = 0.4;
+                let adjacent_weight = 0.15; // orthogonal neighbors
+                let diagonal_weight = 0.1; // diagonal neighbors
+
+                let smoothed_temp = original_temps[y][x] * center_weight +
+                    original_temps[y-1][x] * adjacent_weight +     // north
+                    original_temps[y+1][x] * adjacent_weight +     // south
+                    original_temps[y][x-1] * adjacent_weight +     // west
+                    original_temps[y][x+1] * adjacent_weight +     // east
+                    original_temps[y-1][x-1] * diagonal_weight +   // northwest
+                    original_temps[y-1][x+1] * diagonal_weight +   // northeast
+                    original_temps[y+1][x-1] * diagonal_weight +   // southwest
+                    original_temps[y+1][x+1] * diagonal_weight; // southeast
+
+                temp_layer.temperature[y][x] = smoothed_temp;
+            }
+        }
+
+        // Also smooth seasonal variation to maintain consistency
+        let original_seasonal: Vec<Vec<f32>> = temp_layer.seasonal_variation.clone();
+
+        for y in 1..height - 1 {
+            for x in 1..width - 1 {
+                let center_weight = 0.6; // Higher weight for seasonal variation to preserve patterns
+                let adjacent_weight = 0.1;
+
+                let smoothed_seasonal = original_seasonal[y][x] * center_weight
+                    + original_seasonal[y - 1][x] * adjacent_weight
+                    + original_seasonal[y + 1][x] * adjacent_weight
+                    + original_seasonal[y][x - 1] * adjacent_weight
+                    + original_seasonal[y][x + 1] * adjacent_weight;
+
+                temp_layer.seasonal_variation[y][x] = smoothed_seasonal;
+            }
+        }
     }
 
     /// Get season name for display purposes
@@ -473,8 +589,8 @@ impl ClimateSystem {
 
 #[cfg(test)]
 mod tests {
-    use super::super::core::scale::{DetailLevel, WorldScale};
     use super::*;
+    use crate::engine::core::scale::{DetailLevel, WorldScale};
 
     #[test]
     fn temperature_layer_basic_operations() {

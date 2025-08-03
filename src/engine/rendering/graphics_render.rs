@@ -536,7 +536,39 @@ impl GraphicsRenderer {
                 legend_y += legend_spacing;
                 self.draw_legend_item(legend_x, legend_y, RED, "High Pressure", 12.0);
                 legend_y += legend_spacing;
-                draw_text("White arrows = wind", legend_x, legend_y, 12.0, WHITE);
+                draw_text("Wind Speed:", legend_x, legend_y, 12.0, LIGHTGRAY);
+                legend_y += legend_spacing;
+                self.draw_legend_item(
+                    legend_x,
+                    legend_y,
+                    Color::new(0.0, 0.0, 1.0, 0.9),
+                    "Low",
+                    12.0,
+                );
+                legend_y += legend_spacing;
+                self.draw_legend_item(
+                    legend_x,
+                    legend_y,
+                    Color::new(0.0, 1.0, 0.0, 0.9),
+                    "Medium",
+                    12.0,
+                );
+                legend_y += legend_spacing;
+                self.draw_legend_item(
+                    legend_x,
+                    legend_y,
+                    Color::new(1.0, 1.0, 0.0, 0.9),
+                    "High",
+                    12.0,
+                );
+                legend_y += legend_spacing;
+                self.draw_legend_item(
+                    legend_x,
+                    legend_y,
+                    Color::new(1.0, 0.0, 0.0, 0.9),
+                    "Extreme",
+                    12.0,
+                );
             }
             DisplayMode::Weather => {
                 draw_text("Weather Systems:", legend_x, legend_y, 14.0, LIGHTGRAY);
@@ -641,8 +673,29 @@ impl GraphicsRenderer {
     }
 
     fn wind_speed_to_color(&self, speed: f32) -> Color {
-        let intensity = (speed * 2.0).min(1.0);
-        Color::new(1.0, 1.0 - intensity, 1.0 - intensity, 0.9)
+        // Map wind speeds to a reasonable color range
+        // Based on debug output: speeds range from ~16 to ~305k
+        // Use logarithmic scaling for better visual distribution
+        let log_speed = (speed.max(1.0)).ln();
+        let min_log = 16.0f32.ln(); // ~2.77
+        let max_log = 1000.0f32.ln(); // Cap at ~6.91 for reasonable upper bound
+
+        let intensity = ((log_speed - min_log) / (max_log - min_log)).clamp(0.0, 1.0);
+
+        // Color scheme: Blue (low) -> Green -> Yellow -> Red (high)
+        if intensity < 0.33 {
+            // Blue to Green
+            let t = intensity / 0.33;
+            Color::new(0.0, t, 1.0 - t, 0.9)
+        } else if intensity < 0.66 {
+            // Green to Yellow
+            let t = (intensity - 0.33) / 0.33;
+            Color::new(t, 1.0, 0.0, 0.9)
+        } else {
+            // Yellow to Red
+            let t = (intensity - 0.66) / 0.34;
+            Color::new(1.0, 1.0 - t, 0.0, 0.9)
+        }
     }
 
     fn calculate_cell_size(&self, width: usize, height: usize) -> f32 {
