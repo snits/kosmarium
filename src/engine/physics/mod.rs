@@ -21,4 +21,4 @@ pub use worldgen::{
 };
 
 // Re-export geological evolution
-pub use geological_evolution::{GeologicalEvolution, GeologicalEvolutionConfig};
+pub use geological_evolution::GeologicalEvolutionConfig;

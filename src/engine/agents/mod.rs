@@ -5,9 +5,5 @@ pub mod agents;
 pub mod biome;
 
 // Re-export key agent types
-pub use agents::{
-    AgentError, AgentId, AgentResult, AgentSystem, AgentType, SimulationContext, WorldBounds,
-};
 
 // Re-export biome system
-pub use biome::{BiomeClassifier, BiomeMap, BiomeType};

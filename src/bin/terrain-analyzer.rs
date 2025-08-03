@@ -2,7 +2,6 @@
 // ABOUTME: Generates multiple worlds with different seeds and provides statistical analysis of results
 
 use clap::Parser;
-use sim_protoype::engine::agents::biome::{BiomeClassifier, BiomeType};
 use sim_protoype::engine::physics::worldgen::{
     DiamondSquareConfig, DiamondSquareGenerator, TectonicConfig, TectonicGenerator,
     TerrainGenerator,

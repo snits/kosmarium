@@ -8,6 +8,4 @@ pub mod optimized_heightmap;
 pub mod scale;
 
 // Re-export key types for convenience
-pub use dimensional::{PhysicalQuantity, PhysicalUnit};
-pub use heightmap::HeightMap;
-pub use scale::{DetailLevel, REFERENCE_SCALE, ScaleAware, WorldScale};
+pub use scale::{DetailLevel, WorldScale};

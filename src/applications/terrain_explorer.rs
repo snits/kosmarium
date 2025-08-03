@@ -9,8 +9,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use crate::engine::{
     Simulation,
     physics::{
-        DiamondSquareConfig, DiamondSquareGenerator, GeologicalEvolutionConfig, TectonicConfig,
-        TectonicGenerator, TerrainGenerator,
+        DiamondSquareConfig, DiamondSquareGenerator, TectonicConfig, TectonicGenerator,
+        TerrainGenerator,
     },
     rendering::{GraphicsRenderer, ascii_render, ascii_render_biomes, run_tui},
 };

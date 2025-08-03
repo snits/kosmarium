@@ -243,6 +243,7 @@ impl WaterFlowSystem {
     }
 
     /// Calculate flow direction for each cell based on elevation gradients
+    /// Enhanced with drainage-aware flow for gradual water concentration
     pub fn calculate_flow_directions(&self, heightmap: &HeightMap, water: &mut WaterLayer) {
         let height = heightmap.height();
         let width = heightmap.width();
@@ -298,7 +299,30 @@ impl WaterFlowSystem {
         }
     }
 
-    /// Simulate one tick of water flow
+    /// Simulate one tick of water flow with drainage-aware flow enhancement
+    pub fn update_water_flow_with_drainage(
+        &self,
+        heightmap: &mut HeightMap,
+        water: &mut WaterLayer,
+        drainage_network: &DrainageNetwork,
+    ) {
+        // Calculate flow directions based on current state and drainage network
+        self.calculate_flow_directions_with_drainage(heightmap, water, drainage_network);
+
+        // Add rainfall
+        self.add_rainfall(water);
+
+        // Move water based on flow directions (now drainage-aware)
+        self.move_water_with_boundaries(water);
+
+        // Apply erosion and deposition
+        self.apply_erosion(heightmap, water);
+
+        // Evaporate water (uniform rate - for systems without climate integration)
+        self.apply_evaporation(water);
+    }
+
+    /// Simulate one tick of water flow (legacy method without drainage awareness)
     pub fn update_water_flow(&self, heightmap: &mut HeightMap, water: &mut WaterLayer) {
         // Calculate flow directions based on current state
         self.calculate_flow_directions(heightmap, water);
@@ -316,7 +340,32 @@ impl WaterFlowSystem {
         self.apply_evaporation(water);
     }
 
-    /// Simulate one tick of water flow with climate integration
+    /// Simulate one tick of water flow with climate integration and drainage-aware flow
+    pub fn update_water_flow_with_climate_and_drainage(
+        &self,
+        heightmap: &mut HeightMap,
+        water: &mut WaterLayer,
+        temperature_layer: &TemperatureLayer,
+        climate_system: &ClimateSystem,
+        drainage_network: &DrainageNetwork,
+    ) {
+        // Calculate flow directions based on current state and drainage network
+        self.calculate_flow_directions_with_drainage(heightmap, water, drainage_network);
+
+        // Add rainfall
+        self.add_rainfall(water);
+
+        // Move water based on flow directions (now drainage-aware with boundaries)
+        self.move_water_with_boundaries(water);
+
+        // Apply erosion and deposition
+        self.apply_erosion(heightmap, water);
+
+        // Apply temperature-dependent evaporation
+        self.apply_evaporation_with_temperature(water, temperature_layer, climate_system);
+    }
+
+    /// Simulate one tick of water flow with climate integration (legacy method)
     pub fn update_water_flow_with_climate(
         &self,
         heightmap: &mut HeightMap,
@@ -479,6 +528,130 @@ impl WaterFlowSystem {
             }
         }
     }
+
+    /// Calculate flow directions enhanced by drainage network for gradual water concentration
+    fn calculate_flow_directions_with_drainage(
+        &self,
+        heightmap: &HeightMap,
+        water: &mut WaterLayer,
+        drainage_network: &DrainageNetwork,
+    ) {
+        let height = heightmap.height();
+        let width = heightmap.width();
+        if height == 0 || width == 0 {
+            return;
+        }
+
+        // Cache drainage statistics once per call instead of per cell
+        let stats = drainage_network.get_statistics();
+        let max_accumulation = stats.max_accumulation;
+
+        for y in 0..height {
+            for x in 0..width {
+                let current_elevation = heightmap.get(x, y) + water.depth.get(x, y);
+                let mut steepest_slope = 0.0;
+                let mut flow_direction = Vec2::zero();
+
+                // Check all 8 neighbors for steepest descent
+                for dy in -1i32..=1 {
+                    for dx in -1i32..=1 {
+                        if dx == 0 && dy == 0 {
+                            continue;
+                        }
+
+                        let nx = x as i32 + dx;
+                        let ny = y as i32 + dy;
+
+                        if nx >= 0 && nx < width as i32 && ny >= 0 && ny < height as i32 {
+                            let nx = nx as usize;
+                            let ny = ny as usize;
+
+                            let neighbor_elevation =
+                                heightmap.get(nx, ny) + water.depth.get(nx, ny);
+                            let slope = current_elevation - neighbor_elevation;
+
+                            if slope > steepest_slope {
+                                steepest_slope = slope;
+                                flow_direction = Vec2::new(dx as f32, dy as f32);
+                            }
+                        }
+                    }
+                }
+
+                // Enhance flow rate based on drainage network accumulation
+                if flow_direction.magnitude() > 0.0 {
+                    let magnitude = flow_direction.magnitude();
+
+                    // Get drainage accumulation for this cell
+                    let accumulation = drainage_network.get_flow_accumulation(x, y);
+
+                    // Calculate drainage enhancement factor (1.0 to 3.0 multiplier)
+                    // Higher accumulation areas get enhanced flow for gradual concentration
+                    let accumulation_ratio = if max_accumulation > 0.0 {
+                        accumulation / max_accumulation
+                    } else {
+                        0.0
+                    };
+                    let drainage_enhancement = 1.0 + 2.0 * accumulation_ratio; // 1x to 3x flow rate
+
+                    // Apply enhanced flow rate
+                    let enhanced_flow_rate = self.parameters.flow_rate * drainage_enhancement;
+
+                    flow_direction.x =
+                        (flow_direction.x / magnitude) * steepest_slope * enhanced_flow_rate;
+                    flow_direction.y =
+                        (flow_direction.y / magnitude) * steepest_slope * enhanced_flow_rate;
+                }
+
+                water
+                    .velocity
+                    .set(x, y, (flow_direction.x, flow_direction.y));
+            }
+        }
+    }
+
+    /// Move water with boundary outlets for mass conservation on continental scales
+    fn move_water_with_boundaries(&self, water: &mut WaterLayer) {
+        let mut new_depth = water.depth.clone();
+
+        for y in 0..water.height() {
+            for x in 0..water.width() {
+                let (vx, vy) = water.velocity.get(x, y);
+                let velocity_mag = (vx * vx + vy * vy).sqrt();
+                let flow_amount = water.depth.get(x, y) * velocity_mag.min(1.0);
+
+                if flow_amount > 0.001 {
+                    // Calculate target position
+                    let target_x = (x as f32 + vx).round() as i32;
+                    let target_y = (y as f32 + vy).round() as i32;
+
+                    // Move water if target is in bounds, otherwise let it exit (boundary outlet)
+                    if target_x >= 0
+                        && target_x < water.width() as i32
+                        && target_y >= 0
+                        && target_y < water.height() as i32
+                    {
+                        // Normal flow within domain
+                        let current_depth = new_depth.get(x, y);
+                        new_depth.set(x, y, current_depth - flow_amount);
+                        let target_depth = new_depth.get(target_x as usize, target_y as usize);
+                        new_depth.set(
+                            target_x as usize,
+                            target_y as usize,
+                            target_depth + flow_amount,
+                        );
+                    } else {
+                        // Water flows out of domain (continental scale = part of larger system)
+                        let current_depth = new_depth.get(x, y);
+                        new_depth.set(x, y, current_depth - flow_amount);
+                        // Water exits the domain - no conservation required at boundaries
+                    }
+                }
+            }
+        }
+
+        water.depth = new_depth;
+    }
 }
 
 pub struct Simulation {
@@ -497,6 +670,11 @@ pub struct Simulation {
     // Cached biome map to avoid expensive recalculation every frame
     cached_biome_map: Option<BiomeMap>,
     biome_cache_valid: bool,
+    // Atmospheric caching to prevent expensive regeneration every tick
+    last_temperature_update: u64,
+    last_pressure_update: u64,
+    last_wind_update: u64,
+    last_weather_analysis_update: u64,
 }
 
 impl Simulation {
@@ -559,6 +737,11 @@ impl Simulation {
             tick_count: 0,
             cached_biome_map: None,
             biome_cache_valid: false,
+            // Initialize atmospheric caching - start with all systems up-to-date
+            last_temperature_update: 0,
+            last_pressure_update: 0,
+            last_wind_update: 0,
+            last_weather_analysis_update: 0,
         };
 
         // Apply initial water distribution for realistic starting biomes
@@ -605,6 +788,11 @@ impl Simulation {
             tick_count: 0,
             cached_biome_map: None,
             biome_cache_valid: false,
+            // Initialize atmospheric caching - start with all systems up-to-date
+            last_temperature_update: 0,
+            last_pressure_update: 0,
+            last_wind_update: 0,
+            last_weather_analysis_update: 0,
         };
 
         // Apply initial water distribution for realistic starting biomes
@@ -613,56 +801,109 @@ impl Simulation {
         simulation
     }
 
-    /// Advance simulation by one time step with climate integration
+    /// Advance simulation by one time step with climate integration and atmospheric caching
     pub fn tick(&mut self) {
         // Advance seasonal cycle
         self.climate_system.tick();
 
-        // Regenerate temperature layer (for seasonal changes)
-        let heightmap_nested = self.heightmap.to_nested();
-        self.temperature_layer = self
-            .climate_system
-            .generate_temperature_layer(&heightmap_nested);
+        // Define atmospheric update intervals (in ticks)
+        // These intervals reflect realistic timescales for atmospheric changes
+        const TEMPERATURE_UPDATE_INTERVAL: u64 = 30; // ~3 hours (temperature changes gradually) 
+        const PRESSURE_UPDATE_INTERVAL: u64 = 15; // ~1.5 hours (pressure responds to temperature)
+        const WIND_UPDATE_INTERVAL: u64 = 10; // ~1 hour (wind follows pressure gradients)
+        const WEATHER_ANALYSIS_INTERVAL: u64 = 25; // ~2.5 hours (weather pattern evolution)
 
-        // Invalidate biome cache due to temperature changes
-        self.biome_cache_valid = false;
+        let mut temperature_updated = false;
+        let mut pressure_updated = false;
 
-        // Regenerate pressure layer (coupled to temperature changes)
-        self.pressure_layer = self.climate_system.generate_pressure_layer(
-            &self.temperature_layer,
-            &heightmap_nested,
-            &self._world_scale,
-        );
+        // Update temperature layer only when needed (slow changes)
+        if self.tick_count - self.last_temperature_update >= TEMPERATURE_UPDATE_INTERVAL {
+            #[cfg(feature = "simd")]
+            {
+                // Use specialized optimization for common continental scale
+                if self.heightmap.width() == 240 && self.heightmap.height() == 120 {
+                    self.temperature_layer = self
+                        .climate_system
+                        .generate_temperature_layer_continental_240x120(&self.heightmap);
+                } else {
+                    self.temperature_layer = self
+                        .climate_system
+                        .generate_temperature_layer_simd(&self.heightmap);
+                }
+            }
+            #[cfg(not(feature = "simd"))]
+            {
+                self.temperature_layer = self
+                    .climate_system
+                    .generate_temperature_layer_optimized(&self.heightmap);
+            }
+            self.last_temperature_update = self.tick_count;
+            temperature_updated = true;
+            // Invalidate biome cache due to temperature changes
+            self.biome_cache_valid = false;
+        }
 
-        // Regenerate wind field (from updated pressure gradients)
-        self.wind_layer = self
-            .atmospheric_system
-            .generate_geostrophic_winds(&self.pressure_layer, &self._world_scale);
+        // Update pressure layer when temperature changes OR enough time has passed
+        if temperature_updated
+            || self.tick_count - self.last_pressure_update >= PRESSURE_UPDATE_INTERVAL
+        {
+            #[cfg(feature = "simd")]
+            {
+                self.pressure_layer = self.climate_system.generate_pressure_layer_simd(
+                    &self.temperature_layer,
+                    &self.heightmap,
+                    &self._world_scale,
+                );
+            }
+            #[cfg(not(feature = "simd"))]
+            {
+                self.pressure_layer = self.climate_system.generate_pressure_layer_optimized(
+                    &self.temperature_layer,
+                    &self.heightmap,
+                    &self._world_scale,
+                );
+            }
+            self.last_pressure_update = self.tick_count;
+            pressure_updated = true;
+        }
 
-        // Analyze weather patterns (storms, pressure systems)
-        self.weather_analysis = self.atmospheric_system.analyze_weather_patterns(
-            &self.pressure_layer,
-            &self.wind_layer,
-            &self._world_scale,
-        );
+        // Update wind field when pressure changes OR enough time has passed
+        if pressure_updated || self.tick_count - self.last_wind_update >= WIND_UPDATE_INTERVAL {
+            self.wind_layer = self
+                .atmospheric_system
+                .generate_geostrophic_winds(&self.pressure_layer, &self._world_scale);
+            self.last_wind_update = self.tick_count;
+        }
 
-        // Update water flow with temperature-dependent evaporation
-        self.water_system.update_water_flow_with_climate(
-            &mut self.heightmap,
-            &mut self.water,
-            &self.temperature_layer,
-            &self.climate_system,
-        );
+        // Update weather analysis periodically (storms and pressure systems evolve slowly)
+        if self.tick_count - self.last_weather_analysis_update >= WEATHER_ANALYSIS_INTERVAL {
+            self.weather_analysis = self.atmospheric_system.analyze_weather_patterns(
+                &self.pressure_layer,
+                &self.wind_layer,
+                &self._world_scale,
+            );
+            self.last_weather_analysis_update = self.tick_count;
+        }
+
+        // Update water flow less frequently - water movement is slower than atmospheric changes
+        // Water only needs updates every few ticks for realistic flow rates
+        const WATER_FLOW_UPDATE_INTERVAL: u64 = 3; // Every ~18 minutes simulation time
+        if self.tick_count % WATER_FLOW_UPDATE_INTERVAL == 0 {
+            self.water_system
+                .update_water_flow_with_climate_and_drainage(
+                    &mut self.heightmap,
+                    &mut self.water,
+                    &self.temperature_layer,
+                    &self.climate_system,
+                    &self.drainage_network,
+                );
+        }
 
         // Invalidate biome cache due to water changes
         self.biome_cache_valid = false;
 
-        // Apply drainage network concentration VERY infrequently for realistic water bodies
-        // This creates concentrated rivers and lakes from dispersed surface water
-        // Changed from every 10 ticks to every 1000 ticks to prevent graphics mode flickering
-        if self.tick_count % 1000 == 0 && self.tick_count > 0 {
-            self.apply_drainage_concentration();
-        }
+        // Drainage concentration is now handled continuously through drainage-aware flow
+        // No more periodic "nuclear redistribution" - water flows gradually toward drainage areas
 
         // Update drainage network periodically to account for terrain changes from erosion
         self.update_drainage_for_erosion();

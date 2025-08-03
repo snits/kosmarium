@@ -59,7 +59,7 @@ pub fn run_weather_demo() -> Result<(), Box<dyn std::error::Error>> {
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
-            .as_secs()
+            .as_micros() as u64
     });
 
     println!("Using seed: {}", seed);
@@ -120,7 +120,7 @@ pub fn run_weather_demo() -> Result<(), Box<dyn std::error::Error>> {
         (args.width as u32, args.height as u32),
         DetailLevel::Standard,
     );
-    let mut sim = Simulation::_new_with_scale(heightmap, world_scale);
+    let sim = Simulation::_new_with_scale(heightmap, world_scale);
     println!("Simulation created in {:.2?}", start_time.elapsed());
 
     // Choose between graphics, TUI, and ASCII rendering

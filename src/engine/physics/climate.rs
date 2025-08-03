@@ -404,6 +404,52 @@ impl ClimateSystem {
         temp_layer
     }
 
+    /// Optimized temperature layer generation using HeightMap directly
+    /// Eliminates expensive Vec<Vec<f32>> conversion for better performance
+    pub fn generate_temperature_layer_optimized(
+        &self,
+        heightmap: &super::super::core::heightmap::HeightMap,
+    ) -> TemperatureLayer {
+        let width = heightmap.width();
+        let height = heightmap.height();
+
+        let mut temp_layer = TemperatureLayer::new(width, height);
+
+        // Optimized calculation using HeightMap's flat memory layout for better cache performance
+        for y in 0..height {
+            for x in 0..width {
+                let elevation = heightmap.get(x, y);
+
+                // Base temperature calculation
+                let mut temperature = self.parameters.base_temperature_c;
+
+                // Apply elevation-based cooling (higher = colder)
+                temperature -= elevation.max(0.0) * self.parameters.elevation_lapse_rate * 1000.0;
+
+                // Apply continental-scale north-south temperature gradient
+                let north_south_position = (y as f32) / (height as f32).max(1.0);
+                let distance_from_center = (north_south_position - 0.5).abs() * 2.0;
+                temperature -= distance_from_center * self.parameters.latitude_gradient;
+
+                // Clamp to reasonable limits
+                temperature = temperature
+                    .max(self.parameters.min_temperature)
+                    .min(self.parameters.max_temperature);
+
+                temp_layer.temperature[y][x] = temperature;
+
+                // Seasonal variation scales with distance from center
+                temp_layer.seasonal_variation[y][x] =
+                    self.parameters.seasonal_amplitude * (0.7 + distance_from_center * 0.3);
+            }
+        }
+
+        // Apply spatial smoothing to eliminate banding artifacts
+        self.apply_spatial_smoothing(&mut temp_layer);
+
+        temp_layer
+    }
+
     /// Generate temperature layer with explicit scale context for debugging/analysis
     /// Useful for understanding how scale affects temperature patterns
     pub fn generate_temperature_layer_with_scale(
@@ -578,6 +624,283 @@ impl ClimateSystem {
         pressure_layer.calculate_pressure_gradients(scale.meters_per_pixel() as f32);
 
         pressure_layer
+    }
+
+    /// Optimized pressure layer generation using HeightMap directly
+    /// Eliminates expensive Vec<Vec<f32>> conversion for better performance
+    pub fn generate_pressure_layer_optimized(
+        &self,
+        temperature_layer: &TemperatureLayer,
+        heightmap: &super::super::core::heightmap::HeightMap,
+        scale: &WorldScale,
+    ) -> AtmosphericPressureLayer {
+        let width = heightmap.width();
+        let height = heightmap.height();
+
+        let mut pressure_layer = AtmosphericPressureLayer::new(width, height);
+
+        // Simple PRNG for reproducible weather patterns
+        let mut rng_state = self.pressure_seed.wrapping_add(self.tick_count() as u64);
+
+        // Optimized calculation using HeightMap's flat memory layout for better cache performance
+        for y in 0..height {
+            for x in 0..width {
+                let elevation = heightmap.get(x, y);
+                let temperature_c =
+                    temperature_layer.get_current_temperature(x, y, self.current_season);
+                let _temperature_k = temperature_c + 273.15;
+
+                // Base pressure calculation using barometric formula
+                let mut pressure = self.parameters.base_pressure_pa;
+
+                // Apply elevation-based pressure reduction (hydrostatic balance)
+                let scale_height = 8400.0; // meters
+                let elevation_meters = elevation.max(0.0) * 1000.0; // Convert to meters
+                pressure *= (-elevation_meters / scale_height).exp();
+
+                // Apply temperature-induced pressure variation (thermal highs/lows)
+                let temp_deviation = temperature_c - self.parameters.base_temperature_c;
+                let thermal_pressure_factor = 1.0 - (temp_deviation * 0.002); // 0.2% change per degree
+                pressure *= thermal_pressure_factor;
+
+                // Add small-scale pressure variations (weather systems)
+                rng_state = rng_state.wrapping_mul(1664525).wrapping_add(1013904223);
+                let noise = ((rng_state as f32) / (u32::MAX as f32) - 0.5) * 2.0; // -1.0 to 1.0
+                pressure += noise * self.parameters.pressure_noise_amplitude;
+
+                // Clamp to reasonable atmospheric pressure range
+                pressure = pressure.max(50000.0).min(110000.0);
+
+                pressure_layer.pressure[y][x] = pressure;
+            }
+        }
+
+        // Calculate pressure gradients
+        pressure_layer.calculate_pressure_gradients(scale.meters_per_pixel() as f32);
+
+        pressure_layer
+    }
+
+    /// SIMD-optimized temperature layer generation for continental-scale performance
+    /// Uses vectorized operations to process multiple cells in parallel
+    #[cfg(feature = "simd")]
+    pub fn generate_temperature_layer_simd(
+        &self,
+        heightmap: &super::super::core::heightmap::HeightMap,
+    ) -> TemperatureLayer {
+        use rayon::prelude::*;
+
+        let width = heightmap.width();
+        let height = heightmap.height();
+
+        // Create parallel row vectors for better cache performance
+        let temperature_rows: Vec<Vec<f32>> = (0..height)
+            .into_par_iter()
+            .map(|y| {
+                let row_start = y * width;
+                let elevation_row = &heightmap.data()[row_start..row_start + width];
+
+                // Pre-calculate common values for this row to avoid redundant computation
+                let north_south_position = (y as f32) / (height as f32).max(1.0);
+                let distance_from_center = (north_south_position - 0.5).abs() * 2.0;
+                let latitude_temperature_offset =
+                    distance_from_center * self.parameters.latitude_gradient;
+
+                // Process entire row with vectorizable operations
+                let mut row_temps = Vec::with_capacity(width);
+
+                // Process cells in chunks for better compiler vectorization
+                for elevation_chunk in elevation_row.chunks(8) {
+                    for &elevation in elevation_chunk {
+                        // Vectorizable calculations - compiler can optimize these
+                        let mut temperature = self.parameters.base_temperature_c;
+                        temperature -=
+                            elevation.max(0.0) * self.parameters.elevation_lapse_rate * 1000.0;
+                        temperature -= latitude_temperature_offset;
+
+                        // Clamp to reasonable limits
+                        temperature = temperature
+                            .max(self.parameters.min_temperature)
+                            .min(self.parameters.max_temperature);
+
+                        row_temps.push(temperature);
+                    }
+                }
+
+                row_temps
+            })
+            .collect();
+
+        // Create seasonal variation in parallel
+        let seasonal_rows: Vec<Vec<f32>> = (0..height)
+            .into_par_iter()
+            .map(|y| {
+                let north_south_position = (y as f32) / (height as f32).max(1.0);
+                let distance_from_center = (north_south_position - 0.5).abs() * 2.0;
+                let seasonal_variation =
+                    self.parameters.seasonal_amplitude * (0.7 + distance_from_center * 0.3);
+
+                vec![seasonal_variation; width]
+            })
+            .collect();
+
+        // Assemble the temperature layer
+        let mut temp_layer = TemperatureLayer::new(width, height);
+        temp_layer.temperature = temperature_rows;
+        temp_layer.seasonal_variation = seasonal_rows;
+
+        // Apply spatial smoothing to eliminate banding artifacts
+        self.apply_spatial_smoothing(&mut temp_layer);
+
+        temp_layer
+    }
+
+    /// SIMD-optimized pressure layer generation for better performance
+    #[cfg(feature = "simd")]
+    pub fn generate_pressure_layer_simd(
+        &self,
+        temperature_layer: &TemperatureLayer,
+        heightmap: &super::super::core::heightmap::HeightMap,
+        scale: &WorldScale,
+    ) -> AtmosphericPressureLayer {
+        use rayon::prelude::*;
+
+        let width = heightmap.width();
+        let height = heightmap.height();
+
+        // Pre-calculate constants outside the parallel loop
+        let base_pressure = self.parameters.base_pressure_pa;
+        let base_temp_c = self.parameters.base_temperature_c;
+        let noise_amplitude = self.parameters.pressure_noise_amplitude;
+        let scale_height_inv = 1.0 / 8400.0; // Pre-calculate reciprocal for faster division
+        let rng_base = self.pressure_seed.wrapping_add(self.tick_count() as u64);
+
+        // Process rows in parallel and collect results
+        let pressure_rows: Vec<Vec<f32>> = (0..height)
+            .into_par_iter()
+            .map(|y| {
+                let mut rng_state = rng_base.wrapping_add(y as u64 * 1000);
+                let row_start = y * width;
+                let elevation_row = &heightmap.data()[row_start..row_start + width];
+                let mut row_pressures = Vec::with_capacity(width);
+
+                // Process multiple cells with vectorizable operations
+                for (x, &elevation) in elevation_row.iter().enumerate() {
+                    let temperature_c =
+                        temperature_layer.get_current_temperature(x, y, self.current_season);
+
+                    // Vectorizable pressure calculations
+                    let mut pressure = base_pressure;
+
+                    // Apply elevation-based pressure reduction (vectorizable exp operation)
+                    let elevation_meters = elevation.max(0.0) * 1000.0;
+                    pressure *= (-elevation_meters * scale_height_inv).exp();
+
+                    // Apply temperature-induced pressure variation (vectorizable)
+                    let temp_deviation = temperature_c - base_temp_c;
+                    let thermal_pressure_factor = 1.0 - (temp_deviation * 0.002);
+                    pressure *= thermal_pressure_factor;
+
+                    // Add small-scale pressure variations (fast PRNG)
+                    rng_state = rng_state.wrapping_mul(1664525).wrapping_add(1013904223);
+                    let noise = ((rng_state as f32) / (u32::MAX as f32) - 0.5) * 2.0;
+                    pressure += noise * noise_amplitude;
+
+                    // Clamp to reasonable atmospheric pressure range
+                    pressure = pressure.max(50000.0).min(110000.0);
+
+                    row_pressures.push(pressure);
+                }
+
+                row_pressures
+            })
+            .collect();
+
+        // Assemble the pressure layer
+        let mut pressure_layer = AtmosphericPressureLayer::new(width, height);
+        pressure_layer.pressure = pressure_rows;
+
+        // Calculate pressure gradients
+        pressure_layer.calculate_pressure_gradients(scale.meters_per_pixel() as f32);
+
+        pressure_layer
+    }
+
+    /// Specialized continental-scale optimization for 240x120 grids
+    /// This version is hand-optimized for the most common continental simulation size
+    #[cfg(feature = "simd")]
+    pub fn generate_temperature_layer_continental_240x120(
+        &self,
+        heightmap: &super::super::core::heightmap::HeightMap,
+    ) -> TemperatureLayer {
+        use rayon::prelude::*;
+
+        // Compile-time validation for expected size
+        assert_eq!(heightmap.width(), 240);
+        assert_eq!(heightmap.height(), 120);
+
+        // Constants optimized for continental scale
+        const WIDTH: usize = 240;
+        const HEIGHT: usize = 120;
+
+        // Create parallel row vectors optimized for continental grid
+        let temperature_rows: Vec<Vec<f32>> = (0..HEIGHT)
+            .into_par_iter()
+            .map(|y| {
+                let row_start = y * WIDTH;
+                let elevation_row = &heightmap.data()[row_start..row_start + WIDTH];
+
+                // Continental-scale specific optimizations
+                let north_south_position = (y as f32) / 120.0; // Hardcoded for compiler optimization
+                let distance_from_center = (north_south_position - 0.5).abs() * 2.0;
+                let latitude_temperature_offset =
+                    distance_from_center * self.parameters.latitude_gradient;
+
+                let mut row_temps = Vec::with_capacity(240); // Hardcoded capacity
+
+                // Process in optimal chunks for 240-wide continental grids
+                for elevation_chunk in elevation_row.chunks(16) {
+                    // Larger chunks for continental scale
+                    for &elevation in elevation_chunk {
+                        let mut temperature = self.parameters.base_temperature_c;
+                        temperature -=
+                            elevation.max(0.0) * self.parameters.elevation_lapse_rate * 1000.0;
+                        temperature -= latitude_temperature_offset;
+
+                        temperature = temperature
+                            .max(self.parameters.min_temperature)
+                            .min(self.parameters.max_temperature);
+
+                        row_temps.push(temperature);
+                    }
+                }
+
+                row_temps
+            })
+            .collect();
+
+        // Seasonal variation optimized for continental scale
+        let seasonal_rows: Vec<Vec<f32>> = (0..HEIGHT)
+            .into_par_iter()
+            .map(|y| {
+                let north_south_position = (y as f32) / 120.0; // Hardcoded for optimization
+                let distance_from_center = (north_south_position - 0.5).abs() * 2.0;
+                let seasonal_variation =
+                    self.parameters.seasonal_amplitude * (0.7 + distance_from_center * 0.3);
+
+                vec![seasonal_variation; 240] // Hardcoded size
+            })
+            .collect();
+
+        // Assemble the temperature layer
+        let mut temp_layer = TemperatureLayer::new(240, 120);
+        temp_layer.temperature = temperature_rows;
+        temp_layer.seasonal_variation = seasonal_rows;
+
+        // Apply spatial smoothing
+        self.apply_spatial_smoothing(&mut temp_layer);
+
+        temp_layer
     }
 
     /// Get current tick count for pressure noise generation
