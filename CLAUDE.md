@@ -25,7 +25,7 @@ The codebase follows a modular architecture with clear separation of concerns:
 
 ### Core Modules (`src/`)
 - **main.rs** - Entry point orchestrating world generation → simulation setup → rendering
-- **worldgen.rs** - Terrain generation using Diamond-Square algorithm (currently placeholder random noise)
+- **worldgen.rs** - Terrain generation using actual Diamond-Square algorithm with trait-based architecture
 - **sim.rs** - Simulation state management (minimal implementation, prepared for agents/biomes)
 - **render.rs** - ASCII visualization using crossterm for colored terminal output
 
@@ -40,11 +40,14 @@ The codebase follows a modular architecture with clear separation of concerns:
 
 ## Development Context
 
-### Current State
-- Basic terrain generation framework in place
-- Colored ASCII rendering functional
+### Educational Purpose
+This project serves as a learning environment for both simulation concepts and agentic workflow experimentation. **Please provide detailed explanations for technical concepts, algorithmic decisions, and architectural choices.** The goal is to understand not just what the code does, but why specific approaches were chosen and how they work under the hood.
+
+### Current State  
+- Actual Diamond-Square terrain generation implemented with trait-based architecture
+- Colored ASCII rendering functional with realistic terrain patterns
 - Simulation structure prepared for expansion (agents, biomes, game logic)
-- Contains compilation error in worldgen.rs (reserved keyword `gen`)
+- Extensible TerrainGenerator trait system ready for algorithm experimentation
 
 ### Terrain Visualization
 The renderer maps elevation values to colored symbols:
@@ -55,6 +58,12 @@ The renderer maps elevation values to colored symbols:
 - `@` (red) - Mountains (> 0.8)
 
 ### Extension Points
-- DiamondSquareGenerator ready for real algorithm implementation
-- Simulation struct designed for adding agents, biome systems
-- Rendering system can be extended for different visualization modes
+- TerrainGenerator trait architecture ready for additional algorithms (Perlin noise, stochastic diffusion)
+- DiamondSquareConfig parameters enable terrain characteristic experimentation
+- Simulation struct designed for adding agents, biome systems, time-based evolution
+- Rendering system can be extended for different visualization modes and data layers
+
+### Future Algorithm Experiments
+- **Generalized Stochastic Diffusion** - Next planned terrain generation approach
+- **Multi-layer Environmental Systems** - Temperature, precipitation, biome generation
+- **Post-processing Pipeline** - Erosion simulation, river carving, climate modeling

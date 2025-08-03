@@ -25,15 +25,16 @@ ABOUTME: Documents why specific technical approaches were chosen and their trade
 
 ## ADR-002: Diamond-Square Algorithm for Terrain Generation
 
-**Decision**: Use Diamond-Square algorithm for heightmap generation (placeholder implementation currently)
+**Decision**: Use Diamond-Square algorithm for heightmap generation with trait-based architecture
 
-**Context**: Need realistic-looking terrain with controllable parameters
+**Context**: Need realistic-looking terrain with controllable parameters and extensibility
 
 **Rationale**:
 - **Realism**: Produces natural-looking terrain with realistic features
 - **Performance**: O(n²) complexity, suitable for real-time generation
 - **Deterministic**: Seeded randomization allows reproducible worlds
 - **Well-understood**: Established algorithm with known characteristics
+- **Extensible**: Trait-based TerrainGenerator allows additional algorithms
 
 **Alternatives Considered**:
 - Perlin/Simplex noise: More computationally expensive, less terrain-like results
@@ -43,10 +44,11 @@ ABOUTME: Documents why specific technical approaches were chosen and their trade
 **Trade-offs**:
 - ✅ Produces realistic terrain patterns
 - ✅ Fast enough for interactive use
+- ✅ Trait architecture supports future algorithms (GSD, Perlin, etc.)
 - ❌ Can produce artifacts at boundaries
 - ❌ Limited control over specific terrain features
 
-**Status**: Architecture in place, algorithm implementation pending
+**Status**: ✅ Implemented with configurable parameters (roughness, persistence, corners)
 
 ## ADR-003: Crossterm for Terminal Rendering
 
@@ -88,10 +90,10 @@ ABOUTME: Documents why specific technical approaches were chosen and their trade
 **Trade-offs**:
 - ✅ Access to latest Rust features and improvements
 - ✅ Better alignment with current ecosystem
-- ❌ Compilation error with `gen` reserved keyword
+- ❌ Compilation error with `gen` reserved keyword (resolved)
 - ❌ Potential compatibility issues with older dependencies
 
-**Status**: Implemented but causing compilation issues (needs resolution)
+**Status**: ✅ Implemented and working with all current dependencies
 
 ## ADR-005: Single-threaded Architecture (Current)
 
@@ -147,25 +149,195 @@ ABOUTME: Documents why specific technical approaches were chosen and their trade
 
 **Status**: Implemented and effective for visualization
 
+## ADR-007: TUI Interface with Ratatui
+
+**Decision**: Use ratatui for interactive terminal user interface with viewport navigation
+
+**Context**: Need interactive exploration of large generated terrains beyond static ASCII output
+
+**Rationale**:
+- **Interactive exploration**: WASD navigation, zoom levels, mini-map for spatial orientation
+- **Rich visualization**: Status bars, legends, multiple information layers
+- **Terminal compatibility**: Works in standard terminal environments without GUI dependencies
+- **Performance**: Efficient rendering with smart redraw logic for responsive navigation
+
+**Implementation details**:
+- Viewport system for navigating large maps with bounds checking
+- Mini-map with viewport highlighting and cursor position indicators
+- Zoom levels (1:1, 1:2, 1:4) via render sampling
+- Multi-panel layout: main terrain view + sidebar (mini-map + legend)
+- Status bar with position, terrain analysis, and control hints
+
+**Trade-offs**:
+- ✅ Excellent user experience for terrain exploration
+- ✅ Professional visualization quality in terminal
+- ✅ Extensible for additional simulation layers (agents, beliefs, etc.)
+- ❌ More complex than simple ASCII output
+- ❌ Additional dependency (ratatui, tokio)
+
+**Status**: ✅ Implemented with comprehensive navigation and visualization features
+
+## ADR-008: Command-Line Parameter System
+
+**Decision**: Use clap for command-line argument parsing to enable terrain generation experimentation
+
+**Context**: Need easy parameter experimentation without code recompilation
+
+**Rationale**:
+- **Rapid experimentation**: Change seed, roughness, persistence, dimensions via CLI
+- **Reproducible results**: Seed parameter enables sharing specific terrain configurations
+- **Educational tool**: Parameter exploration helps understand algorithm behavior
+- **User-friendly**: Clear parameter descriptions and defaults
+
+**Parameters implemented**:
+- `--seed`: Random seed for reproducible terrain generation
+- `--roughness`: Terrain chaos level (0.0-1.0)  
+- `--persistence`: Detail persistence across scales (0.0-1.0)
+- `--width/--height`: Map dimensions in cells
+- `--ascii`: Legacy ASCII mode vs default TUI
+
+**Trade-offs**:
+- ✅ Enables rapid terrain generation experimentation
+- ✅ No recompilation needed for parameter changes
+- ✅ Professional CLI interface with help system
+- ❌ Additional dependency (clap)
+- ❌ Parameter validation complexity
+
+**Status**: ✅ Implemented with comprehensive parameter set for Diamond-Square experimentation
+
+## ADR-009: Trait-Based Terrain Generator Architecture
+
+**Decision**: Use trait-based architecture for terrain generation algorithms
+
+**Context**: Need extensible system supporting multiple terrain generation approaches
+
+**Rationale**:
+- **Algorithm diversity**: Support Diamond-Square, GSD, Perlin, Simplex noise
+- **Experimentation**: Easy to swap algorithms for comparison
+- **Testability**: Each generator can be unit tested independently
+- **Future-proofing**: New algorithms can be added without breaking existing code
+
+**Architecture pattern**:
+```rust
+pub trait TerrainGenerator {
+    type Config: Clone + Default;
+    fn generate(&self, width: usize, height: usize, config: &Self::Config) -> Vec<Vec<f32>>;
+    fn name(&self) -> &'static str;
+    fn supports_arbitrary_dimensions(&self) -> bool;
+}
+```
+
+**Trade-offs**:
+- ✅ Highly extensible and maintainable
+- ✅ Clean separation between algorithms and application logic
+- ✅ Easy to benchmark and compare different approaches
+- ❌ Slight abstraction overhead
+- ❌ More complex than single-algorithm approach
+
+**Status**: ✅ Implemented with Diamond-Square generator, ready for additional algorithms
+
+## ADR-010: TUI-First, Migration-Ready Rendering Strategy
+
+**Decision**: Continue with TUI as primary interface while architecting for eventual graphics migration
+
+**Context**: Complex multi-layer, real-time simulation will eventually exceed TUI visualization capabilities
+
+**Analysis from rendering-engineer**:
+- **TUI → 2D sprites**: Medium effort (2-3 weeks), good viewport system compatibility
+- **TUI → 3D**: High effort (4-6 weeks), requires complete coordinate system redesign
+- **Multi-backend support**: Very high effort (6-8 weeks), exponential maintenance complexity
+
+**Analysis from senior-engineer**:
+- **Multi-backend maintenance cost**: Exponential testing complexity, abstraction layer poison, crushing cognitive load
+- **Tech debt assessment**: 3x codebase size, dependency hell, 60-70% development time on multi-backend testing
+- **Recommendation**: Don't maintain multiple backends simultaneously - focus on simulation, migrate cleanly when needed
+
+**Analysis from ux-design-expert**:
+- **TUI breaking point**: When visualization complexity exceeds cognitive benefits (3-4 layers + real-time + spatial relationships)
+- **Current sweet spot**: Single layer focus with educational value
+- **Migration triggers**: Multiple interactive layers, real-time dynamics requiring visual continuity
+
+**Rationale**:
+- **TUI skills have broad value**: Roguelikes, rapid prototyping, developer tools, system administration
+- **Educational focus**: Terminal interface forces focus on core mechanics over presentation
+- **Migration readiness**: Visualization-agnostic data structures enable clean transition
+- **Complexity management**: Avoid premature optimization while preparing for inevitable needs
+
+**Implementation Strategy**:
+```rust
+// Visualization-agnostic simulation data
+trait SimulationLayer {
+    fn get_data_at(&self, x: usize, y: usize) -> LayerData;
+    fn get_region(&self, bounds: Rect) -> RegionData;
+    fn get_changes_since(&self, tick: u64) -> ChangeSet;
+}
+
+// Clean renderer abstraction
+trait SimulationRenderer {
+    fn render_frame(&mut self, layers: &[Box<dyn SimulationLayer>]);
+    fn handle_input(&mut self) -> Option<UserAction>;
+    fn supports_layer_composition(&self) -> bool;
+    fn supports_animation(&self) -> bool;
+}
+```
+
+**TUI Enhancement Plan**:
+- Add layer selection hotkeys (show terrain OR water OR agents individually)
+- Implement visualization-agnostic data structures
+- Maintain clear separation between simulation logic and rendering
+
+**Migration Criteria**:
+- **Stay with TUI while**: Single primary layer focus, turn-based/slow simulation, educational emphasis
+- **Plan migration when**: 3+ interactive layers essential, real-time dynamics need continuity, spatial relationships become core
+
+**Trade-offs**:
+- ✅ Builds broadly applicable TUI development skills
+- ✅ Forces focus on simulation mechanics over graphics
+- ✅ Cross-platform compatibility with minimal dependencies
+- ✅ Clean migration path without multi-backend complexity
+- ❌ Will eventually hit visualization limits for complex systems
+- ❌ ASCII representation limits spatial relationship clarity
+
+**Status**: ✅ Strategy decided, TUI development continues with migration-ready architecture
+
 ## Pending Decisions
 
-### PD-001: Agent/Entity System Architecture
-**Context**: Phase 2 will require adding mobile entities to the simulation
-**Options under consideration**:
-- Entity-Component-System (ECS) pattern
-- Simple struct-based agents with behavior traits
-- Actor model with message passing
+### PD-001: Simulation Engine Architecture (Expert Guidance Available)
+**Context**: Need core tick loop and modular system architecture for dynamic simulation
+**Expert recommendation (simulation-engineer)**:
+- **System trait architecture**: Modular components with dependency tracking
+- **Event-driven communication**: Loose coupling between simulation layers
+- **Layer-based world state**: Terrain, water, climate, agents, culture layers
+- **Double buffering**: For systems needing previous + current state
 
-### PD-002: Persistence/Serialization Strategy  
-**Context**: Need to save/load simulation states
-**Options under consideration**:
-- JSON for human readability
-- Binary format for performance
-- Database for complex queries
+### PD-002: Multi-Layer Environmental System (Expert Guidance Available)  
+**Context**: Need climate, biome, and environmental data layers
+**Expert recommendation (world-generation-architect)**:
+- **Environmental data layers**: Temperature, precipitation, humidity, wind velocity
+- **Climate simulation pipeline**: Realistic temperature/precipitation modeling
+- **Biome assignment**: Whittaker classification based on environmental conditions
+- **Dynamic environmental changes**: Support for seasonal variation and climate events
 
-### PD-003: Performance Optimization Approach
-**Context**: Will need to handle larger maps efficiently
-**Options under consideration**:
-- Spatial partitioning for agent updates
-- Level-of-detail for rendering
-- Streaming/chunked world generation
+### PD-003: Advanced Terrain Generation Evolution (Expert Guidance Available)
+**Context**: Evolution beyond Diamond-Square to geological realism
+**Expert recommendation (world-generation-architect)**:
+- **Generalized Stochastic Diffusion (GSD)**: Phase 1 priority for geological realism
+- **Hybrid pipeline**: Layered erosion, uplift, wind/rain post-processors  
+- **Performance architecture**: Hierarchical LOD, streaming, spatial partitioning
+- **Dynamic terrain modification**: Real-time erosion and agent terraforming support
+
+### PD-004: Agent System Architecture (Expert Guidance Available)
+**Context**: Agent movement, settlement, cultural behaviors for Phase 3-4
+**Expert recommendations**:
+- **SlotMap storage** (simulation-engineer): Stable IDs with packed memory layout
+- **Spatial partitioning** (both experts): O(1) neighbor queries, performance scaling
+- **Relationship-driven systems** (social-systems-designer): Cultural influence through personal relationships
+- **Strategic resource management** (game-design-strategist): Faith points, belief scarcity, meaningful tradeoffs
+
+### PD-005: Cultural/Belief System Implementation (Expert Guidance Available)
+**Context**: Phase 4 cultural memory, belief propagation, myth creation systems
+**Expert recommendations**:
+- **Event-driven myth generation** (social-systems-designer): Major events become myth raw material
+- **Strategic belief resources** (game-design-strategist): Faith points, theological coherence costs
+- **Influence maps** (simulation-engineer): Spatial tracking of belief strength with SmallVec optimization
+- **Bottom-up emergence**: Individual agent relationships create cultural patterns
