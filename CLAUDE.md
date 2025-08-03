@@ -43,6 +43,9 @@ The codebase follows a modular architecture with clear separation of concerns:
 ### Educational Purpose
 This project serves as a learning environment for both simulation concepts and agentic workflow experimentation. **Please provide detailed explanations for technical concepts, algorithmic decisions, and architectural choices.** The goal is to understand not just what the code does, but why specific approaches were chosen and how they work under the hood.
 
+### Interactive Education Requirement
+**When implementing changes, explain the mathematical concepts, physical principles, and algorithmic reasoning behind each modification as it's being made, providing real-time educational context alongside the development process.** This complements the post-completion deep-dive documentation by offering immediate learning opportunities during active development.
+
 ### Subsystem Documentation Requirement
 **MANDATORY**: Upon completion of any major subsystem, create a comprehensive deep-dive document in `/docs/` that covers:
 
