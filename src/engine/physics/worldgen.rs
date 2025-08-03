@@ -1,9 +1,9 @@
 // sim-prototype/src/worldgen.rs
 
-use crate::geological_evolution::{GeologicalEvolution, GeologicalEvolutionConfig};
-use crate::heightmap::HeightMap;
-use crate::scale::{ScaleAware, WorldScale};
-use crate::tectonics::TectonicSystem;
+use super::super::core::heightmap::HeightMap;
+use super::super::core::scale::{ScaleAware, WorldScale};
+use super::geological_evolution::{GeologicalEvolution, GeologicalEvolutionConfig};
+use super::tectonics::TectonicSystem;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 
@@ -304,7 +304,8 @@ impl ScaleAware for TectonicConfig {
         let coastal_blending = (100.0 / km_per_pixel).max(5.0).min(50.0) as f32;
 
         // Scale other parameters based on resolution relative to reference
-        let scale_factor = world_scale.scale_factor_from_reference(crate::scale::REFERENCE_SCALE);
+        let scale_factor =
+            world_scale.scale_factor_from_reference(crate::engine::core::scale::REFERENCE_SCALE);
         let resolution_factor = (1.0 / scale_factor).sqrt().clamp(0.5, 2.0) as f32;
 
         Self {
@@ -355,7 +356,7 @@ impl TerrainGenerator for TectonicGenerator {
                 // Track plate type for terrain-aware detail generation
                 if let Some(plate) = tectonic_system.get_plate_at(x, y) {
                     plate_type_map[y][x] =
-                        matches!(plate.plate_type, crate::tectonics::PlateType::Continental);
+                        matches!(plate.plate_type, super::tectonics::PlateType::Continental);
                 }
             }
         }

@@ -1,10 +1,10 @@
 // ABOUTME: Atmospheric moisture and surface humidity system for realistic weather simulation
 // ABOUTME: Separates surface moisture from standing water bodies for proper atmospheric coupling
 
-use crate::climate::{ClimateSystem, TemperatureLayer};
-use crate::heightmap::HeightMap;
-use crate::scale::{ScaleAware, WorldScale};
-use crate::water::WaterLayer;
+use super::super::core::heightmap::HeightMap;
+use super::super::core::scale::{ScaleAware, WorldScale};
+use super::climate::{ClimateSystem, TemperatureLayer};
+use super::water::WaterLayer;
 
 /// Surface moisture parameters for atmospheric coupling
 #[derive(Clone, Debug)]
@@ -456,9 +456,9 @@ impl AtmosphericMoistureSystem {
 
 #[cfg(test)]
 mod tests {
+    use super::super::core::scale::{DetailLevel, WorldScale};
+    use super::climate::ClimateSystem;
     use super::*;
-    use crate::climate::ClimateSystem;
-    use crate::scale::{DetailLevel, WorldScale};
 
     fn test_scale(physical_size_km: f64, width: u32, height: u32) -> WorldScale {
         WorldScale::new(physical_size_km, (width, height), DetailLevel::Standard)

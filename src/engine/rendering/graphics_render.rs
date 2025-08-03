@@ -1,10 +1,10 @@
 // ABOUTME: Graphics rendering system using macroquad for atmospheric visualization
 // ABOUTME: Handles wind vectors, pressure fields, and weather patterns with 2D graphics
 
-use crate::atmosphere::{WeatherPattern, WeatherPatternType};
-use crate::biome::BiomeType;
-use crate::climate::AtmosphericPressureLayer;
-use crate::sim::Simulation;
+use super::super::agents::biome::BiomeType;
+use super::super::physics::atmosphere::{WeatherPattern, WeatherPatternType};
+use crate::engine::Simulation;
+use crate::engine::physics::climate::AtmosphericPressureLayer;
 use macroquad::prelude::*;
 
 // Layout constants for bounded viewport system
@@ -670,7 +670,7 @@ impl GraphicsRenderer {
 
     fn find_temperature_range(
         &self,
-        temperature_layer: &crate::climate::TemperatureLayer,
+        temperature_layer: &super::super::physics::climate::TemperatureLayer,
     ) -> (f32, f32) {
         let mut min_t = f32::INFINITY;
         let mut max_t = f32::NEG_INFINITY;

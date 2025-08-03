@@ -1,7 +1,7 @@
 // sim-prototype/src/render.rs
 
-use crate::biome::BiomeMap;
-use crate::sim::Simulation;
+use super::super::agents::biome::BiomeMap;
+use crate::engine::Simulation;
 use crossterm::{
     execute,
     style::{Color::Rgb, PrintStyledContent, Stylize},

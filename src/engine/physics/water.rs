@@ -1,7 +1,7 @@
 // ABOUTME: Water layer data structure for simulation water flow and accumulation
 // ABOUTME: Provides high-performance storage for water depth, velocity, and sediment data
 
-use crate::heightmap::{HeightMap, Vec2Map};
+use super::super::core::heightmap::{HeightMap, Vec2Map};
 
 #[derive(Clone, Debug)]
 pub struct Vec2 {

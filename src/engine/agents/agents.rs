@@ -1,11 +1,11 @@
 // ABOUTME: Real-time agent system with high-performance structure-of-arrays storage
 // ABOUTME: Supports NPCs, creatures, and player avatars with social dynamics and cultural evolution
 
-use crate::biome::{BiomeMap, BiomeType};
-use crate::climate::ClimateSystem;
-use crate::heightmap::HeightMap;
-use crate::scale::WorldScale;
-use crate::water::WaterLayer;
+use super::super::physics::water::WaterLayer;
+use super::biome::{BiomeMap, BiomeType};
+use crate::engine::core::heightmap::HeightMap;
+use crate::engine::core::scale::WorldScale;
+use crate::engine::physics::climate::ClimateSystem;
 use macroquad::prelude::Vec2;
 
 /// Agent system errors
@@ -884,7 +884,7 @@ mod tests {
 
     #[test]
     fn agent_pathfinding() {
-        use crate::biome::{BiomeMap, BiomeType};
+        use super::biome::{BiomeMap, BiomeType};
 
         let bounds = WorldBounds::new(Vec2::new(0.0, 0.0), Vec2::new(100.0, 100.0));
         let mut agent_system = AgentSystem::new(bounds, 10);
@@ -918,7 +918,7 @@ mod tests {
 
     #[test]
     fn agent_biome_caching() {
-        use crate::biome::{BiomeMap, BiomeType};
+        use super::biome::{BiomeMap, BiomeType};
 
         let bounds = WorldBounds::new(Vec2::new(0.0, 0.0), Vec2::new(100.0, 100.0));
         let mut agent_system = AgentSystem::new(bounds, 10);
@@ -952,7 +952,7 @@ mod tests {
 
     #[test]
     fn agent_performance_300_agents() {
-        use crate::biome::{BiomeMap, BiomeType};
+        use super::biome::{BiomeMap, BiomeType};
         use std::time::Instant;
 
         let bounds = WorldBounds::new(Vec2::new(0.0, 0.0), Vec2::new(100.0, 100.0));

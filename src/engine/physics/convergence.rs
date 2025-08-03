@@ -1,10 +1,10 @@
 // ABOUTME: Grid convergence testing framework for validating simulation scaling behavior
 // ABOUTME: Provides tools to test that simulations converge as grid resolution increases
 
-use crate::climate::ClimateSystem;
-use crate::scale::{DetailLevel, WorldScale};
-use crate::sim::Simulation;
-use crate::worldgen::{DiamondSquareConfig, DiamondSquareGenerator, TerrainGenerator};
+use super::super::core::scale::{DetailLevel, WorldScale};
+use super::climate::ClimateSystem;
+use super::{DiamondSquareConfig, DiamondSquareGenerator, TerrainGenerator};
+use crate::engine::Simulation;
 
 /// Result of a grid convergence study
 #[derive(Clone, Debug)]
@@ -417,7 +417,7 @@ impl ConvergenceStudy {
     fn compute_climate_metrics(
         &self,
         heightmap: &[Vec<f32>],
-        temperature_layer: &crate::climate::TemperatureLayer,
+        temperature_layer: &super::climate::TemperatureLayer,
         grid_spacing: f64,
     ) -> ClimateConvergenceMetric {
         let height = heightmap.len();

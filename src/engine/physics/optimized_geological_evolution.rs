@@ -1,14 +1,14 @@
 // ABOUTME: High-performance geological evolution system integrating all optimization techniques
 // ABOUTME: Demonstrates spatial partitioning, caching, flat data structures, and convergence detection
 
-use crate::cache_system::{CacheStats, CachedClimateSystem};
-use crate::climate::ClimateSystem;
-use crate::convergence_detection::{
+use super::super::core::cache_system::{CacheStats, CachedClimateSystem};
+use super::super::core::optimized_heightmap::FlatHeightmap;
+use super::super::core::scale::WorldScale;
+use super::climate::ClimateSystem;
+use super::convergence_detection::{
     ConvergenceConfig, ConvergenceResult, ConvergenceStats, ConvergenceTracker,
 };
-use crate::optimized_heightmap::FlatHeightmap;
-use crate::scale::WorldScale;
-use crate::spatial_partitioning::{OptimizedWaterFlowSystem, PerformanceStats};
+use super::spatial_partitioning::{OptimizedWaterFlowSystem, PerformanceStats};
 
 /// Configuration for optimized geological evolution
 #[derive(Clone, Debug)]
@@ -506,8 +506,8 @@ impl OptimizationAnalysis {
 
 #[cfg(test)]
 mod tests {
+    use super::super::core::scale::{DetailLevel, WorldScale};
     use super::*;
-    use crate::scale::{DetailLevel, WorldScale};
 
     #[test]
     fn optimized_evolution_basic_functionality() {

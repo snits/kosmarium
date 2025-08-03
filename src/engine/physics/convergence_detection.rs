@@ -1,7 +1,7 @@
 // ABOUTME: Convergence detection system for early termination of geological simulation iterations
 // ABOUTME: Implements multiple convergence criteria and adaptive stopping conditions for performance optimization
 
-use crate::optimized_heightmap::FlatHeightmap;
+use super::super::core::optimized_heightmap::FlatHeightmap;
 use std::collections::VecDeque;
 
 /// Different types of convergence criteria

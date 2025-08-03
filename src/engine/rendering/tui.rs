@@ -17,9 +17,9 @@ use ratatui::{
 use std::io;
 use std::time::{Duration, Instant};
 
-use crate::atmosphere::WeatherPatternType;
-use crate::sim::Simulation;
-use crate::water::{Vec2, WaterLayer};
+use super::super::physics::atmosphere::WeatherPatternType;
+use super::super::physics::water::{Vec2, WaterLayer};
+use crate::engine::Simulation;
 
 /// Viewport for navigating the world map
 #[derive(Debug, Clone)]

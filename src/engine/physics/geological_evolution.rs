@@ -1,12 +1,12 @@
 // ABOUTME: Geological time scale evolution system for pre-aging terrain through erosion processes
 // ABOUTME: Runs accelerated water flow and erosion over geological timescales before real-time simulation
 
-use crate::climate::{ClimateSystem, TemperatureLayer};
-use crate::heightmap::HeightMap;
-use crate::scale::{DetailLevel, WorldScale};
-use crate::sim::{WaterFlowParameters, WaterFlowSystem};
-use crate::tectonics::TectonicSystem;
-use crate::water::WaterLayer;
+use super::super::core::heightmap::HeightMap;
+use super::super::core::scale::{DetailLevel, WorldScale};
+use super::climate::{ClimateSystem, TemperatureLayer};
+use super::tectonics::TectonicSystem;
+use super::water::WaterLayer;
+use crate::engine::{WaterFlowParameters, WaterFlowSystem};
 
 /// Configuration for geological time scale evolution
 #[derive(Clone, Debug)]
@@ -58,7 +58,7 @@ impl GeologicalEvolutionConfig {
         params.base_rainfall_rate = 0.005; // Higher rainfall for active erosion
 
         // Use mass-conserving scaling for realistic water budgets
-        params.rainfall_scaling = crate::sim::RainfallScaling::MassConserving;
+        params.rainfall_scaling = crate::engine::RainfallScaling::MassConserving;
 
         params
     }

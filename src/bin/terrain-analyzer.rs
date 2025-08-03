@@ -2,12 +2,12 @@
 // ABOUTME: Generates multiple worlds with different seeds and provides statistical analysis of results
 
 use clap::Parser;
-use sim_protoype::biome::{BiomeClassifier, BiomeType};
-use sim_protoype::sim::Simulation;
-use sim_protoype::worldgen::{
+use sim_protoype::engine::agents::biome::{BiomeClassifier, BiomeType};
+use sim_protoype::engine::physics::worldgen::{
     DiamondSquareConfig, DiamondSquareGenerator, TectonicConfig, TectonicGenerator,
     TerrainGenerator,
 };
+use sim_protoype::engine::sim::Simulation;
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 

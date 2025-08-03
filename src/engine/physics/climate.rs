@@ -1,8 +1,8 @@
 // ABOUTME: Temperature and climate system for environmental simulation layer
 // ABOUTME: Implements elevation-based temperature gradients with scale-aware parameters
 
-use crate::scale::{ScaleAware, WorldScale};
-use crate::water::Vec2;
+use super::super::core::scale::{ScaleAware, WorldScale};
+use super::water::Vec2;
 
 /// Core temperature data layer
 #[derive(Clone, Debug)]
@@ -473,8 +473,8 @@ impl ClimateSystem {
 
 #[cfg(test)]
 mod tests {
+    use super::super::core::scale::{DetailLevel, WorldScale};
     use super::*;
-    use crate::scale::{DetailLevel, WorldScale};
 
     #[test]
     fn temperature_layer_basic_operations() {

@@ -1,8 +1,8 @@
 // ABOUTME: Performance testing script for flow accumulation algorithm scaling analysis
 // ABOUTME: Measures performance across different map sizes to identify algorithmic complexity
 
-use sim_protoype::drainage::{FlowAccumulationMap, FlowDirectionMap};
-use sim_protoype::heightmap::HeightMap;
+use sim_protoype::engine::core::heightmap::HeightMap;
+use sim_protoype::engine::physics::drainage::{FlowAccumulationMap, FlowDirectionMap};
 use std::time::Instant;
 
 fn generate_test_heightmap(width: usize, height: usize) -> HeightMap {

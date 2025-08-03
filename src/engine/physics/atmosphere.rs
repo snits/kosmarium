@@ -1,9 +1,9 @@
 // ABOUTME: Atmospheric dynamics system for large-scale flow effects including Coriolis forces
 // ABOUTME: Implements geostrophic wind patterns, pressure-driven flows, and rotating reference frame physics
 
-use crate::climate::AtmosphericPressureLayer;
-use crate::scale::{ScaleAware, WorldScale};
-use crate::water::Vec2;
+use super::super::core::scale::{ScaleAware, WorldScale};
+use super::climate::AtmosphericPressureLayer;
+use super::water::Vec2;
 
 /// Atmospheric dynamics parameters for large-scale flow effects
 #[derive(Clone, Debug)]
@@ -520,9 +520,9 @@ impl AtmosphericSystem {
 
 #[cfg(test)]
 mod tests {
+    use super::super::core::scale::{DetailLevel, WorldScale};
+    use super::climate::ClimateSystem;
     use super::*;
-    use crate::climate::ClimateSystem;
-    use crate::scale::{DetailLevel, WorldScale};
 
     fn test_scale(physical_size_km: f64, width: u32, height: u32) -> WorldScale {
         WorldScale::new(physical_size_km, (width, height), DetailLevel::Standard)

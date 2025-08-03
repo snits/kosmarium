@@ -1,9 +1,9 @@
 // ABOUTME: Spatial partitioning system for selective cell updates in geological simulation
 // ABOUTME: Implements multi-tier update regions for water/evaporation coupling and convergence tracking
 
-use crate::optimized_heightmap::FlatHeightmap;
-use crate::scale::WorldScale;
-use crate::sim::{WaterFlowParameters, WaterFlowSystem};
+use super::super::core::optimized_heightmap::FlatHeightmap;
+use super::super::core::scale::WorldScale;
+use crate::engine::{WaterFlowParameters, WaterFlowSystem};
 use std::collections::HashSet;
 
 /// Represents different types of changes that can occur in a cell
@@ -201,7 +201,7 @@ impl OptimizedWaterFlowSystem {
         let world_scale = WorldScale::new(
             10.0,
             (width as u32, height as u32),
-            crate::scale::DetailLevel::Standard,
+            crate::engine::core::scale::DetailLevel::Standard,
         );
         let water_flow_system = WaterFlowSystem::new_for_scale(&world_scale);
 
@@ -519,9 +519,12 @@ mod tests {
         tracker.mark_cell_changed(50, 50, 0.1, ChangeType::Water);
 
         // Create a temporary system for testing
-        let world_scale =
-            crate::scale::WorldScale::new(10.0, (100, 100), crate::scale::DetailLevel::Standard);
-        let water_flow_system = crate::sim::WaterFlowSystem::new_for_scale(&world_scale);
+        let world_scale = crate::engine::core::scale::WorldScale::new(
+            10.0,
+            (100, 100),
+            crate::engine::core::scale::DetailLevel::Standard,
+        );
+        let water_flow_system = crate::engine::WaterFlowSystem::new_for_scale(&world_scale);
 
         let system = OptimizedWaterFlowSystem {
             update_tracker: tracker,

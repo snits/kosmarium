@@ -1,14 +1,16 @@
 // ABOUTME: Core simulation state and water flow system for dynamic terrain evolution
 // ABOUTME: Manages heightmap terrain with real-time water flow, accumulation, and hydraulic erosion
 
-use crate::atmosphere::{AtmosphericSystem, WeatherAnalysis, WindLayer};
-use crate::biome::{BiomeClassifier, BiomeMap};
-use crate::climate::{AtmosphericPressureLayer, ClimateSystem, TemperatureLayer};
-use crate::dimensional::{DimensionalAnalysis, DimensionalWaterFlowParameters, PhysicalQuantity};
-use crate::drainage::{DrainageNetwork, DrainageNetworkStatistics};
-use crate::heightmap::HeightMap;
-use crate::scale::{REFERENCE_SCALE, ScaleAware, WorldScale};
-use crate::water::{Vec2, WaterLayer};
+use super::agents::biome::{BiomeClassifier, BiomeMap};
+use super::core::dimensional::{
+    DimensionalAnalysis, DimensionalWaterFlowParameters, PhysicalQuantity,
+};
+use super::core::heightmap::HeightMap;
+use super::core::scale::{REFERENCE_SCALE, ScaleAware, WorldScale};
+use super::physics::atmosphere::{AtmosphericSystem, WeatherAnalysis, WindLayer};
+use super::physics::climate::{AtmosphericPressureLayer, ClimateSystem, TemperatureLayer};
+use super::physics::drainage::{DrainageNetwork, DrainageNetworkStatistics};
+use super::physics::water::{Vec2, WaterLayer};
 
 /// Simulation time information for display
 #[derive(Debug, Clone)]
@@ -518,7 +520,7 @@ impl Simulation {
         let world_scale = WorldScale::new(
             physical_size_km,
             (width as u32, height as u32),
-            crate::scale::DetailLevel::Standard,
+            crate::engine::core::scale::DetailLevel::Standard,
         );
 
         // Create climate system and generate temperature layer
@@ -908,7 +910,7 @@ impl Simulation {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::scale::{DetailLevel, WorldScale};
+    use crate::engine::core::scale::{DetailLevel, WorldScale};
 
     // Helper function to create a test world scale
     fn test_scale(width: u32, height: u32) -> WorldScale {
@@ -1074,7 +1076,7 @@ mod tests {
 
     #[test]
     fn water_flow_system_with_scale() {
-        use crate::scale::{DetailLevel, WorldScale};
+        use crate::engine::core::scale::{DetailLevel, WorldScale};
         let scale = WorldScale::new(10.0, (240, 120), DetailLevel::Standard);
         let system = WaterFlowSystem::new_for_scale(&scale);
 
@@ -1202,7 +1204,7 @@ mod tests {
     // Water movement and physics tests
     #[test]
     fn rainfall_adds_water_uniformly() {
-        use crate::scale::{DetailLevel, WorldScale};
+        use crate::engine::core::scale::{DetailLevel, WorldScale};
         let scale = WorldScale::new(10.0, (2, 2), DetailLevel::Standard);
         let mut params = WaterFlowParameters::default();
         params.base_rainfall_rate = 0.1;

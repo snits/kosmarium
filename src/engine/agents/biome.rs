@@ -1,12 +1,12 @@
 // ABOUTME: Biome classification system using Whittaker model for realistic terrain types
 // ABOUTME: High-performance storage and real-time queries for agent movement and behavior systems
 
-use crate::atmospheric_moisture::AtmosphericMoistureSystem;
-use crate::climate::{ClimateSystem, TemperatureLayer};
-use crate::drainage::DrainageNetwork;
-use crate::heightmap::HeightMap;
-use crate::scale::{ScaleAware, WorldScale};
-use crate::water::WaterLayer;
+use super::super::physics::atmospheric_moisture::AtmosphericMoistureSystem;
+use super::super::physics::drainage::DrainageNetwork;
+use super::super::physics::water::WaterLayer;
+use crate::engine::core::heightmap::HeightMap;
+use crate::engine::core::scale::{ScaleAware, WorldScale};
+use crate::engine::physics::climate::{ClimateSystem, TemperatureLayer};
 
 /// Core biome types based on Whittaker biome classification
 /// Ordered by movement difficulty for quick agent pathfinding decisions
@@ -777,7 +777,7 @@ pub trait BiomeAware {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::scale::{DetailLevel, WorldScale};
+    use crate::engine::core::scale::{DetailLevel, WorldScale};
 
     #[test]
     fn biome_type_conversions() {
@@ -889,7 +889,7 @@ mod tests {
     #[test]
     fn drainage_enhanced_biome_generation() {
         // DrainageNetwork already imported at module level
-        use crate::climate::ClimateSystem;
+        use crate::engine::physics::climate::ClimateSystem;
 
         // Create test data with clear drainage pattern
         let heightmap = HeightMap::from_nested(vec![
@@ -979,8 +979,8 @@ mod tests {
 
     #[test]
     fn atmospheric_moisture_enhanced_biome_generation() {
-        use crate::atmospheric_moisture::AtmosphericMoistureSystem;
-        use crate::climate::ClimateSystem;
+        use super::super::physics::atmospheric_moisture::AtmosphericMoistureSystem;
+        use crate::engine::physics::climate::ClimateSystem;
 
         // Create test terrain - simpler flat terrain to avoid drainage network issues
         let heightmap = HeightMap::from_nested(vec![

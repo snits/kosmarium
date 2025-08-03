@@ -1,8 +1,8 @@
 // ABOUTME: Caching system for expensive calculations in geological simulation
 // ABOUTME: Implements temperature field caching, change detection, and selective recomputation
 
-use crate::climate::TemperatureLayer;
-use crate::optimized_heightmap::FlatHeightmap;
+use super::optimized_heightmap::FlatHeightmap;
+use crate::engine::physics::climate::TemperatureLayer;
 use std::collections::HashMap;
 
 /// Cache entry for temperature calculations
@@ -279,11 +279,11 @@ impl CacheStats {
 /// Optimized climate system with intelligent caching
 pub struct CachedClimateSystem {
     cache: SimulationCache,
-    base_climate_system: crate::climate::ClimateSystem,
+    base_climate_system: super::super::physics::climate::ClimateSystem,
 }
 
 impl CachedClimateSystem {
-    pub fn new(base_system: crate::climate::ClimateSystem) -> Self {
+    pub fn new(base_system: super::super::physics::climate::ClimateSystem) -> Self {
         Self {
             cache: SimulationCache::new(),
             base_climate_system: base_system,

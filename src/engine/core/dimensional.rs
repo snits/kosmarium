@@ -1,7 +1,7 @@
 // ABOUTME: Dimensional analysis system for proper physical units in water flow simulation
 // ABOUTME: Provides unit conversion, physical validation, and dimensional correctness checking
 
-use crate::scale::WorldScale;
+use super::scale::WorldScale;
 
 /// Physical units for dimensional analysis
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -556,7 +556,7 @@ impl ClimateAnalysis {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::scale::{DetailLevel, WorldScale};
+    use crate::engine::core::scale::{DetailLevel, WorldScale};
 
     #[test]
     fn physical_quantity_conversions() {

@@ -1,9 +1,9 @@
 // ABOUTME: Drainage network calculation for realistic water body formation using watershed analysis
 // ABOUTME: Implements D8 flow direction, flow accumulation, and water concentration algorithms
 
-use crate::heightmap::HeightMap;
-use crate::scale::{ScaleAware, WorldScale};
-use crate::water::WaterLayer;
+use super::super::core::heightmap::HeightMap;
+use super::super::core::scale::{ScaleAware, WorldScale};
+use super::water::WaterLayer;
 
 /// Eight-direction flow direction encoding for D8 algorithm
 /// Uses bit flags for efficient storage and processing
@@ -561,8 +561,8 @@ impl DrainageNetworkStatistics {
 
 #[cfg(test)]
 mod tests {
+    use super::super::core::scale::{DetailLevel, WorldScale};
     use super::*;
-    use crate::scale::{DetailLevel, WorldScale};
 
     fn test_scale() -> WorldScale {
         WorldScale::new(10.0, (100, 100), DetailLevel::Standard)
@@ -771,7 +771,7 @@ mod tests {
 
     #[test]
     fn drainage_performance_scaling() {
-        use crate::worldgen::{DiamondSquareConfig, DiamondSquareGenerator, TerrainGenerator};
+        use super::{DiamondSquareConfig, DiamondSquareGenerator, TerrainGenerator};
         use std::time::Instant;
 
         // Test different map sizes to verify O(n) scaling

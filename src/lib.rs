@@ -1,26 +1,21 @@
-// ABOUTME: Library interface for sim-prototype terrain generation and simulation
-// ABOUTME: Exposes public modules for external use and examples
+// ABOUTME: Library interface for sim-prototype terrain generation and simulation engine
+// ABOUTME: Exposes clean public API for external use while keeping internal organization
 
-pub mod agents;
-pub mod atmosphere;
-pub mod atmospheric_moisture;
-pub mod biome;
-pub mod cache_system;
-pub mod climate;
-pub mod convergence;
-pub mod convergence_detection;
-pub mod dimensional;
-pub mod drainage;
-pub mod geological_evolution;
-pub mod graphics_render;
-pub mod heightmap;
-pub mod optimized_geological_evolution;
-pub mod optimized_heightmap;
-pub mod render;
-pub mod scale;
-pub mod sim;
-pub mod spatial_partitioning;
-pub mod tectonics;
-pub mod tui;
-pub mod water;
-pub mod worldgen;
+pub mod engine;
+
+// Re-export key engine components for library users
+pub use engine::{
+    Simulation,
+    agents::{AgentId, AgentSystem, AgentType, BiomeClassifier, BiomeMap, BiomeType},
+    core::{HeightMap, PhysicalQuantity, PhysicalUnit, ScaleAware, WorldScale},
+    physics::{
+        DiamondSquareConfig, DiamondSquareGenerator, GeologicalEvolution,
+        GeologicalEvolutionConfig, TectonicConfig, TectonicGenerator, TerrainGenerator,
+    },
+    rendering::{GraphicsRenderer, ascii_render, ascii_render_biomes, run_tui},
+};
+
+// Re-export applications for convenience
+pub mod applications {
+    pub use crate::engine::*;
+}
