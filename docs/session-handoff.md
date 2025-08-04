@@ -90,49 +90,43 @@ ABOUTME: Tracks active development state for smooth transitions between sessions
 ## Handoff Notes for Next Session
 
 ### Immediate Next Steps
-- **🚨 CRITICAL BUG: Fix Temperature Generation**
-  - **Root Cause**: Temperature system producing -70°C for larger maps (100x50+)
-  - **Impact**: Forces all cells into Ice/Tundra biomes instead of diverse classification
-  - **Working**: Small maps (5x5, 20x10) generate realistic temperatures and diverse biomes
-  - **Investigation**: Atmospheric moisture system changes affected temperature generation scaling
-- **✅ CONFIRMED WORKING: Drainage Performance Optimization**
-  - **Achievement**: >1000x performance improvement enables realistic world generation
-  - **Status**: Algorithm working perfectly, not the cause of biome issues
-- **🎯 VALIDATION TARGET: Restore Biome Diversity**
-  - **Expected**: Rivers, lakes, grassland, desert, alpine, forest biomes for larger maps
-  - **Current**: Mostly ice/tundra due to temperature bug
-- **🔧 TUI Viewport Investigation**
-  - **Scope**: Review TUI viewport implementation for potential improvements
-  - **Context**: Examine user interface and interaction patterns
-- **⚡ Geological Timescale Performance Review**
-  - **Agent**: performance-engineer analysis of geological timescale code
-  - **Target**: Identify optimization opportunities in geological evolution systems
-  - **Focus**: Long-term simulation performance and scaling characteristics
+- **🔧 PRIORITY: Implement Tectonic Parameter Fixes**
+  - **Root Cause**: Extreme base elevations (continental: 0.6, oceanic: -0.5) create binary terrain
+  - **Impact**: Forces 10K geological evolution iterations to compensate for poor elevation distribution
+  - **Solution**: Adjust to realistic values (±0.15), reduce mountain amplification (20x vs 100x)
+  - **Expected Result**: Realistic elevation variation directly from tectonic system
+- **⚡ HIGH PRIORITY: Fix Broken Spatial Partitioning**
+  - **Issue**: Claims 5-20% active cells but processes 100% of cells (0% optimization)
+  - **Missing Performance**: Should provide 5-20x speedup but currently provides 1.0x
+  - **Investigation**: Debug active cell detection and water flow integration
+- **🎮 FEATURE: Add Biome Overlay to TUI Interface**
+  - **Context**: Temperature scaling bug fixed, biome diversity restored
+  - **Implementation**: Add Biome to DisplayMode enum, rendering logic, key binding
 
 ### Context to Load
-- **docs/performance-analysis-phases-1-4.md**: Complete performance analysis and biome integration strategy
-- **docs/agent-system-architecture.md**: Multi-agent design collaboration results
-- **src/biome.rs**: Complete Whittaker classification system (BiomeMap, BiomeClassifier)
-- **src/agents.rs**: Production SoA agent system ready for biome caching extension
+- **docs/tectonics-design-discussion.md**: Complete expert analysis of plate tectonic architecture and parameter fixes
+- **src/worldgen.rs**: TectonicGenerator implementation requiring parameter tuning
+- **src/spatial_partitioning.rs**: Broken spatial optimization system needing debug
+- **src/tui.rs**: TUI interface ready for biome overlay addition
 
 ### Key Decisions Made This Session
-- **Performance Analysis Priority**: game-performance-analyst identified agent-biome query bottleneck
-- **Biome Caching Strategy**: Cache biome data in AgentSystem SoA layout (90% query reduction)
-- **Spatial Batch Processing**: Morton encoding for cache-friendly biome updates
-- **Performance Budget Allocation**: <1ms biome updates, <5ms total agent processing per frame
-- **Architecture Foundation**: Phase 4 agent systems proven feasible with Phase 3 optimizations
+- **Temperature Scaling Architecture**: Implemented climate-aware scaling that accommodates both terrain detail (~10km) and climate realism (~100km+)
+- **Plate Tectonic Analysis**: Expert consensus that current architecture is excellent, only parameter tuning needed
+- **Geological Evolution Role**: System exists primarily to compensate for extreme tectonic parameters, not fundamental design flaws
+- **Two-Track Implementation**: Parallel fixes for tectonic parameters (quality) and spatial partitioning (performance)
+- **TUI Debug Output**: All debug messages removed/disabled for clean terminal interface
 
 ### Technical Architecture Status
-- **HeightMap Implementation**: Production-ready with safety guarantees and performance optimization
-- **Core Simulation Engine**: Water flow algorithms converted to flat memory layout (predicted 2-3x speedup)
-- **Conversion Infrastructure**: from_nested/to_nested methods enable compatibility during transition
-- **Quality Validation**: Coordinate ordering (y,x → x,y) caught and fixed consistently throughout
+- **Climate System**: Fixed temperature scaling bug, now produces realistic biome diversity on all map sizes
+- **Plate Tectonic Generation**: Architecture validated as professionally designed, parameters identified for tuning
+- **Geological Evolution**: Linear O(n) performance confirmed, spatial partitioning system broken but repairable
+- **TUI Interface**: Clean display achieved, ready for biome overlay enhancement
 
 ### Implementation Readiness
-- **Layer 1 Complete**: Core data structures (sim.rs) fully converted and tested
-- **Layer 2-4 Mapped**: Dependency analysis complete for geological_evolution, climate, atmosphere, and interface modules  
-- **Architecture Proven**: HeightMap conversion pattern validated through complex water flow algorithm conversion
-- **Performance Path Clear**: Foundation established for 2-3x improvement validation
+- **Tectonic Parameter Fixes**: Specific values identified for base elevations, mountain amplification, and distance effects
+- **Spatial Partitioning Debug**: Root cause analysis complete, debugging path established
+- **Biome Overlay Implementation**: TUI infrastructure ready, DisplayMode enum needs Biome variant
+- **Expert Analysis Complete**: Architecture validated, implementation roadmap defined
 
 ### Development Philosophy
 - **Performance-First Approach**: Optimize core data structures before adding gameplay complexity

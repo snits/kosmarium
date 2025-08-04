@@ -77,6 +77,110 @@ ABOUTME: Tracks what's been tried, what worked, and what to investigate next
 - [ ] Animation of world generation process
 - [ ] Export to image files for better visualization
 
+## Educational Deep Dive Sessions
+
+### Code Architecture & Design Walkthroughs
+**Goal**: Comprehensive understanding of system designs and implementation patterns from foundational concepts through advanced agent systems
+
+#### Phase 1 Foundation Understanding
+
+**Session 1: Scale-Aware Architecture & Dimensional Analysis**
+- [ ] WorldScale trait system and why it enables consistent physics across resolutions
+- [ ] Dimensional analysis framework - ensuring physical realism in simulation parameters
+- [ ] Grid convergence testing and numerical accuracy validation
+- [ ] Conservation-based flow equations and their discrete implementations
+
+**Session 2: Water Flow Physics Deep Dive**
+- [ ] Navier-Stokes simplifications and flow direction algorithms
+- [ ] Mass conservation and sediment transport mathematics
+- [ ] Erosion/deposition feedback loops and terrain evolution
+- [ ] CFL stability conditions and timestep calculations
+
+**Session 3: Climate System Integration**
+- [ ] Temperature field dynamics and heat diffusion equations
+- [ ] Pressure gradient calculations and atmospheric circulation
+- [ ] Water-climate coupling and evaporation rate modeling
+- [ ] Seasonal variation and climate parameter scaling
+
+#### Phase 2 Environmental Systems
+
+**Session 4: Atmospheric Pressure & Wind Systems**
+- [ ] Geostrophic wind calculations and Coriolis force integration
+- [ ] Pressure field generation from temperature gradients
+- [ ] Storm formation mechanics and weather pattern emergence
+- [ ] Macroquad graphics integration and real-time visualization
+
+**Session 5: TUI Architecture & User Experience**
+- [ ] Professional TUI design patterns using crossterm and ratatui
+- [ ] Multi-panel interface architecture and state management
+- [ ] Real-time data overlay systems and display mode switching
+- [ ] User interaction patterns and responsive interface design
+- [ ] Add biome overlay mode to TUI interface (post-temperature bug fix)
+
+#### Phase 3 Performance & Optimization
+
+**Session 6: Plate Tectonics & Geological Systems Review**
+- [ ] Tectonic plate generation algorithms and scale-aware parameter tuning
+- [ ] Geological evolution performance analysis and time-scale acceleration
+- [ ] Spatial partitioning for performance optimization (5-20% active cells)
+- [ ] Intelligent caching systems and temperature field optimization
+- [ ] Multi-criteria convergence detection and early termination
+- [ ] Plate boundary mechanics and realistic geological processes
+
+**Session 7: HeightMap Performance Revolution (Vec<Vec<f32>> → Vec<f32>)**
+- [ ] Cache performance analysis and memory layout optimization
+- [ ] Structure-of-arrays conversion patterns and Vec2Map implementation
+- [ ] Unsafe/debug_assert optimization strategies
+- [ ] Performance measurement and validation of 2-3x improvements
+
+**Session 8: Rust Performance Patterns & Memory Management**
+- [ ] Zero-cost abstractions and trait monomorphization in practice
+- [ ] Memory layout strategies for cache efficiency
+- [ ] SIMD readiness and vectorization preparation
+- [ ] Error handling with thiserror and type safety patterns
+
+#### Phase 4 Agent Systems & Social Dynamics
+
+**Session 9: Agent System Architecture Deep Dive**
+- [ ] SoA vs ECS vs hybrid approaches - trade-offs and performance implications
+- [ ] Generational safety patterns and why they prevent use-after-free bugs
+- [ ] Spatial indexing mathematics and O(1) neighbor query implementation
+- [ ] Hot/warm/cold data separation and cache optimization strategies
+
+**Session 10: Social Systems Design Walkthrough** 
+- [ ] Relationship graph mathematics and trust propagation algorithms
+- [ ] Emergent cooperation mechanics - Dan Bunten's design philosophy in practice
+- [ ] Information networks and reputation systems implementation
+- [ ] Cultural trait diffusion and social learning rule engines
+
+**Session 11: Cultural Evolution & Mythology Deep Dive**
+- [ ] Story propagation networks and narrative mutation during transmission
+- [ ] Belief system hierarchies and coherence checking algorithms
+- [ ] Historical memory formation and significance assessment systems
+- [ ] Ritual emergence patterns and cultural selection pressures
+
+**Session 12: Multi-Agent Design Collaboration Analysis**
+- [ ] How specialist agents contributed complementary expertise across all phases
+- [ ] Integration challenges between performance, social, and cultural requirements
+- [ ] Design pattern emergence from collaborative architecture discussions
+- [ ] Evolution from simple terrain generation to complex agent societies
+
+#### Cross-Phase Integration & Lessons
+
+**Session 13: Performance Foundation Impact Study**
+- [ ] How Phase 1 scale-aware design enabled Phase 2 environmental systems
+- [ ] How Phase 2 TUI patterns supported Phase 3 optimization visualization
+- [ ] How Phase 3 HeightMap optimization enabled Phase 4 agent performance
+- [ ] Compound performance gains and system interdependencies
+
+**Session 14: Architectural Evolution & Design Patterns**
+- [ ] Trait-based design evolution from water systems to agent systems
+- [ ] Modular architecture patterns that supported incremental complexity
+- [ ] Error handling evolution and type safety improvements
+- [ ] Documentation patterns and deep-dive analysis methodology
+
+*Note: Each session should be hands-on with code walkthroughs, concept explanations, and practical examples*
+
 ## Future Concepts to Explore
 
 ### Simulation Mechanics
