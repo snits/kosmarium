@@ -658,6 +658,10 @@ impl AtmosphericSystem {
         // Apply enhanced outflow boundary conditions with sponge layer for better momentum conservation
         // Use sponge layer for continental-scale domains (>100km) to prevent momentum accumulation
         let use_sponge = self.world_scale.physical_size_km > 100.0;
+
+        // Note: Previously disabled atmospheric effects at >1000km due to artifacts
+        // Now testing if pressure field fixes resolve the geostrophic calculation issues
+
         wind_layer.apply_enhanced_outflow_boundary_conditions(use_sponge);
 
         wind_layer
