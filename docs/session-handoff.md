@@ -90,14 +90,20 @@ ABOUTME: Tracks active development state for smooth transitions between sessions
 
 ## Handoff Notes for Next Session
 
-### ✅ COMPLETED: Atmospheric System Stability Fixed
+### 🚨 CRITICAL ISSUE IDENTIFIED: Random Noise Weather System
 
-**🎉 ATMOSPHERIC BOUNDARY CONDITIONS IMPLEMENTED**
-- **Solution**: CFD-based outflow boundary conditions with zero-gradient extrapolation
-- **Implementation**: Sponge layer damping, boundary stability metrics, mass conservation validation
-- **Testing**: Comprehensive test suite validates boundary behavior at continental scale
-- **Result**: Wind vectors now exit domain naturally, preventing "water world" degradation
-- **Status**: Ready for real-world simulation testing to verify long-term stability
+**🔥 ATMOSPHERIC SYSTEM FUNDAMENTAL FLAW DISCOVERED**
+- **Issue**: Pressure generation uses random noise instead of atmospheric physics
+- **Impact**: Explains persistent biome degradation despite "stable" pressure ranges
+- **Root Cause**: `pressure += noise_factor * amplitude` creates white noise, not weather systems
+- **Visualization**: Massive circular artifacts from gradient calculations on random data
+- **Status**: ⚠️ REQUIRES COMPLETE REWRITE - temporal integration fixes insufficient
+
+**✅ COMPLETED DEBUGGING PROGRESS**
+- Temporal integration bug fixed (pressure evolution vs regeneration)
+- Boundary conditions implemented and working correctly
+- Debug output spam removed from graphics rendering
+- Scale-aware parameter tuning validated
 
 **🔧 ADDITIONAL FIXES COMPLETED:**
 - Debug binary HeightMap API compatibility updated for all tools
@@ -118,10 +124,11 @@ ABOUTME: Tracks active development state for smooth transitions between sessions
 
 ### Next Session Options
 
-**🎮 PRIORITY: Test Atmospheric Fix & Move to Gameplay**
-- Run extended simulation to verify atmospheric boundary conditions prevent degradation
-- Validate that continental-scale simulations remain stable over multiple days
-- Begin Phase 4A gameplay systems implementation now that critical blocker is resolved
+**🔥 PRIORITY: Replace Random Noise with Physics-Based Weather**
+- Implement thermal circulation from temperature gradients
+- Add orographic effects from terrain interaction
+- Create scale-appropriate pressure wavelengths (not white noise)
+- Replace random LCG with coherent atmospheric dynamics
 
 **🎓 ALTERNATIVE: Educational Deep Dive (if debugging stalls)**
 - Session 1: Scale-Aware Architecture & Dimensional Analysis (70% complete)

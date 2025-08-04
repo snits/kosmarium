@@ -209,7 +209,7 @@ ABOUTME: Tracks what's been tried, what worked, and what to investigate next
 
 ## **🎓 UPDATED EDUCATIONAL APPROACH**
 
-### **Current Status: 10/14 Sessions Ready for Education**
+### **Current Status: Critical Physics Architecture Issue - 10/14 Sessions Ready for Education**
 
 **✅ IMMEDIATELY AVAILABLE (Complete implementations):**
 - Session 1: Scale-Aware Architecture & Dimensional Analysis
@@ -223,8 +223,10 @@ ABOUTME: Tracks what's been tried, what worked, and what to investigate next
 - Session 13: Performance Foundation Impact Study
 - Session 14: Architectural Evolution & Design Patterns
 
+**🚨 CRITICAL ARCHITECTURE ISSUE IDENTIFIED:**
+- Session 5: Atmospheric Pressure & Wind Systems *(PHYSICS FLAW: Uses random noise instead of atmospheric dynamics)*
+
 **⚠️ DESIGN PHASE (Specifications exist, implementation pending):**
-- Session 5: Atmospheric Pressure & Wind Systems *(Fantasy Physics design complete)*
 - Session 10: Social Systems Design *(Collaborative specs exist)*
 - Session 11: Cultural Evolution & Mythology *(Detailed design docs exist)*
 - Session 12: Multi-Agent Design Collaboration Analysis *(Research complete)*
