@@ -26,6 +26,10 @@ name = "debug_diamond_square"
 path = "debug_binaries_tmp/debug_diamond_square.rs"
 
 [[bin]]
+name = "test_pressure_evolution"
+path = "debug_binaries_tmp/test_pressure_evolution.rs"
+
+[[bin]]
 name = "debug_water_system"
 path = "debug_binaries_tmp/debug_water_system.rs"
 
@@ -40,6 +44,10 @@ path = "debug_binaries_tmp/performance_test.rs"
 [[bin]]
 name = "validate_opengl_data"
 path = "debug_binaries_tmp/validate_opengl_data.rs"
+
+[[bin]]
+name = "debug_boundary_runtime"
+path = "debug_binaries_tmp/debug_boundary_runtime.rs"
 
 [dependencies]
 rand = "0.8"
