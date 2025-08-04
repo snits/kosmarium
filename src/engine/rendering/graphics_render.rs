@@ -60,7 +60,7 @@ impl GraphicsRenderer {
         }
     }
 
-    pub fn render_simulation(&mut self, simulation: &mut Simulation) {
+    pub fn render_simulation(&mut self, simulation: &Simulation) {
         clear_background(BLACK);
 
         // Use default camera for consistent coordinate system
@@ -143,6 +143,8 @@ impl GraphicsRenderer {
         // Find pressure range for color mapping
         let (min_pressure, max_pressure) = self.find_pressure_range(pressure_layer);
 
+        // Pressure range found for color mapping
+
         for y in 0..simulation.get_height() {
             for x in 0..simulation.get_width() {
                 let pressure = pressure_layer.get_pressure(x, y);
@@ -192,10 +194,7 @@ impl GraphicsRenderer {
                     }
                 }
                 let avg_speed = total_speed / count as f32;
-                println!(
-                    "WIND DEBUG: min={:.3}, max={:.3}, avg={:.3}",
-                    min_speed, max_speed, avg_speed
-                );
+                // Wind speed range calculated for visualization
                 DEBUG_PRINTED = true;
             }
         }
@@ -278,7 +277,7 @@ impl GraphicsRenderer {
         }
     }
 
-    fn render_biomes(&self, simulation: &mut Simulation) {
+    fn render_biomes(&self, simulation: &Simulation) {
         // Get dimensions before borrowing for biome map
         let width = simulation.get_width();
         let height = simulation.get_height();
@@ -290,8 +289,8 @@ impl GraphicsRenderer {
         let offset_x = self.viewport.x + (self.viewport.w - total_width) * 0.5 + self.pan_offset.x;
         let offset_y = self.viewport.y + (self.viewport.h - total_height) * 0.5 + self.pan_offset.y;
 
-        // Get cached biome map
-        let biome_map = simulation.generate_biome_map();
+        // Generate read-only biome map for graphics rendering (no state modification)
+        let biome_map = simulation.generate_biome_map_basic();
 
         for y in 0..height {
             for x in 0..width {
@@ -434,6 +433,20 @@ impl GraphicsRenderer {
             14.0,
             sim_color,
         );
+        y_pos += line_height;
+
+        // Domain scale information
+        let scale_km = simulation.get_world_scale().physical_size_km;
+        let resolution_text = format!("Scale: {:.0}km domain", scale_km);
+        draw_text(&resolution_text, sidebar_x, y_pos, 14.0, LIGHTGRAY);
+        y_pos += line_height;
+
+        // Resolution info (meters per pixel)
+        let width = simulation.get_width() as f64;
+        let height = simulation.get_height() as f64;
+        let meters_per_pixel = (scale_km * 1000.0) / width.max(height);
+        let resolution_detail = format!("Resolution: {:.0}m/pixel", meters_per_pixel);
+        draw_text(&resolution_detail, sidebar_x, y_pos, 12.0, DARKGRAY);
     }
 
     fn render_right_sidebar(&self) {
@@ -663,7 +676,12 @@ impl GraphicsRenderer {
     }
 
     fn pressure_to_color(&self, pressure: f32, min_p: f32, max_p: f32) -> Color {
-        let normalized = (pressure - min_p) / (max_p - min_p);
+        let range = max_p - min_p;
+        if range < 0.1 {
+            // Very small range - use middle gray to indicate minimal variation
+            return Color::new(0.5, 0.5, 0.5, 0.8);
+        }
+        let normalized = (pressure - min_p) / range;
         Color::new(normalized, 0.2, 1.0 - normalized, 0.8)
     }
 

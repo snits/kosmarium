@@ -173,7 +173,7 @@ async fn run_graphics(mut simulation: Simulation) {
         }
 
         // Render
-        renderer.render_simulation(&mut simulation);
+        renderer.render_simulation(&simulation);
 
         // Exit on Escape
         if is_key_pressed(KeyCode::Escape) {

@@ -843,24 +843,31 @@ impl Simulation {
             self.biome_cache_valid = false;
         }
 
-        // Update pressure layer when temperature changes OR enough time has passed
+        // Evolve pressure layer gradually when temperature changes OR enough time has passed
         if temperature_updated
             || self.tick_count - self.last_pressure_update >= PRESSURE_UPDATE_INTERVAL
         {
+            // Evolution rate: faster changes when temperature updated, slower for temporal evolution
+            let evolution_rate = if temperature_updated { 0.3 } else { 0.1 };
+
             #[cfg(feature = "simd")]
             {
-                self.pressure_layer = self.climate_system.generate_pressure_layer_simd(
+                self.climate_system.evolve_pressure_layer_simd(
+                    &mut self.pressure_layer,
                     &self.temperature_layer,
                     &self.heightmap,
                     &self._world_scale,
+                    evolution_rate,
                 );
             }
             #[cfg(not(feature = "simd"))]
             {
-                self.pressure_layer = self.climate_system.generate_pressure_layer_optimized(
+                self.climate_system.evolve_pressure_layer(
+                    &mut self.pressure_layer,
                     &self.temperature_layer,
-                    &self.heightmap,
+                    &self.heightmap_nested,
                     &self._world_scale,
+                    evolution_rate,
                 );
             }
             self.last_pressure_update = self.tick_count;
@@ -1005,6 +1012,11 @@ impl Simulation {
     /// Get reference to heightmap for graphics rendering
     pub fn get_heightmap(&self) -> &HeightMap {
         &self.heightmap
+    }
+
+    /// Get the world scale information for this simulation
+    pub fn get_world_scale(&self) -> &WorldScale {
+        &self._world_scale
     }
 
     /// Get reference to water layer for graphics rendering
