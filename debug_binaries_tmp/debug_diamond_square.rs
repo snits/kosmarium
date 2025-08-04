@@ -39,16 +39,16 @@ fn main() {
 
     // Find min/max values to understand normalization
     let min_val = heightmap
+        .data()
         .iter()
-        .flatten()
         .cloned()
         .fold(f32::INFINITY, f32::min);
     let max_val = heightmap
+        .data()
         .iter()
-        .flatten()
         .cloned()
         .fold(f32::NEG_INFINITY, f32::max);
-    let avg_val = heightmap.iter().flatten().cloned().sum::<f32>() / (width * height) as f32;
+    let avg_val = heightmap.data().iter().cloned().sum::<f32>() / (width * height) as f32;
 
     println!("\nStatistics:");
     println!("Min elevation: {:.6}", min_val);
@@ -108,11 +108,11 @@ fn main() {
 
         let test_map = generator.generate(8, 8, &test_config);
         let test_max = test_map
+            .data()
             .iter()
-            .flatten()
             .cloned()
             .fold(f32::NEG_INFINITY, f32::max);
-        let corner_val = test_map[0][0];
+        let corner_val = test_map.get(0, 0);
 
         println!(
             "{}: (0,0)={:.6}, max={:.6}, is_max={}",

@@ -7,7 +7,7 @@ use std::time::Instant;
 
 fn generate_test_heightmap(width: usize, height: usize) -> HeightMap {
     // Create a simple gradient heightmap for consistent testing
-    let mut data = Vec::with_capacity(width * height);
+    let mut heightmap = HeightMap::new(width, height, 0.0);
 
     for y in 0..height {
         for x in 0..width {
@@ -15,11 +15,11 @@ fn generate_test_heightmap(width: usize, height: usize) -> HeightMap {
             let normalized_x = x as f32 / width as f32;
             let normalized_y = y as f32 / height as f32;
             let elevation = 1.0 - (normalized_x + normalized_y) * 0.5;
-            data.push(elevation);
+            heightmap.set(x, y, elevation);
         }
     }
 
-    HeightMap::from_data(data, width, height)
+    heightmap
 }
 
 fn benchmark_flow_accumulation(width: usize, height: usize) -> u128 {

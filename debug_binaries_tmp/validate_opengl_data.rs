@@ -1,6 +1,7 @@
 // ABOUTME: Validation script to test OpenGL data safety for layered terrain generation
 // ABOUTME: Implements defensive programming patterns and validates all floating point values
 
+use sim_protoype::engine::core::heightmap::HeightMap;
 use sim_protoype::engine::physics::worldgen::{
     TectonicConfig, TectonicGenerator, TerrainGenerator,
 };
@@ -119,7 +120,7 @@ struct OpenGLValidation {
     opengl_safe: bool,
 }
 
-fn validate_for_opengl(heightmap: &[Vec<f32>]) -> OpenGLValidation {
+fn validate_for_opengl(heightmap: &HeightMap) -> OpenGLValidation {
     let mut validation = OpenGLValidation {
         total_values: 0,
         finite_values: 0,
@@ -134,26 +135,24 @@ fn validate_for_opengl(heightmap: &[Vec<f32>]) -> OpenGLValidation {
 
     let mut sum = 0.0;
 
-    for row in heightmap {
-        for &value in row {
-            validation.total_values += 1;
+    for &value in heightmap.data() {
+        validation.total_values += 1;
 
-            if value.is_nan() {
-                validation.nan_values += 1;
-                validation.opengl_safe = false;
-            } else if value.is_infinite() {
-                if value.is_sign_positive() {
-                    validation.positive_inf_values += 1;
-                } else {
-                    validation.negative_inf_values += 1;
-                }
-                validation.opengl_safe = false;
+        if value.is_nan() {
+            validation.nan_values += 1;
+            validation.opengl_safe = false;
+        } else if value.is_infinite() {
+            if value.is_sign_positive() {
+                validation.positive_inf_values += 1;
             } else {
-                validation.finite_values += 1;
-                sum += value;
-                validation.min_value = validation.min_value.min(value);
-                validation.max_value = validation.max_value.max(value);
+                validation.negative_inf_values += 1;
             }
+            validation.opengl_safe = false;
+        } else {
+            validation.finite_values += 1;
+            sum += value;
+            validation.min_value = validation.min_value.min(value);
+            validation.max_value = validation.max_value.max(value);
         }
     }
 
@@ -187,15 +186,16 @@ fn print_opengl_validation(validation: &OpenGLValidation) {
     }
 }
 
-fn test_color_conversion(heightmap: &[Vec<f32>]) {
+fn test_color_conversion(heightmap: &HeightMap) {
     println!("  Testing color conversion (graphics pipeline simulation):");
 
     let mut conversion_issues = 0;
     let mut sample_count = 0;
 
     // Sample some values to test color conversion
-    for (y, row) in heightmap.iter().enumerate().step_by(8) {
-        for (x, &elevation) in row.iter().enumerate().step_by(8) {
+    for y in (0..heightmap.height()).step_by(8) {
+        for x in (0..heightmap.width()).step_by(8) {
+            let elevation = heightmap.get(x, y);
             sample_count += 1;
 
             // Simulate the elevation_to_color function from graphics_render.rs
