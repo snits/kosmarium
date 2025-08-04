@@ -289,23 +289,14 @@ impl ScaleAware for ClimateParameters {
             seasonal_pressure_amplitude: self.seasonal_pressure_amplitude
                 * (1.0 + physical_extent_km / 1000.0 * 0.2),
 
-            // Weather noise scales with map size but is reduced for high-resolution domains
-            // to prevent numerical instability in wind calculations
+            // Weather noise scales with map size to maintain realistic pressure gradients
+            // Scale minimum threshold with domain size for appropriate weather patterns
             pressure_noise_amplitude: {
-                let base_scaling = (physical_extent_km / 100.0).min(2.0);
-                let resolution_damping = if physical_extent_km > 200.0 {
-                    // For large, high-resolution domains, reduce noise to prevent wind instability
-                    let meters_per_pixel = (physical_extent_km * 1000.0)
-                        / (scale.resolution.0 as f32).max(scale.resolution.1 as f32);
-                    if meters_per_pixel < 500.0 {
-                        0.3 // Greatly reduced noise for high-resolution domains
-                    } else {
-                        0.7 // Moderately reduced noise
-                    }
-                } else {
-                    1.0 // Full noise for small domains
-                };
-                self.pressure_noise_amplitude * base_scaling * resolution_damping
+                let base_scaling = (physical_extent_km / 100.0).min(4.0); // Increased max scaling
+                // Scale minimum from 200Pa (50km) to 1000Pa (200km+) for appropriate weather visualization
+                let weather_minimum = (200.0 + (physical_extent_km - 50.0).max(0.0) * 4.0).min(1000.0);
+                let calculated_noise = self.pressure_noise_amplitude * base_scaling;
+                calculated_noise.max(weather_minimum) // Ensure minimum weather-scale variations
             },
         }
     }
@@ -639,9 +630,6 @@ impl ClimateSystem {
 
         let mut pressure_layer = AtmosphericPressureLayer::new(width, height);
 
-        // Simple PRNG for reproducible weather patterns
-        let mut rng_state = self.pressure_seed.wrapping_add(self.tick_count() as u64);
-
         // Optimized calculation using HeightMap's flat memory layout for better cache performance
         for y in 0..height {
             for x in 0..width {
@@ -658,15 +646,10 @@ impl ClimateSystem {
                 let elevation_meters = elevation.max(0.0) * 1000.0; // Convert to meters
                 pressure *= (-elevation_meters / scale_height).exp();
 
-                // Apply temperature-induced pressure variation (thermal highs/lows)
+                // Apply thermal circulation physics (warm areas = low pressure, cool areas = high pressure)
                 let temp_deviation = temperature_c - self.parameters.base_temperature_c;
-                let thermal_pressure_factor = 1.0 - (temp_deviation * 0.002); // 0.2% change per degree
-                pressure *= thermal_pressure_factor;
-
-                // Add small-scale pressure variations (weather systems)
-                rng_state = rng_state.wrapping_mul(1664525).wrapping_add(1013904223);
-                let noise = ((rng_state as f32) / (u32::MAX as f32) - 0.5) * 2.0; // -1.0 to 1.0
-                pressure += noise * self.parameters.pressure_noise_amplitude;
+                let thermal_pressure_change = -temp_deviation * self.parameters.pressure_temperature_coupling / 10.0;
+                pressure += thermal_pressure_change;
 
                 // Clamp to reasonable atmospheric pressure range
                 pressure = pressure.max(50000.0).min(110000.0);
@@ -907,6 +890,127 @@ impl ClimateSystem {
     fn tick_count(&self) -> u32 {
         // Convert seasonal position back to approximate tick count
         (self.current_season / self.seasonal_rate) as u32
+    }
+
+    /// Evolve existing pressure layer over time with gradual changes
+    /// This preserves atmospheric circulation patterns while allowing realistic temporal evolution
+    pub fn evolve_pressure_layer(
+        &self,
+        current_pressure: &mut AtmosphericPressureLayer,
+        temperature_layer: &TemperatureLayer,
+        heightmap: &[Vec<f32>],
+        scale: &WorldScale,
+        evolution_rate: f32,
+    ) {
+        let height = heightmap.len();
+        let width = if height > 0 { heightmap[0].len() } else { 0 };
+
+        // Use a fixed seed for weather noise evolution to ensure temporal continuity
+        // This evolves the weather patterns gradually rather than regenerating them
+        let mut rng_state = self.pressure_seed.wrapping_add((self.tick_count() / 10) as u64);
+
+        // Evolve pressure for each cell
+        for y in 0..height {
+            for x in 0..width {
+                let elevation = heightmap[y][x];
+                let temperature_c =
+                    temperature_layer.get_current_temperature(x, y, self.current_season);
+
+                // Calculate target pressure based on current conditions
+                let mut target_pressure = self.parameters.base_pressure_pa;
+
+                // Apply elevation-based pressure reduction (hydrostatic balance)
+                let scale_height = 8400.0; // meters
+                let elevation_meters = elevation.max(0.0) * 1000.0; // Convert to meters
+                target_pressure *= (-elevation_meters / scale_height).exp();
+
+                // Apply temperature-pressure coupling (warmer air = lower pressure)
+                let temp_deviation = temperature_c - self.parameters.base_temperature_c;
+                let thermal_pressure_change =
+                    -temp_deviation * self.parameters.pressure_temperature_coupling / 10.0;
+                target_pressure += thermal_pressure_change;
+
+                // Apply seasonal pressure variation
+                let seasonal_factor = (self.current_season * 2.0 * std::f32::consts::PI).sin();
+                target_pressure += seasonal_factor * self.parameters.seasonal_pressure_amplitude;
+
+                // Evolve weather noise gradually instead of regenerating
+                rng_state = rng_state.wrapping_mul(1664525).wrapping_add(1013904223);
+                let noise_factor = ((rng_state as f32) / (u64::MAX as f32)) * 2.0 - 1.0; // -1 to 1
+                let noise_contribution = noise_factor * self.parameters.pressure_noise_amplitude * 0.1; // Smaller noise evolution
+
+                // Gradually evolve toward target pressure instead of jumping to it
+                let current_pressure_val = current_pressure.pressure[y][x];
+                let pressure_change = (target_pressure - current_pressure_val) * evolution_rate + noise_contribution;
+                let new_pressure = current_pressure_val + pressure_change;
+
+                // Clamp to reasonable atmospheric pressure bounds (500-1100 hPa)
+                current_pressure.pressure[y][x] = new_pressure.max(50000.0).min(110000.0);
+            }
+        }
+
+        // Recalculate pressure gradients after evolution
+        current_pressure.calculate_pressure_gradients(scale.meters_per_pixel() as f32);
+    }
+
+    /// SIMD-optimized pressure evolution for better performance
+    #[cfg(feature = "simd")]
+    pub fn evolve_pressure_layer_simd(
+        &self,
+        current_pressure: &mut AtmosphericPressureLayer,
+        temperature_layer: &TemperatureLayer,
+        heightmap: &super::super::core::heightmap::HeightMap,
+        scale: &WorldScale,
+        evolution_rate: f32,
+    ) {
+        use rayon::prelude::*;
+
+        let width = heightmap.width();
+        let height = heightmap.height();
+
+        // Pre-calculate constants outside the parallel loop
+        let base_pressure = self.parameters.base_pressure_pa;
+        let base_temp_c = self.parameters.base_temperature_c;
+        let noise_amplitude = self.parameters.pressure_noise_amplitude * 0.1; // Smaller noise evolution
+        let scale_height_inv = 1.0 / 8400.0; // Pre-calculate reciprocal
+        let rng_base = self.pressure_seed.wrapping_add((self.tick_count() / 10) as u64);
+        let seasonal_factor = (self.current_season * 2.0 * std::f32::consts::PI).sin() 
+            * self.parameters.seasonal_pressure_amplitude;
+        let thermal_coupling = self.parameters.pressure_temperature_coupling / 10.0;
+
+        // Process rows in parallel
+        current_pressure.pressure.par_iter_mut().enumerate().for_each(|(y, row)| {
+            let mut rng_state = rng_base.wrapping_add(y as u64 * 1000);
+
+            for x in 0..width {
+                let elevation = heightmap.get(x, y);
+                let temperature_c = temperature_layer.get_current_temperature(x, y, self.current_season);
+
+                // Calculate target pressure
+                let elevation_meters = elevation.max(0.0) * 1000.0;
+                let elevation_factor = (-elevation_meters * scale_height_inv).exp();
+                let temp_deviation = temperature_c - base_temp_c;
+                let thermal_change = -temp_deviation * thermal_coupling;
+
+                let mut target_pressure = base_pressure * elevation_factor + thermal_change + seasonal_factor;
+
+                // Evolve weather noise gradually
+                rng_state = rng_state.wrapping_mul(1664525).wrapping_add(1013904223);
+                let noise_factor = ((rng_state as f32) / (u64::MAX as f32)) * 2.0 - 1.0;
+                let noise_contribution = noise_factor * noise_amplitude;
+
+                // Gradually evolve toward target pressure
+                let current_pressure_val = row[x];
+                let pressure_change = (target_pressure - current_pressure_val) * evolution_rate + noise_contribution;
+                let new_pressure = current_pressure_val + pressure_change;
+
+                // Clamp to reasonable bounds
+                row[x] = new_pressure.max(50000.0).min(110000.0);
+            }
+        });
+
+        // Recalculate pressure gradients after evolution
+        current_pressure.calculate_pressure_gradients(scale.meters_per_pixel() as f32);
     }
 }
 
