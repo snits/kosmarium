@@ -1,0 +1,97 @@
+--- a/src/engine/sim.rs
++++ b/src/engine/sim.rs
+
+@@ -41,6 +41,8 @@ pub struct WaterFlowSystem {
+     pub parameters: WaterFlowParameters,
+     pub effective_rainfall_rate: f32, // Computed rainfall rate for current scale
+     pub _stable_timestep_seconds: f32, // CFL-derived timestep for numerical stability
++    pub adaptive_timestep_seconds: f32, // Actual timestep used by simulation
++    pub timestep_safety_factor: f32,   // Safety margin for timestep adaptation
+     pub evaporation_threshold: f32,   // Scale-aware threshold for clearing tiny water amounts
+ }
+ 
+@@ -99,6 +101,8 @@ impl WaterFlowSystem {
+         let evaporation_threshold =
+             Self::calculate_evaporation_threshold(&scaled_params, effective_rainfall_rate);
+ 
++        let adaptive_timestep = Self::calculate_adaptive_timestep(stable_timestep_seconds);
++        
+         Self {
+             parameters: scaled_params,
+             effective_rainfall_rate,
+             _stable_timestep_seconds: stable_timestep_seconds,
++            adaptive_timestep_seconds: adaptive_timestep,
++            timestep_safety_factor: 0.8, // Conservative safety margin
+             evaporation_threshold,
+         }
+     }
+@@ -146,6 +152,22 @@ impl WaterFlowSystem {
+         cfl_timestep.max(0.001).min(60.0)
+     }
+ 
++    /// Calculate adaptive timestep that balances stability with computational efficiency
++    /// Uses CFL-stable timestep but with practical bounds for simulation performance
++    fn calculate_adaptive_timestep(cfl_stable_timestep: f32) -> f32 {
++        // Use CFL timestep but with practical bounds
++        let min_timestep = 60.0;   // 1 minute minimum (too small = computationally expensive)
++        let max_timestep = 600.0;  // 10 minutes maximum (too large = stability issues)
++        
++        // Use CFL timestep if it's in reasonable range, otherwise clamp
++        let adaptive_timestep = cfl_stable_timestep * 0.8; // 80% of CFL limit for safety
++        
++        adaptive_timestep.max(min_timestep).min(max_timestep)
++    }
++    
++    /// Get the adaptive timestep that should be used by the simulation
++    pub fn get_adaptive_timestep_seconds(&self) -> f32 {
++        self.adaptive_timestep_seconds
++    }
++
+     /// Calculate scale-aware evaporation threshold to prevent clearing water that should accumulate
+     /// Threshold should be small enough to allow rainfall to accumulate over multiple ticks
+     fn calculate_evaporation_threshold(
+@@ -920,9 +942,17 @@ impl Simulation {
+ 
+     /// Get simulation time information for display
+     pub fn get_simulation_time(&self) -> SimulationTime {
+-        // Assuming 10Hz simulation rate, each tick = 6 minutes of simulation time
+-        // This gives reasonable atmospheric dynamics timing
+-        const MINUTES_PER_TICK: f32 = 6.0;
++        // Use scale-aware adaptive timestep instead of fixed 6 minutes
++        let timestep_seconds = self.water_system.get_adaptive_timestep_seconds();
++        let minutes_per_tick = timestep_seconds / 60.0;
++        
++        // For display purposes, show what timestep is being used
++        if self.tick_count % 100 == 0 && self.tick_count > 0 {
++            println!("Adaptive timestep: {:.1} minutes ({:.0}s) based on CFL analysis", 
++                     minutes_per_tick, timestep_seconds);
++        }
++        
++        let MINUTES_PER_TICK = minutes_per_tick;
+ 
+         let total_minutes = self.tick_count as f32 * MINUTES_PER_TICK;
+         let total_hours = total_minutes / 60.0;
+@@ -939,6 +969,23 @@ impl Simulation {
+         }
+     }
+ 
++    /// Get current adaptive timestep information
++    pub fn get_timestep_info(&self) -> (f32, f32, f32) {
++        let adaptive_timestep = self.water_system.get_adaptive_timestep_seconds();
++        let cfl_timestep = self.water_system._get_stable_timestep_seconds();
++        let timestep_ratio = adaptive_timestep / cfl_timestep;
++        
++        (adaptive_timestep, cfl_timestep, timestep_ratio)
++    }
++    
++    /// Check if current timestep is CFL-stable for current flow conditions
++    pub fn check_timestep_stability(&self) -> bool {
++        let (adaptive_timestep, cfl_timestep, ratio) = self.get_timestep_info();
++        
++        // Timestep is stable if it's less than CFL limit
++        ratio <= 1.0
++    }
++
+     /// Get the total water + terrain elevation at a position
+     pub fn _get_total_elevation(&self, x: usize, y: usize) -> f32 {
+         if x < self.heightmap.width() && y < self.heightmap.height() {

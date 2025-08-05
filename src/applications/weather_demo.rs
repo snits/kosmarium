@@ -10,7 +10,10 @@ use crate::engine::{
     Simulation, SimulationDiagnostics,
     core::{DetailLevel, WorldScale},
     physics::{DiamondSquareConfig, DiamondSquareGenerator, TerrainGenerator},
-    rendering::{GraphicsRenderer, ascii_render, run_tui, AsciiFramebuffer, FramebufferConfig, VisualizationLayer},
+    rendering::{
+        AsciiFramebuffer, FramebufferConfig, GraphicsRenderer, VisualizationLayer, ascii_render,
+        run_tui,
+    },
 };
 
 #[derive(Parser)]
@@ -214,26 +217,31 @@ async fn run_graphics(mut simulation: Simulation) {
 }
 
 /// Run simulation in stats monitoring mode with periodic diagnostic output
-fn run_stats_mode(mut simulation: Simulation, interval: usize) -> Result<(), Box<dyn std::error::Error>> {
+fn run_stats_mode(
+    mut simulation: Simulation,
+    interval: usize,
+) -> Result<(), Box<dyn std::error::Error>> {
     println!("Stats mode initialized. Press Ctrl+C to stop.\n");
-    
+
     let mut iteration_count = 0;
-    
+
     // Initial stats output
-    let initial_diagnostics = SimulationDiagnostics::collect_from_simulation(&simulation, iteration_count);
+    let initial_diagnostics =
+        SimulationDiagnostics::collect_from_simulation(&simulation, iteration_count);
     println!("{}", initial_diagnostics.format_compact());
-    
+
     loop {
         // Run simulation tick
         simulation.tick();
         iteration_count += 1;
-        
+
         // Output stats at specified interval
         if iteration_count % interval == 0 {
-            let diagnostics = SimulationDiagnostics::collect_from_simulation(&simulation, iteration_count);
+            let diagnostics =
+                SimulationDiagnostics::collect_from_simulation(&simulation, iteration_count);
             println!("{}", diagnostics.format_compact());
         }
-        
+
         // Check for Ctrl+C (this is a simplified approach)
         // In a real implementation, you'd want proper signal handling
         std::thread::sleep(std::time::Duration::from_millis(10)); // Small delay to prevent CPU spinning
@@ -241,11 +249,14 @@ fn run_stats_mode(mut simulation: Simulation, interval: usize) -> Result<(), Box
 }
 
 /// Run simulation in ASCII framebuffer mode with multi-layer temporal visualization
-fn run_ascii_framebuffer_mode(mut simulation: Simulation, args: &WeatherDemoArgs) -> Result<(), Box<dyn std::error::Error>> {
+fn run_ascii_framebuffer_mode(
+    mut simulation: Simulation,
+    args: &WeatherDemoArgs,
+) -> Result<(), Box<dyn std::error::Error>> {
     // Parse layer names from CLI argument
     let layer_names: Vec<&str> = args.layers.split(',').map(|s| s.trim()).collect();
     let mut layers = Vec::new();
-    
+
     for layer_name in layer_names {
         if let Some(layer) = VisualizationLayer::from_str(layer_name) {
             layers.push(layer);
@@ -253,9 +264,13 @@ fn run_ascii_framebuffer_mode(mut simulation: Simulation, args: &WeatherDemoArgs
             eprintln!("Warning: Unknown layer '{}', skipping", layer_name);
         }
     }
-    
+
     if layers.is_empty() {
-        layers = vec![VisualizationLayer::Elevation, VisualizationLayer::Water, VisualizationLayer::Biomes];
+        layers = vec![
+            VisualizationLayer::Elevation,
+            VisualizationLayer::Water,
+            VisualizationLayer::Biomes,
+        ];
         println!("No valid layers specified, using default: elevation,water,biomes");
     }
 
@@ -271,34 +286,37 @@ fn run_ascii_framebuffer_mode(mut simulation: Simulation, args: &WeatherDemoArgs
     };
 
     let mut framebuffer = AsciiFramebuffer::new(config);
-    
+
     println!("ASCII Framebuffer initialized. Press Ctrl+C to stop.");
     println!("Layers: {:?}", args.layers);
     println!("Buffer size: {}", args.buffer_size);
     println!("Update interval: {} ticks\n", args.interval);
-    
+
     let mut iteration_count = 0;
-    
+
     loop {
         // Run simulation tick
         simulation.tick();
         iteration_count += 1;
-        
+
         // Capture and display frame at specified interval
         if iteration_count % args.interval == 0 {
             let frame = framebuffer.capture_frame(&simulation);
             let output = framebuffer.format_frame(&frame);
             framebuffer.add_frame(frame);
-            
+
             // Clear screen and display frame
             print!("\x1B[2J\x1B[H"); // ANSI escape codes to clear screen and move cursor to top
             println!("{}", output);
-            
+
             // Show buffer status
-            println!("Buffer: {}/{} frames | Press Ctrl+C to exit", 
-                framebuffer.frame_count(), args.buffer_size);
+            println!(
+                "Buffer: {}/{} frames | Press Ctrl+C to exit",
+                framebuffer.frame_count(),
+                args.buffer_size
+            );
         }
-        
+
         // Small delay to prevent CPU spinning
         std::thread::sleep(std::time::Duration::from_millis(10));
     }

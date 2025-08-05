@@ -205,8 +205,13 @@ impl OptimizedWaterFlowSystem {
         );
         let water_flow_system = WaterFlowSystem::new_for_scale(&world_scale);
 
+        let mut update_tracker = SpatialUpdateTracker::new(width, height);
+        // Set scale-aware change threshold based on water system's evaporation threshold
+        let scale_aware_threshold = water_flow_system.evaporation_threshold * 2.0; // Scale with domain
+        update_tracker.set_change_threshold(scale_aware_threshold);
+
         Self {
-            update_tracker: SpatialUpdateTracker::new(width, height),
+            update_tracker,
             cached_temperature_valid: false,
             last_temperature_update: 0,
             temperature_cache_lifetime: 100, // Recompute temperature every 100 iterations
@@ -222,8 +227,13 @@ impl OptimizedWaterFlowSystem {
     ) -> Self {
         let water_flow_system = WaterFlowSystem::from_parameters(params, world_scale);
 
+        let mut update_tracker = SpatialUpdateTracker::new(width, height);
+        // Set scale-aware change threshold based on water system's evaporation threshold
+        let scale_aware_threshold = water_flow_system.evaporation_threshold * 2.0; // Scale with domain
+        update_tracker.set_change_threshold(scale_aware_threshold);
+
         Self {
-            update_tracker: SpatialUpdateTracker::new(width, height),
+            update_tracker,
             cached_temperature_valid: false,
             last_temperature_update: 0,
             temperature_cache_lifetime: 100,
@@ -316,7 +326,9 @@ impl OptimizedWaterFlowSystem {
         for y in 0..height {
             for x in 0..width {
                 let index = y * width + x;
-                if water_depth[index] > 0.01 {
+                // Scale-aware water depth threshold - use drainage system's threshold
+                let water_depth_threshold = self.water_flow_system.evaporation_threshold * 5.0;
+                if water_depth[index] > water_depth_threshold {
                     self.update_tracker.mark_cell_changed(
                         x,
                         y,
@@ -371,7 +383,9 @@ impl OptimizedWaterFlowSystem {
         }
 
         // Apply flow rate scaling and direction normalization
-        if steepest_slope > 0.001 {
+        // Scale-aware slope threshold - continental gradients need to be detected
+        let slope_threshold = self.water_flow_system.evaporation_threshold * 0.1; // Much smaller threshold for slopes
+        if steepest_slope > slope_threshold {
             let flow_magnitude =
                 (steepest_slope * self.water_flow_system.parameters.flow_rate).min(1.0);
             let direction_length =

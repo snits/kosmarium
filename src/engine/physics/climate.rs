@@ -248,7 +248,7 @@ impl Default for ClimateParameters {
 
 impl ScaleAware for ClimateParameters {
     fn derive_parameters(&self, scale: &WorldScale) -> Self {
-        let _meters_per_pixel = scale.meters_per_pixel() as f32;
+        let meters_per_pixel = scale.meters_per_pixel() as f32;
         let physical_extent_km = scale.physical_size_km as f32;
 
         Self {
@@ -281,9 +281,13 @@ impl ScaleAware for ClimateParameters {
             // Base pressure is intensive - doesn't scale
             base_pressure_pa: self.base_pressure_pa,
 
-            // Temperature-pressure coupling scales with temperature gradients
-            pressure_temperature_coupling: self.pressure_temperature_coupling
-                * (physical_extent_km / 100.0).min(3.0),
+            // Temperature-pressure coupling scales with temperature gradients AND grid resolution
+            pressure_temperature_coupling: {
+                let domain_scaling = (physical_extent_km / 100.0).min(3.0);
+                // Reduce coupling for fine resolution to prevent mesoscale pressure artifacts
+                let resolution_scaling = (meters_per_pixel / 50000.0).sqrt().max(0.3);
+                self.pressure_temperature_coupling * domain_scaling * resolution_scaling
+            },
 
             // Seasonal pressure variation scales with continental effects
             seasonal_pressure_amplitude: self.seasonal_pressure_amplitude

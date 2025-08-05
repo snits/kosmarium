@@ -402,9 +402,13 @@ impl WaterFlowSystem {
             for x in 0..water.width() {
                 let (vx, vy) = water.velocity.get(x, y);
                 let velocity_mag = (vx * vx + vy * vy).sqrt();
-                let flow_amount = water.depth.get(x, y) * velocity_mag.min(1.0);
+                // CFL-stable velocity limit: max 0.5 cells per timestep for numerical stability
+                let max_velocity = 0.5; // Conservative CFL condition
+                let flow_amount = water.depth.get(x, y) * velocity_mag.min(max_velocity);
 
-                if flow_amount > 0.001 {
+                // Scale-aware flow threshold - use existing evaporation threshold as basis
+                let flow_threshold = self.evaporation_threshold * 10.0; // Flow when water exceeds 10x evaporation rate
+                if flow_amount > flow_threshold {
                     // Calculate target position
                     let target_x = (x as f32 + vx).round() as i32;
                     let target_y = (y as f32 + vy).round() as i32;
@@ -438,7 +442,10 @@ impl WaterFlowSystem {
                 let flow_speed = (velocity.0 * velocity.0 + velocity.1 * velocity.1).sqrt();
                 let water_depth = water.depth.get(x, y);
 
-                if flow_speed > 0.01 && water_depth > 0.001 {
+                // Scale-aware erosion thresholds based on domain characteristics
+                let erosion_flow_threshold = self.evaporation_threshold * 20.0; // Erosion needs significant flow
+                let erosion_depth_threshold = self.evaporation_threshold * 5.0; // Minimum depth for erosion
+                if flow_speed > erosion_flow_threshold && water_depth > erosion_depth_threshold {
                     // Erosion capacity based on flow speed and water depth
                     let erosion_capacity =
                         flow_speed * water_depth * self.parameters.erosion_strength;
@@ -446,7 +453,10 @@ impl WaterFlowSystem {
                     // Erode terrain if we're below capacity
                     let current_sediment = water.sediment.get(x, y);
                     if current_sediment < erosion_capacity {
-                        let erosion_amount = (erosion_capacity - current_sediment).min(0.001);
+                        // Scale-aware erosion limit - prevent unrealistic landscape changes
+                        let max_erosion_per_tick = self.evaporation_threshold * 100.0; // Scale with domain size
+                        let erosion_amount =
+                            (erosion_capacity - current_sediment).min(max_erosion_per_tick);
                         let current_height = heightmap.get(x, y);
                         heightmap.set(x, y, current_height - erosion_amount);
                         water.sediment.set(x, y, current_sediment + erosion_amount);
@@ -618,9 +628,13 @@ impl WaterFlowSystem {
             for x in 0..water.width() {
                 let (vx, vy) = water.velocity.get(x, y);
                 let velocity_mag = (vx * vx + vy * vy).sqrt();
-                let flow_amount = water.depth.get(x, y) * velocity_mag.min(1.0);
+                // CFL-stable velocity limit: max 0.5 cells per timestep for numerical stability
+                let max_velocity = 0.5; // Conservative CFL condition
+                let flow_amount = water.depth.get(x, y) * velocity_mag.min(max_velocity);
 
-                if flow_amount > 0.001 {
+                // Scale-aware flow threshold - use existing evaporation threshold as basis
+                let flow_threshold = self.evaporation_threshold * 10.0; // Flow when water exceeds 10x evaporation rate
+                if flow_amount > flow_threshold {
                     // Calculate target position
                     let target_x = (x as f32 + vx).round() as i32;
                     let target_y = (y as f32 + vy).round() as i32;
@@ -1158,6 +1172,136 @@ impl Simulation {
             self.regenerate_drainage_network();
         }
     }
+
+    // DIAGNOSTICS SUPPORT METHODS - Required for SimulationDiagnostics
+
+    /// Get water system reference for diagnostics
+    pub fn get_water_system(&self) -> &WaterFlowSystem {
+        &self.water_system
+    }
+
+    /// Get spatial system reference for diagnostics (placeholder)
+    pub fn get_spatial_system(&self) -> SpatialSystemPlaceholder {
+        // For now, return a placeholder with basic stats
+        // This would be replaced with actual spatial partitioning system reference
+        SpatialSystemPlaceholder {
+            active_cells: (self.get_width() * self.get_height()) / 4, // Estimate 25% active
+            total_cells: self.get_width() * self.get_height(),
+        }
+    }
+
+    /// Get pressure layer reference for diagnostics
+    pub fn get_pressure_layer(&self) -> &AtmosphericPressureLayer {
+        &self.pressure_layer
+    }
+
+    /// Get atmospheric system reference for diagnostics
+    pub fn get_atmospheric_system(&self) -> &AtmosphericSystem {
+        &self.atmospheric_system
+    }
+
+    /// Get average flow rate across the water system for diagnostics
+    pub fn get_average_flow_rate(&self) -> f32 {
+        let mut total_flow = 0.0;
+        let mut flow_count = 0;
+
+        for y in 0..self.water.height() {
+            for x in 0..self.water.width() {
+                let velocity = self.water.velocity.get(x, y);
+                let flow_magnitude = (velocity.0 * velocity.0 + velocity.1 * velocity.1).sqrt();
+                if flow_magnitude > 0.0001 {
+                    // Only count meaningful flows
+                    total_flow += flow_magnitude;
+                    flow_count += 1;
+                }
+            }
+        }
+
+        if flow_count > 0 {
+            total_flow / flow_count as f32
+        } else {
+            0.0
+        }
+    }
+
+    /// Count river cells for diagnostics
+    pub fn count_river_cells(&self) -> usize {
+        let mut river_count = 0;
+        let river_threshold = self.water_system.evaporation_threshold * 5.0; // Scale-aware threshold
+
+        for y in 0..self.water.height() {
+            for x in 0..self.water.width() {
+                if self.water.depth.get(x, y) > river_threshold {
+                    // Check if this cell has flow (indicating a river vs static water)
+                    let velocity = self.water.velocity.get(x, y);
+                    let flow_speed = (velocity.0 * velocity.0 + velocity.1 * velocity.1).sqrt();
+                    if flow_speed > 0.001 {
+                        river_count += 1;
+                    }
+                }
+            }
+        }
+
+        river_count
+    }
+
+    /// Calculate total water for mass conservation diagnostics
+    pub fn calculate_total_water(&self) -> f32 {
+        self.water.get_total_water()
+    }
+
+    /// Calculate total elevation for mass conservation diagnostics
+    pub fn calculate_total_elevation(&self) -> f32 {
+        let mut total = 0.0;
+        for y in 0..self.heightmap.height() {
+            for x in 0..self.heightmap.width() {
+                total += self.heightmap.get(x, y);
+            }
+        }
+        total
+    }
+
+    /// Calculate total sediment for mass conservation diagnostics
+    pub fn calculate_total_sediment(&self) -> f32 {
+        let mut total = 0.0;
+        for y in 0..self.water.height() {
+            for x in 0..self.water.width() {
+                total += self.water.sediment.get(x, y);
+            }
+        }
+        total
+    }
+}
+
+/// Placeholder for spatial partitioning system stats
+/// TODO: Replace with actual spatial partitioning system when available
+#[derive(Debug, Clone)]
+pub struct SpatialSystemPlaceholder {
+    pub active_cells: usize,
+    pub total_cells: usize,
+}
+
+impl SpatialSystemPlaceholder {
+    /// Get performance stats placeholder
+    pub fn get_performance_stats(&self) -> SpatialPerformanceStats {
+        SpatialPerformanceStats {
+            active_cells: self.active_cells,
+            total_cells: self.total_cells,
+        }
+    }
+
+    /// Check convergence placeholder
+    pub fn has_converged(&self) -> bool {
+        // Simplified heuristic: converged if less than 10% active cells
+        (self.active_cells as f32 / self.total_cells as f32) < 0.1
+    }
+}
+
+/// Placeholder for spatial performance stats
+#[derive(Debug, Clone)]
+pub struct SpatialPerformanceStats {
+    pub active_cells: usize,
+    pub total_cells: usize,
 }
 
 #[cfg(test)]

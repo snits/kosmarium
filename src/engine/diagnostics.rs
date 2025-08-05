@@ -93,16 +93,16 @@ impl SimulationDiagnostics {
 
         // Collect water system metrics
         let water_metrics = Self::collect_water_metrics(simulation);
-        
+
         // Collect threshold information
         let thresholds = Self::collect_threshold_metrics(simulation);
-        
+
         // Collect biome metrics
         let biome_metrics = Self::collect_biome_metrics(simulation);
-        
+
         // Collect atmosphere metrics
         let atmosphere_metrics = Self::collect_atmosphere_metrics(simulation);
-        
+
         // Collect conservation metrics
         let conservation_metrics = Self::collect_conservation_metrics(simulation);
 
@@ -122,24 +122,24 @@ impl SimulationDiagnostics {
     fn collect_water_metrics(simulation: &Simulation) -> WaterSystemMetrics {
         let water_system = simulation.get_water_system();
         let spatial_system = simulation.get_spatial_system();
-        
+
         // Get current flow rate from a representative cell
         let current_flow_rate = simulation.get_average_flow_rate();
-        
+
         // Get scale-aware thresholds
         let flow_threshold = water_system.evaporation_threshold * 10.0; // Our scale-aware calculation
-        
+
         // Get rainfall and evaporation rates
         let current_rainfall = water_system.effective_rainfall_rate;
         let evaporation_rate = water_system.evaporation_threshold;
         let water_balance = current_rainfall - evaporation_rate;
-        
+
         // Get spatial partitioning stats
         let stats = spatial_system.get_performance_stats();
         let active_cells = stats.active_cells;
         let total_cells = stats.total_cells;
         let active_percentage = (active_cells as f32 / total_cells as f32) * 100.0;
-        
+
         // Check convergence
         let has_converged = spatial_system.has_converged();
         let convergence_threshold = water_system.evaporation_threshold * 2.0; // Our scale-aware calculation
@@ -161,17 +161,17 @@ impl SimulationDiagnostics {
     /// Collect threshold comparison metrics
     fn collect_threshold_metrics(simulation: &Simulation) -> ThresholdMetrics {
         let water_system = simulation.get_water_system();
-        
+
         // Current scale-aware thresholds (from our fixes)
         let flow_threshold_current = water_system.evaporation_threshold * 10.0;
         let convergence_threshold_current = water_system.evaporation_threshold * 2.0;
         let erosion_max_current = water_system.evaporation_threshold * 100.0;
-        
+
         // Original hardcoded values (for comparison)
         let flow_threshold_original = 0.001;
         let convergence_threshold_original = 0.001;
         let erosion_max_original = 0.001;
-        
+
         // CFL timestep range (scale-aware)
         let world_scale = simulation.get_world_scale();
         let grid_spacing_m = world_scale.meters_per_pixel() as f32;
@@ -193,7 +193,7 @@ impl SimulationDiagnostics {
     fn collect_biome_metrics(simulation: &Simulation) -> BiomeMetrics {
         let biome_map = simulation.generate_biome_map_basic();
         let total_cells = biome_map.len() as f32;
-        
+
         let mut water_count = 0;
         let mut desert_count = 0;
         let mut grassland_count = 0;
@@ -202,17 +202,17 @@ impl SimulationDiagnostics {
 
         for (_, _, biome) in biome_map.iter_coords() {
             match biome {
-                super::agents::biome::BiomeType::Ocean | 
-                super::agents::biome::BiomeType::Lake | 
-                super::agents::biome::BiomeType::River | 
-                super::agents::biome::BiomeType::Wetland => water_count += 1,
+                super::agents::biome::BiomeType::Ocean
+                | super::agents::biome::BiomeType::Lake
+                | super::agents::biome::BiomeType::River
+                | super::agents::biome::BiomeType::Wetland => water_count += 1,
                 super::agents::biome::BiomeType::Desert => desert_count += 1,
-                super::agents::biome::BiomeType::Grassland | 
-                super::agents::biome::BiomeType::Savanna => grassland_count += 1,
-                super::agents::biome::BiomeType::TemperateForest | 
-                super::agents::biome::BiomeType::RainForest | 
-                super::agents::biome::BiomeType::BorealForest => forest_count += 1,
-                _ => {}, // Handle other biome types (tundra, alpine, ice, etc.)
+                super::agents::biome::BiomeType::Grassland
+                | super::agents::biome::BiomeType::Savanna => grassland_count += 1,
+                super::agents::biome::BiomeType::TemperateForest
+                | super::agents::biome::BiomeType::RainForest
+                | super::agents::biome::BiomeType::BorealForest => forest_count += 1,
+                _ => {} // Handle other biome types (tundra, alpine, ice, etc.)
             }
         }
 
@@ -223,7 +223,7 @@ impl SimulationDiagnostics {
             grassland_count as f32 / total_cells,
             forest_count as f32 / total_cells,
         ];
-        
+
         let diversity_index = proportions
             .iter()
             .filter(|&&p| p > 0.0)
@@ -248,36 +248,36 @@ impl SimulationDiagnostics {
         let pressure_layer = simulation.get_pressure_layer();
         let wind_layer = simulation.get_wind_layer();
         let atmospheric_system = simulation.get_atmospheric_system();
-        
+
         // Calculate pressure range
         let mut min_pressure = f32::INFINITY;
         let mut max_pressure = f32::NEG_INFINITY;
-        
+
         for row in &pressure_layer.pressure {
             for &pressure in row {
                 min_pressure = min_pressure.min(pressure);
                 max_pressure = max_pressure.max(pressure);
             }
         }
-        
+
         let pressure_range_kpa = (min_pressure / 1000.0, max_pressure / 1000.0);
-        
+
         // Calculate pressure gradient (simplified)
         let pressure_gradient = (max_pressure - min_pressure) / 100000.0; // Per 100km
-        
+
         // Wind statistics
         let wind_speed_avg = wind_layer.get_average_wind_speed();
         let mut wind_speed_max: f32 = 0.0;
-        
+
         for y in 0..wind_layer.height() {
             for x in 0..wind_layer.width() {
                 wind_speed_max = wind_speed_max.max(wind_layer.get_speed(x, y));
             }
         }
-        
+
         // Atmospheric system status
         let coriolis_active = atmospheric_system.is_coriolis_active();
-        
+
         // Boundary stability check
         let stability = atmospheric_system.validate_atmospheric_stability(&wind_layer);
         let boundary_stable = stability.is_system_stable;
@@ -298,11 +298,11 @@ impl SimulationDiagnostics {
     fn collect_conservation_metrics(simulation: &Simulation) -> ConservationMetrics {
         // These would need to be tracked over time in a real implementation
         // For now, provide placeholders that show the concept
-        
+
         let total_water = simulation.calculate_total_water();
         let total_elevation = simulation.calculate_total_elevation();
         let total_sediment = simulation.calculate_total_sediment();
-        
+
         // These would be calculated by comparing with previous values
         let water_change_percent = 0.0; // Placeholder
         let elevation_change_percent = 0.0; // Placeholder
@@ -321,7 +321,7 @@ impl SimulationDiagnostics {
     /// Format diagnostics for compact ASCII display
     pub fn format_compact(&self) -> String {
         format!(
-r#"=== SIMULATION DIAGNOSTICS (Iter: {}, Scale: {:.0}m/px, Domain: {:.0}km) ===
+            r#"=== SIMULATION DIAGNOSTICS (Iter: {}, Scale: {:.0}m/px, Domain: {:.0}km) ===
 WATER SYSTEM:
   Flow Rate: {:.5} | Threshold: {:.5} | Status: {} {}
   Rainfall:  {:.5} | Evap Rate: {:.5} | Balance: {:+.5}
@@ -349,15 +349,27 @@ MASS CONSERVATION:
             self.domain_size_km,
             self.water_metrics.current_flow_rate,
             self.water_metrics.flow_threshold,
-            if self.water_metrics.current_flow_rate > 0.0001 { "FLOWING" } else { "STATIC" },
-            if self.water_metrics.current_flow_rate < self.water_metrics.flow_threshold { "⚠️" } else { "✓" },
+            if self.water_metrics.current_flow_rate > 0.0001 {
+                "FLOWING"
+            } else {
+                "STATIC"
+            },
+            if self.water_metrics.current_flow_rate < self.water_metrics.flow_threshold {
+                "⚠️"
+            } else {
+                "✓"
+            },
             self.water_metrics.current_rainfall,
             self.water_metrics.evaporation_rate,
             self.water_metrics.water_balance,
             self.water_metrics.active_cells,
             self.water_metrics.total_cells,
             self.water_metrics.active_percentage,
-            if self.water_metrics.has_converged { "YES" } else { "NO" },
+            if self.water_metrics.has_converged {
+                "YES"
+            } else {
+                "NO"
+            },
             self.thresholds.flow_threshold_current,
             self.thresholds.flow_threshold_original,
             self.thresholds.convergence_threshold_current,
@@ -371,17 +383,33 @@ MASS CONSERVATION:
             self.biome_metrics.grassland_percentage,
             self.biome_metrics.forest_percentage,
             self.biome_metrics.diversity_index,
-            if self.biome_metrics.diversity_index > 0.5 { "Good" } else { "Poor" },
+            if self.biome_metrics.diversity_index > 0.5 {
+                "Good"
+            } else {
+                "Poor"
+            },
             self.biome_metrics.river_cells,
             self.atmosphere_metrics.pressure_range_kpa.0,
             self.atmosphere_metrics.pressure_range_kpa.1,
             self.atmosphere_metrics.pressure_gradient,
             self.atmosphere_metrics.wind_speed_avg,
             self.atmosphere_metrics.wind_speed_max,
-            if self.atmosphere_metrics.coriolis_active { "ACTIVE" } else { "DISABLED" },
-            if self.atmosphere_metrics.boundary_stable { "YES" } else { "NO" },
+            if self.atmosphere_metrics.coriolis_active {
+                "ACTIVE"
+            } else {
+                "DISABLED"
+            },
+            if self.atmosphere_metrics.boundary_stable {
+                "YES"
+            } else {
+                "NO"
+            },
             self.atmosphere_metrics.momentum_drift,
-            if self.atmosphere_metrics.momentum_drift < 1.0 { "OK" } else { "HIGH" },
+            if self.atmosphere_metrics.momentum_drift < 1.0 {
+                "OK"
+            } else {
+                "HIGH"
+            },
             self.conservation_metrics.total_water,
             self.conservation_metrics.water_change_percent,
             self.conservation_metrics.total_elevation,

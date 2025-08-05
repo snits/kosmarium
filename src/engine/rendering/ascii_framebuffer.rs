@@ -1,8 +1,8 @@
 // ABOUTME: ASCII framebuffer system for multi-layer temporal visualization of simulation data
 // ABOUTME: Provides real-time monitoring with configurable layers, change detection, and frame buffering
 
-use super::super::sim::Simulation;
 use super::super::agents::biome::BiomeType;
+use super::super::sim::Simulation;
 use std::collections::VecDeque;
 
 /// Available visualization layers for ASCII framebuffer
@@ -217,31 +217,95 @@ impl AsciiFramebuffer {
 
         match layer_type {
             VisualizationLayer::Elevation => {
-                self.generate_elevation_layer(simulation, &mut chars, &mut colors, display_width, display_height, sim_width, sim_height);
+                self.generate_elevation_layer(
+                    simulation,
+                    &mut chars,
+                    &mut colors,
+                    display_width,
+                    display_height,
+                    sim_width,
+                    sim_height,
+                );
             }
             VisualizationLayer::Water => {
-                self.generate_water_layer(simulation, &mut chars, &mut colors, display_width, display_height, sim_width, sim_height);
+                self.generate_water_layer(
+                    simulation,
+                    &mut chars,
+                    &mut colors,
+                    display_width,
+                    display_height,
+                    sim_width,
+                    sim_height,
+                );
             }
             VisualizationLayer::Biomes => {
-                self.generate_biomes_layer(simulation, &mut chars, &mut colors, display_width, display_height, sim_width, sim_height);
+                self.generate_biomes_layer(
+                    simulation,
+                    &mut chars,
+                    &mut colors,
+                    display_width,
+                    display_height,
+                    sim_width,
+                    sim_height,
+                );
             }
             VisualizationLayer::Temperature => {
-                self.generate_temperature_layer(simulation, &mut chars, &mut colors, display_width, display_height, sim_width, sim_height);
+                self.generate_temperature_layer(
+                    simulation,
+                    &mut chars,
+                    &mut colors,
+                    display_width,
+                    display_height,
+                    sim_width,
+                    sim_height,
+                );
             }
             VisualizationLayer::Pressure => {
-                self.generate_pressure_layer(simulation, &mut chars, &mut colors, display_width, display_height, sim_width, sim_height);
+                self.generate_pressure_layer(
+                    simulation,
+                    &mut chars,
+                    &mut colors,
+                    display_width,
+                    display_height,
+                    sim_width,
+                    sim_height,
+                );
             }
             VisualizationLayer::Wind => {
-                self.generate_wind_layer(simulation, &mut chars, &mut colors, display_width, display_height, sim_width, sim_height);
+                self.generate_wind_layer(
+                    simulation,
+                    &mut chars,
+                    &mut colors,
+                    display_width,
+                    display_height,
+                    sim_width,
+                    sim_height,
+                );
             }
             VisualizationLayer::Flow => {
-                self.generate_flow_layer(simulation, &mut chars, &mut colors, display_width, display_height, sim_width, sim_height);
+                self.generate_flow_layer(
+                    simulation,
+                    &mut chars,
+                    &mut colors,
+                    display_width,
+                    display_height,
+                    sim_width,
+                    sim_height,
+                );
             }
             VisualizationLayer::Changes => {
                 self.generate_changes_layer(&mut chars, &mut colors, display_width, display_height);
             }
             VisualizationLayer::Sediment => {
-                self.generate_sediment_layer(simulation, &mut chars, &mut colors, display_width, display_height, sim_width, sim_height);
+                self.generate_sediment_layer(
+                    simulation,
+                    &mut chars,
+                    &mut colors,
+                    display_width,
+                    display_height,
+                    sim_width,
+                    sim_height,
+                );
             }
         }
 
@@ -272,12 +336,12 @@ impl AsciiFramebuffer {
                 let elevation = simulation.get_elevation(sim_x, sim_y);
                 chars[y][x] = match elevation {
                     e if e < -0.5 => '~', // Deep water
-                    e if e < 0.0 => '.', // Shallow water
-                    e if e < 0.2 => ',', // Beach/coast
-                    e if e < 0.4 => '^', // Low hills
-                    e if e < 0.6 => '#', // Hills
-                    e if e < 0.8 => '@', // Mountains
-                    _ => '%', // High peaks
+                    e if e < 0.0 => '.',  // Shallow water
+                    e if e < 0.2 => ',',  // Beach/coast
+                    e if e < 0.4 => '^',  // Low hills
+                    e if e < 0.6 => '#',  // Hills
+                    e if e < 0.8 => '@',  // Mountains
+                    _ => '%',             // High peaks
                 };
             }
         }
@@ -310,11 +374,11 @@ impl AsciiFramebuffer {
                 };
 
                 chars[y][x] = match water_depth {
-                    d if d < threshold => '.', // Dry
-                    d if d < threshold * 5.0 => ':', // Trace water
+                    d if d < threshold => '.',        // Dry
+                    d if d < threshold * 5.0 => ':',  // Trace water
                     d if d < threshold * 20.0 => '~', // Shallow water
                     d if d < threshold * 50.0 => '#', // Deep water
-                    _ => '@', // Very deep water
+                    _ => '@',                         // Very deep water
                 };
             }
         }
@@ -390,12 +454,12 @@ impl AsciiFramebuffer {
 
                 chars[y][x] = match temperature {
                     t if t < -10.0 => '■', // Very cold
-                    t if t < 0.0 => '▓', // Cold
-                    t if t < 10.0 => '▒', // Cool
-                    t if t < 20.0 => '░', // Mild
-                    t if t < 30.0 => '.', // Warm
-                    t if t < 40.0 => '+', // Hot
-                    _ => '#', // Very hot
+                    t if t < 0.0 => '▓',   // Cold
+                    t if t < 10.0 => '▒',  // Cool
+                    t if t < 20.0 => '░',  // Mild
+                    t if t < 30.0 => '.',  // Warm
+                    t if t < 40.0 => '+',  // Hot
+                    _ => '#',              // Very hot
                 };
             }
         }
@@ -444,7 +508,7 @@ impl AsciiFramebuffer {
                     n if n < 0.4 => '.', // Below average
                     n if n < 0.6 => '0', // Average
                     n if n < 0.8 => '+', // Above average
-                    _ => '#', // High pressure
+                    _ => '#',            // High pressure
                 };
             }
         }
@@ -585,11 +649,11 @@ impl AsciiFramebuffer {
                 };
 
                 chars[y][x] = match sediment {
-                    s if s < threshold => '.', // No sediment
-                    s if s < threshold * 2.0 => ':', // Light sediment
-                    s if s < threshold * 5.0 => '+', // Medium sediment
+                    s if s < threshold => '.',        // No sediment
+                    s if s < threshold * 2.0 => ':',  // Light sediment
+                    s if s < threshold * 5.0 => '+',  // Medium sediment
                     s if s < threshold * 10.0 => '#', // Heavy sediment
-                    _ => '@', // Very heavy sediment
+                    _ => '@',                         // Very heavy sediment
                 };
             }
         }

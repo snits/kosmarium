@@ -1,0 +1,54 @@
+--- a/src/engine/sim.rs
++++ b/src/engine/sim.rs
+
+@@ -402,7 +402,12 @@ impl WaterFlowSystem {
+             for x in 0..water.width() {
+                 let (vx, vy) = water.velocity.get(x, y);
+                 let velocity_mag = (vx * vx + vy * vy).sqrt();
+-                let flow_amount = water.depth.get(x, y) * velocity_mag.min(1.0);
++                
++                // Scale-aware velocity limiting for proper drainage at high resolution
++                // At 8km resolution, velocity should be limited to ~0.1 (equivalent to 2 m/s physical flow)
++                let max_velocity_fraction = (scale.meters_per_pixel() as f32 / 10000.0).max(0.05).min(1.0);
++                let clamped_velocity = velocity_mag.min(max_velocity_fraction);
++                let flow_amount = water.depth.get(x, y) * clamped_velocity;
+ 
+                 if flow_amount > 0.001 {
+                     // Calculate target position
+@@ -618,7 +623,12 @@ impl WaterFlowSystem {
+             for x in 0..water.width() {
+                 let (vx, vy) = water.velocity.get(x, y);
+                 let velocity_mag = (vx * vx + vy * vy).sqrt();
+-                let flow_amount = water.depth.get(x, y) * velocity_mag.min(1.0);
++                
++                // Scale-aware velocity limiting for proper drainage at high resolution
++                // At 8km resolution, velocity should be limited to ~0.1 (equivalent to 2 m/s physical flow)
++                let max_velocity_fraction = (scale.meters_per_pixel() as f32 / 10000.0).max(0.05).min(1.0);
++                let clamped_velocity = velocity_mag.min(max_velocity_fraction);
++                let flow_amount = water.depth.get(x, y) * clamped_velocity;
+ 
+                 if flow_amount > 0.001 {
+                     // Calculate target position
+
+--- a/src/engine/physics/climate.rs  
++++ b/src/engine/physics/climate.rs
+
+@@ -284,9 +284,13 @@ impl ScaleAware for ClimateParameters {
+             // Temperature-pressure coupling scales with temperature gradients AND grid resolution
+             pressure_temperature_coupling: {
+                 let domain_scaling = (physical_extent_km / 100.0).min(3.0);
+-                // Reduce coupling for fine resolution to prevent mesoscale pressure artifacts
+-                let resolution_scaling = (meters_per_pixel / 50000.0).sqrt().max(0.3);
+-                self.pressure_temperature_coupling * domain_scaling * resolution_scaling
++                // CRITICAL FIX: Significantly reduce coupling for high-resolution continental domains
++                // to prevent artificial pressure gradients that disrupt water flow patterns
++                let resolution_scaling = if meters_per_pixel < 20000.0 {
++                    // High resolution: drastically reduce coupling to prevent artifacts
++                    (meters_per_pixel / 100000.0).max(0.1)
++                } else {
++                    (meters_per_pixel / 50000.0).sqrt().max(0.3)
++                };
++                let coupling = self.pressure_temperature_coupling * domain_scaling * resolution_scaling;
++                // Cap maximum coupling to prevent runaway pressure gradients
++                coupling.min(200.0) // Max 2 hPa per 10°C temperature difference
+             },
