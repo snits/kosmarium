@@ -5,7 +5,20 @@ ABOUTME: Tracks what's been tried, what worked, and what to investigate next
 
 ## Current Exploration
 
-**Theme**: Professional-grade multi-physics simulation with scale-aware architecture and dimensional analysis foundations
+**Theme**: Continental-scale simulation debugging with ASCII monitoring tools and scale-aware physics
+
+### Recently Completed - Scale-Aware Simulation Infrastructure
+- [x] **ASCII Framebuffer System**: Multi-layer real-time visualization (elevation, water, biomes, temperature, pressure, wind, flow, sediment)
+- [x] **Hardcoded Values Analysis**: Comprehensive 327-line audit identifying scale-dependency issues
+- [x] **Scale-Aware Water/Erosion Thresholds**: Replaced hardcoded values with domain-scaled calculations
+- [x] **Diagnostic Infrastructure**: --stats mode with quantitative scale metrics and threshold validation
+- [x] **Terminal-Based Monitoring**: Efficient debugging without graphics rendering overhead
+
+### Active Priority - Complete Phase 1 Scale-Aware Fixes
+- [ ] **Remove atmospheric pressure clamping** (50-110 kPa → 30-120 kPa for continental domains)
+- [ ] **Implement scale-aware CFL timestep bounds** (fix hardcoded 0.001-60.0 second limits)  
+- [ ] **Scale drainage system thresholds** (river_accumulation_threshold: 100.0 too high for 8km/pixel)
+- [ ] **Validate fixes eliminate horizontal blue wind bands** using ASCII framebuffer monitoring
 
 ### Active Experiments
 

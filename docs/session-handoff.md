@@ -6,10 +6,10 @@ ABOUTME: Tracks active development state for smooth transitions between sessions
 ## Current Implementation Status
 
 ### Active Development State
-- **Project Phase**: Continental-Scale Weather System Debugging - 🐛 IN PROGRESS  
-- **Current Branch**: cyberiad-fantasy-physics (active fixes in progress)
-- **Last Session Focus**: Atmospheric System Stability & Water Accumulation Issues
-- **System Status**: Performance restored, biome classification working, atmospheric instability persists
+- **Project Phase**: Scale-Aware Simulation Debugging & ASCII Monitoring Tools - ✅ MAJOR PROGRESS  
+- **Current Branch**: main (scale-aware fixes committed)
+- **Last Session Focus**: Hardcoded Value Analysis, ASCII Framebuffer Implementation, Continental-Scale Debugging
+- **System Status**: Scale-aware water/erosion systems implemented, ASCII monitoring tools complete, atmospheric boundary artifacts identified
 
 ### System Status
 - **Build Status**: ✅ Production Ready (`cargo build` succeeds, all targets functional)
@@ -19,22 +19,25 @@ ABOUTME: Tracks active development state for smooth transitions between sessions
 - **Performance Foundation**: ✅ HeightMap flat memory layout committed (achieved 2-3x improvement foundation)
 
 ### Recently Completed (This Session)
-- ✅ **Biome Classification System Fixed:**
-  - **Water thresholds recalibrated**: From (0.01, 0.03, 0.1) to (0.05, 0.15, 0.3) for continental-scale water system
-  - **Realistic biome distributions**: 80-90% terrestrial with diverse grassland/forest patterns
-  - **Scale-aware parameter derivation**: Proper continental vs global threshold handling
-- ✅ **Atmospheric System Scale-Aware Fixes:**
-  - **Coriolis latitude mapping**: Fixed 200km continental treated as full globe (Arctic to Antarctic)
-  - **Continental vs global behavior**: Single 45°N latitude for ≤1000km domains, full range for >1000km
-  - **WorldScale integration**: Atmospheric system now properly stores and uses scale context
-- ✅ **Water System Drainage Improvements:**
-  - **Periodic concentration eliminated**: Removed problematic 1000-tick water redistribution "switch flip"
-  - **Gradual flow system**: Continuous drainage enhancement instead of nuclear redistribution
-  - **Boundary outlet conditions**: Water can exit domain edges for continental-scale realism
-- ✅ **Performance Optimization Success:**
-  - **SIMD and parallel processing**: Rayon parallelization with optimized memory access patterns
-  - **Continental-scale specialization**: Hardcoded optimizations for 240x120 @ 200km use case
-  - **Memory layout improvements**: Direct HeightMap access eliminating expensive conversions
+- ✅ **ASCII Framebuffer System Implementation:**
+  - **Multi-layer real-time visualization**: elevation, water, biomes, temperature, pressure, wind, flow, sediment
+  - **Temporal frame buffering**: Configurable history with --buffer-size for change tracking
+  - **Terminal-friendly debugging**: Efficient monitoring without graphics rendering overhead
+  - **CLI integration**: --ascii-frames, --layers, --interval arguments for flexible debugging
+- ✅ **Comprehensive Scale-Aware Threshold Fixes:**
+  - **Water flow thresholds**: Replaced hardcoded 0.001 with evaporation_threshold * 10.0
+  - **CFL velocity limits**: Implemented 0.5 cell/timestep for numerical stability 
+  - **Erosion thresholds**: Scale-aware limits based on evaporation_threshold * 100.0
+  - **Spatial partitioning**: Change detection thresholds now scale with domain size
+- ✅ **Hardcoded Values Analysis & Documentation:**
+  - **Comprehensive audit**: 327-line analysis of all scale-dependent parameters
+  - **Debug utilities**: Water conservation analysis, flow physics validation tools
+  - **Diagnostic system**: --stats mode for quantitative monitoring with scale metrics
+  - **Phase implementation roadmap**: Critical vs. important vs. configuration priorities
+- ✅ **Continental-Scale Debugging Tools:**
+  - **Real-time atmospheric monitoring**: Pressure systems and wind circulation visualization
+  - **Scale metric tracking**: Domain size, resolution, threshold comparisons
+  - **Boundary condition analysis**: Debug tools for continental outlet behavior
 
 **🎉 COMPLETED: Phase 4A Agent System Foundation** (Production Ready - Committed 9e51af6d7de3)
 
@@ -90,25 +93,26 @@ ABOUTME: Tracks active development state for smooth transitions between sessions
 
 ## Handoff Notes for Next Session
 
-### 🚨 CRITICAL ISSUE IDENTIFIED: Random Noise Weather System
+### 🚨 CRITICAL ISSUE IDENTIFIED: Atmospheric Boundary Conditions  
 
-**🔥 ATMOSPHERIC SYSTEM FUNDAMENTAL FLAW DISCOVERED**
-- **Issue**: Pressure generation uses random noise instead of atmospheric physics
-- **Impact**: Explains persistent biome degradation despite "stable" pressure ranges
-- **Root Cause**: `pressure += noise_factor * amplitude` creates white noise, not weather systems
-- **Visualization**: Massive circular artifacts from gradient calculations on random data
-- **Status**: ⚠️ REQUIRES COMPLETE REWRITE - temporal integration fixes insufficient
+**🔥 REMAINING SCALE-AWARE FIXES NEEDED**
+- **Issue**: Horizontal blue wind band at northern boundary visible in graphics mode
+- **Root Cause**: Missing implementation of 3 critical scale-aware fixes from hardcoded analysis
+- **Incomplete Fixes**: CFL timestep bounds, atmospheric pressure clamping removal, drainage thresholds
+- **Current Impact**: Pressure clamping (50-110 kPa) prevents continental-scale weather gradients
+- **Status**: ⚠️ NEXT PRIORITY - Complete remaining Phase 1 critical fixes
 
-**✅ COMPLETED DEBUGGING PROGRESS**
-- Temporal integration bug fixed (pressure evolution vs regeneration)
-- Boundary conditions implemented and working correctly
-- Debug output spam removed from graphics rendering
-- Scale-aware parameter tuning validated
+**✅ COMPLETED SCALE-AWARE DEBUGGING:**
+- Scale-aware water flow thresholds implemented and tested
+- ASCII framebuffer system providing real-time atmospheric monitoring
+- Hardcoded values comprehensive analysis documented (327 lines)
+- Diagnostic tools for continental-scale simulation validation
 
-**🔧 ADDITIONAL FIXES COMPLETED:**
-- Debug binary HeightMap API compatibility updated for all tools
-- Atmospheric test suite created in `tests/atmospheric/`
-- Quality gates passing (library + main binary compile successfully)
+**🔧 DEBUGGING INFRASTRUCTURE COMPLETE:**
+- Multi-layer ASCII visualization (pressure/wind/flow patterns clearly visible)
+- Quantitative --stats mode with scale metrics and threshold comparisons  
+- Debug utilities for water conservation and flow physics analysis
+- Terminal-based monitoring eliminating screenshot analysis dependency
 
 ### Working Systems Status
 
@@ -124,11 +128,11 @@ ABOUTME: Tracks active development state for smooth transitions between sessions
 
 ### Next Session Options
 
-**🔥 PRIORITY: Replace Random Noise with Physics-Based Weather**
-- Implement thermal circulation from temperature gradients
-- Add orographic effects from terrain interaction
-- Create scale-appropriate pressure wavelengths (not white noise)
-- Replace random LCG with coherent atmospheric dynamics
+**🔥 PRIORITY: Complete Remaining Scale-Aware Fixes**
+- Remove atmospheric pressure clamping (50-110 kPa → 30-120 kPa for continental domains)
+- Implement scale-aware CFL timestep bounds (fix hardcoded 0.001-60.0 limits)
+- Scale drainage system thresholds (river_accumulation_threshold: 100.0 too high for 8km/pixel)
+- Validate fixes eliminate horizontal blue wind bands
 
 **🎓 ALTERNATIVE: Educational Deep Dive (if debugging stalls)**
 - Session 1: Scale-Aware Architecture & Dimensional Analysis (70% complete)
@@ -156,24 +160,24 @@ ABOUTME: Tracks active development state for smooth transitions between sessions
 - **src/spatial_partitioning.rs**: Broken spatial optimization system needing debug
 
 ### Key Decisions Made This Session
-- **Biome System Recalibration**: Water thresholds adjusted to match continental-scale water system behavior
-- **Scale-Aware Atmospheric Architecture**: Proper continental vs global physics based on domain size thresholds
-- **Drainage System Redesign**: Eliminated periodic redistribution in favor of continuous gradual flow
-- **Performance vs Correctness Balance**: Achieved fast performance while maintaining realistic physics
-- **Boundary Condition Recognition**: Identified need for proper continental-scale atmospheric outlets
+- **ASCII Framebuffer Architecture**: Multi-layer real-time visualization over graphics rendering for debugging
+- **Scale-Aware Priority Implementation**: Critical water/erosion thresholds first, atmospheric pressure second
+- **Terminal-Based Monitoring**: Efficient ASCII visualization over screenshot analysis workflow
+- **Comprehensive Hardcoded Audit**: Document all scale dependencies before piecemeal fixes
+- **Phase 1 Critical Fix Strategy**: Water flow → CFL timestep → pressure clamping → drainage thresholds
 
 ### Technical Architecture Status
-- **Biome Classification**: Working excellently when atmospheric system is stable (80-90% terrestrial diversity)
-- **Water System**: Drainage flow properly implemented, no more periodic redistribution artifacts
-- **Atmospheric System**: Scale-aware architecture implemented but suffers from time-dependent instability
-- **Performance**: Continental-scale simulations running at target speeds with SIMD optimizations
-- **Graphics Interface**: All 7 display modes functional with real-time visualization
+- **ASCII Monitoring System**: Multi-layer framebuffer complete with real-time pressure/wind visualization
+- **Scale-Aware Water Systems**: Flow and erosion thresholds working correctly at continental scales
+- **Hardcoded Value Analysis**: Complete audit with phase implementation roadmap (327 lines)
+- **Diagnostic Infrastructure**: --stats mode providing quantitative scale metrics and validation
+- **Graphics Interface**: All 7 display modes functional, horizontal blue wind band identified for fix
 
 ### Implementation Readiness
-- **Atmospheric Stability Investigation**: Ready for debug-specialist analysis of time-dependent failures
-- **Boundary Condition Implementation**: Continental-scale outlet specifications needed for all physics systems
-- **Cross-System Isolation**: Prevent atmospheric instability from corrupting water/biome calculations
-- **Time Control System**: Tick scaler implementation ready for next development phase
+- **Remaining Scale-Aware Fixes**: Ready for atmospheric pressure clamping removal (climate.rs:613,661,799,958,1027)
+- **CFL Timestep Bounds**: Ready for scale-aware implementation (sim.rs:146 hardcoded limits)
+- **Drainage System Scaling**: Ready for river threshold fixes (drainage.rs:336 accumulation values)
+- **ASCII Monitoring Validation**: Real-time tools available to verify all fixes eliminate boundary artifacts
 
 ### Development Philosophy
 - **Performance-First Approach**: Optimize core data structures before adding gameplay complexity
