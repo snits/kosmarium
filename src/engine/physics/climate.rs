@@ -4,6 +4,18 @@
 use super::super::core::scale::{ScaleAware, WorldScale};
 use super::water::Vec2;
 
+/// Helper function to determine pressure bounds based on domain scale
+/// Continental domains need wider pressure ranges for realistic weather systems
+fn get_pressure_bounds(scale: &WorldScale) -> (f32, f32) {
+    if scale.physical_size_km > 1000.0 {
+        // Continental scale: wider pressure range for large-scale weather systems
+        (30000.0, 120000.0) // 300-1200 hPa
+    } else {
+        // Regional scale: standard atmospheric range
+        (50000.0, 110000.0) // 500-1100 hPa
+    }
+}
+
 /// Core temperature data layer
 #[derive(Clone, Debug)]
 pub struct TemperatureLayer {
@@ -609,8 +621,9 @@ impl ClimateSystem {
                 let noise_factor = ((rng_state as f32) / (u64::MAX as f32)) * 2.0 - 1.0; // -1 to 1
                 pressure += noise_factor * self.parameters.pressure_noise_amplitude;
 
-                // Clamp to reasonable atmospheric pressure bounds (500-1100 hPa)
-                pressure = pressure.max(50000.0).min(110000.0);
+                // Apply scale-aware pressure bounds (continental vs regional domains)
+                let (min_pressure, max_pressure) = get_pressure_bounds(scale);
+                pressure = pressure.max(min_pressure).min(max_pressure);
 
                 pressure_layer.pressure[y][x] = pressure;
             }
@@ -657,8 +670,9 @@ impl ClimateSystem {
                     -temp_deviation * self.parameters.pressure_temperature_coupling / 10.0;
                 pressure += thermal_pressure_change;
 
-                // Clamp to reasonable atmospheric pressure range
-                pressure = pressure.max(50000.0).min(110000.0);
+                // Apply scale-aware pressure bounds (continental vs regional domains)
+                let (min_pressure, max_pressure) = get_pressure_bounds(scale);
+                pressure = pressure.max(min_pressure).min(max_pressure);
 
                 pressure_layer.pressure[y][x] = pressure;
             }
@@ -795,8 +809,9 @@ impl ClimateSystem {
                     let noise = ((rng_state as f32) / (u32::MAX as f32) - 0.5) * 2.0;
                     pressure += noise * noise_amplitude;
 
-                    // Clamp to reasonable atmospheric pressure range
-                    pressure = pressure.max(50000.0).min(110000.0);
+                    // Apply scale-aware pressure bounds (continental vs regional domains)
+                    let (min_pressure, max_pressure) = get_pressure_bounds(scale);
+                    pressure = pressure.max(min_pressure).min(max_pressure);
 
                     row_pressures.push(pressure);
                 }
@@ -954,8 +969,9 @@ impl ClimateSystem {
                     (target_pressure - current_pressure_val) * evolution_rate + noise_contribution;
                 let new_pressure = current_pressure_val + pressure_change;
 
-                // Clamp to reasonable atmospheric pressure bounds (500-1100 hPa)
-                current_pressure.pressure[y][x] = new_pressure.max(50000.0).min(110000.0);
+                // Apply scale-aware pressure bounds (continental vs regional domains)
+                let (min_pressure, max_pressure) = get_pressure_bounds(scale);
+                current_pressure.pressure[y][x] = new_pressure.max(min_pressure).min(max_pressure);
             }
         }
 
@@ -983,6 +999,7 @@ impl ClimateSystem {
         let base_temp_c = self.parameters.base_temperature_c;
         let noise_amplitude = self.parameters.pressure_noise_amplitude * 0.1; // Smaller noise evolution
         let scale_height_inv = 1.0 / 8400.0; // Pre-calculate reciprocal
+        let (min_pressure, max_pressure) = get_pressure_bounds(scale); // Pre-calculate pressure bounds
         let rng_base = self
             .pressure_seed
             .wrapping_add((self.tick_count() / 10) as u64);
@@ -1023,8 +1040,8 @@ impl ClimateSystem {
                         + noise_contribution;
                     let new_pressure = current_pressure_val + pressure_change;
 
-                    // Clamp to reasonable bounds
-                    row[x] = new_pressure.max(50000.0).min(110000.0);
+                    // Apply scale-aware pressure bounds (continental vs regional domains)
+                    row[x] = new_pressure.max(min_pressure).min(max_pressure);
                 }
             });
 

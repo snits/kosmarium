@@ -142,8 +142,12 @@ impl WaterFlowSystem {
         // CFL condition with safety factor
         let cfl_timestep = params.cfl_safety_factor * dx / max_velocity;
 
-        // Clamp to reasonable bounds (at least 0.001s, at most 60.0s for very coarse grids)
-        cfl_timestep.max(0.001).min(60.0)
+        // Scale-aware bounds based on grid resolution for continental domains
+        let grid_spacing_m = scale.meters_per_pixel() as f32;
+        let min_timestep = (grid_spacing_m / 100000.0).max(0.001).min(10.0);
+        let max_timestep = (grid_spacing_m / 10.0).max(60.0).min(3600.0);
+
+        cfl_timestep.max(min_timestep).min(max_timestep)
     }
 
     /// Calculate scale-aware evaporation threshold to prevent clearing water that should accumulate
