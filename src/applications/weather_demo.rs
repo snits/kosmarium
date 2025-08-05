@@ -7,10 +7,10 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 // Import engine components
 use crate::engine::{
-    Simulation,
+    Simulation, SimulationDiagnostics,
     core::{DetailLevel, WorldScale},
     physics::{DiamondSquareConfig, DiamondSquareGenerator, TerrainGenerator},
-    rendering::{GraphicsRenderer, ascii_render, run_tui},
+    rendering::{GraphicsRenderer, ascii_render, run_tui, AsciiFramebuffer, FramebufferConfig, VisualizationLayer},
 };
 
 #[derive(Parser)]
@@ -48,6 +48,26 @@ pub struct WeatherDemoArgs {
     /// Physical scale of the domain in kilometers
     #[arg(long, default_value = "200.0")]
     pub scale_km: f64,
+
+    /// Show simulation statistics and diagnostics
+    #[arg(long)]
+    pub stats: bool,
+
+    /// Stats output interval in simulation ticks (only with --stats)
+    #[arg(long, default_value = "10")]
+    pub interval: usize,
+
+    /// Enable ASCII framebuffer mode with multiple layers
+    #[arg(long)]
+    pub ascii_frames: bool,
+
+    /// Layers to display (comma-separated: elevation,water,biomes,temperature,pressure,wind,flow,sediment)
+    #[arg(long, default_value = "elevation,water,biomes")]
+    pub layers: String,
+
+    /// Frame buffer size for temporal analysis
+    #[arg(long, default_value = "5")]
+    pub buffer_size: usize,
 }
 
 pub fn run_weather_demo() -> Result<(), Box<dyn std::error::Error>> {
@@ -123,8 +143,17 @@ pub fn run_weather_demo() -> Result<(), Box<dyn std::error::Error>> {
     let sim = Simulation::_new_with_scale(heightmap, world_scale);
     println!("Simulation created in {:.2?}", start_time.elapsed());
 
-    // Choose between graphics, TUI, and ASCII rendering
-    if args.graphics {
+    // Choose between graphics, TUI, ASCII, stats, and framebuffer rendering
+    if args.ascii_frames {
+        // Step 4a: ASCII framebuffer mode - multi-layer temporal visualization
+        println!("Starting ASCII framebuffer mode...");
+        run_ascii_framebuffer_mode(sim, &args)?;
+    } else if args.stats {
+        // Step 4b: Stats mode - run simulation with diagnostic output
+        println!("Starting stats monitoring mode...");
+        println!("Interval: {} simulation ticks", args.interval);
+        run_stats_mode(sim, args.interval)?;
+    } else if args.graphics {
         // Step 4a: Graphics mode (macroquad)
         println!("Starting graphics mode...");
         println!("Use WASD to pan, mouse wheel to zoom, 1-7 to switch display modes");
@@ -181,5 +210,96 @@ async fn run_graphics(mut simulation: Simulation) {
         }
 
         next_frame().await;
+    }
+}
+
+/// Run simulation in stats monitoring mode with periodic diagnostic output
+fn run_stats_mode(mut simulation: Simulation, interval: usize) -> Result<(), Box<dyn std::error::Error>> {
+    println!("Stats mode initialized. Press Ctrl+C to stop.\n");
+    
+    let mut iteration_count = 0;
+    
+    // Initial stats output
+    let initial_diagnostics = SimulationDiagnostics::collect_from_simulation(&simulation, iteration_count);
+    println!("{}", initial_diagnostics.format_compact());
+    
+    loop {
+        // Run simulation tick
+        simulation.tick();
+        iteration_count += 1;
+        
+        // Output stats at specified interval
+        if iteration_count % interval == 0 {
+            let diagnostics = SimulationDiagnostics::collect_from_simulation(&simulation, iteration_count);
+            println!("{}", diagnostics.format_compact());
+        }
+        
+        // Check for Ctrl+C (this is a simplified approach)
+        // In a real implementation, you'd want proper signal handling
+        std::thread::sleep(std::time::Duration::from_millis(10)); // Small delay to prevent CPU spinning
+    }
+}
+
+/// Run simulation in ASCII framebuffer mode with multi-layer temporal visualization
+fn run_ascii_framebuffer_mode(mut simulation: Simulation, args: &WeatherDemoArgs) -> Result<(), Box<dyn std::error::Error>> {
+    // Parse layer names from CLI argument
+    let layer_names: Vec<&str> = args.layers.split(',').map(|s| s.trim()).collect();
+    let mut layers = Vec::new();
+    
+    for layer_name in layer_names {
+        if let Some(layer) = VisualizationLayer::from_str(layer_name) {
+            layers.push(layer);
+        } else {
+            eprintln!("Warning: Unknown layer '{}', skipping", layer_name);
+        }
+    }
+    
+    if layers.is_empty() {
+        layers = vec![VisualizationLayer::Elevation, VisualizationLayer::Water, VisualizationLayer::Biomes];
+        println!("No valid layers specified, using default: elevation,water,biomes");
+    }
+
+    // Create framebuffer configuration
+    let config = FramebufferConfig {
+        layers,
+        buffer_size: args.buffer_size,
+        panel_width: 20,  // Compact terminal-friendly size
+        panel_height: 15, // Compact terminal-friendly size
+        show_timestamps: true,
+        highlight_changes: false,
+        subsample_rate: 1,
+    };
+
+    let mut framebuffer = AsciiFramebuffer::new(config);
+    
+    println!("ASCII Framebuffer initialized. Press Ctrl+C to stop.");
+    println!("Layers: {:?}", args.layers);
+    println!("Buffer size: {}", args.buffer_size);
+    println!("Update interval: {} ticks\n", args.interval);
+    
+    let mut iteration_count = 0;
+    
+    loop {
+        // Run simulation tick
+        simulation.tick();
+        iteration_count += 1;
+        
+        // Capture and display frame at specified interval
+        if iteration_count % args.interval == 0 {
+            let frame = framebuffer.capture_frame(&simulation);
+            let output = framebuffer.format_frame(&frame);
+            framebuffer.add_frame(frame);
+            
+            // Clear screen and display frame
+            print!("\x1B[2J\x1B[H"); // ANSI escape codes to clear screen and move cursor to top
+            println!("{}", output);
+            
+            // Show buffer status
+            println!("Buffer: {}/{} frames | Press Ctrl+C to exit", 
+                framebuffer.frame_count(), args.buffer_size);
+        }
+        
+        // Small delay to prevent CPU spinning
+        std::thread::sleep(std::time::Duration::from_millis(10));
     }
 }
