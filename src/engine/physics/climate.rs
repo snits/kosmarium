@@ -583,8 +583,7 @@ impl ClimateSystem {
 
         let mut pressure_layer = AtmosphericPressureLayer::new(width, height);
 
-        // Simple PRNG for reproducible weather patterns
-        let mut rng_state = self.pressure_seed.wrapping_add(self.tick_count() as u64);
+        // Removed: RNG state - no longer using random pressure patterns
 
         // Calculate pressure for each cell
         for y in 0..height {
@@ -615,11 +614,26 @@ impl ClimateSystem {
                 let seasonal_factor = (self.current_season * 2.0 * std::f32::consts::PI).sin();
                 pressure += seasonal_factor * self.parameters.seasonal_pressure_amplitude;
 
-                // Add weather noise for realistic pressure perturbations
-                // Simple LCG for reproducible pseudo-random numbers
-                rng_state = rng_state.wrapping_mul(1664525).wrapping_add(1013904223);
-                let noise_factor = ((rng_state as f32) / (u64::MAX as f32)) * 2.0 - 1.0; // -1 to 1
-                pressure += noise_factor * self.parameters.pressure_noise_amplitude;
+                // Apply thermal circulation: low pressure over warm areas, high over cool areas
+                // This replaces random noise with physically-motivated pressure patterns
+                let temperature = temperature_layer.get_temperature(x, y);
+                // Calculate spatial average temperature manually
+                let mut temp_sum = 0.0;
+                let mut temp_count = 0;
+                for ty in 0..temperature_layer.height() {
+                    for tx in 0..temperature_layer.width() {
+                        temp_sum += temperature_layer.get_temperature(tx, ty);
+                        temp_count += 1;
+                    }
+                }
+                let avg_temperature = temp_sum / temp_count as f32;
+                let temp_deviation = temperature - avg_temperature;
+
+                // Thermal pressure perturbation: warm areas = lower pressure
+                // Physical basis: warmer air is less dense, creates lower surface pressure
+                let thermal_pressure_perturbation =
+                    -temp_deviation * self.parameters.pressure_temperature_coupling * 0.3;
+                pressure += thermal_pressure_perturbation;
 
                 // Apply scale-aware pressure bounds (continental vs regional domains)
                 let (min_pressure, max_pressure) = get_pressure_bounds(scale);
@@ -774,15 +788,15 @@ impl ClimateSystem {
         // Pre-calculate constants outside the parallel loop
         let base_pressure = self.parameters.base_pressure_pa;
         let base_temp_c = self.parameters.base_temperature_c;
-        let noise_amplitude = self.parameters.pressure_noise_amplitude;
+        // Removed: noise_amplitude - no longer using random pressure noise
         let scale_height_inv = 1.0 / 8400.0; // Pre-calculate reciprocal for faster division
-        let rng_base = self.pressure_seed.wrapping_add(self.tick_count() as u64);
+        // Removed: rng_base - no longer needed without pressure noise
 
         // Process rows in parallel and collect results
         let pressure_rows: Vec<Vec<f32>> = (0..height)
             .into_par_iter()
             .map(|y| {
-                let mut rng_state = rng_base.wrapping_add(y as u64 * 1000);
+                // Removed: rng_state - no longer using random pressure generation
                 let row_start = y * width;
                 let elevation_row = &heightmap.data()[row_start..row_start + width];
                 let mut row_pressures = Vec::with_capacity(width);
@@ -804,10 +818,16 @@ impl ClimateSystem {
                     let thermal_pressure_factor = 1.0 - (temp_deviation * 0.002);
                     pressure *= thermal_pressure_factor;
 
-                    // Add small-scale pressure variations (fast PRNG)
-                    rng_state = rng_state.wrapping_mul(1664525).wrapping_add(1013904223);
-                    let noise = ((rng_state as f32) / (u32::MAX as f32) - 0.5) * 2.0;
-                    pressure += noise * noise_amplitude;
+                    // Apply thermal circulation: warmer areas get lower pressure
+                    // This replaces random noise with physics-based pressure patterns
+                    let current_temp = temperature_layer.temperature[y][x];
+                    let temp_deviation = current_temp - base_temp_c;
+
+                    // Thermal pressure effect: ΔP = -ρg(ΔT/T₀) × scale_height
+                    // Simplified: warm areas (positive ΔT) get negative pressure perturbation
+                    let thermal_pressure_effect =
+                        -temp_deviation * self.parameters.pressure_temperature_coupling * 0.2;
+                    pressure += thermal_pressure_effect;
 
                     // Apply scale-aware pressure bounds (continental vs regional domains)
                     let (min_pressure, max_pressure) = get_pressure_bounds(scale);
@@ -926,11 +946,7 @@ impl ClimateSystem {
         let height = heightmap.len();
         let width = if height > 0 { heightmap[0].len() } else { 0 };
 
-        // Use a fixed seed for weather noise evolution to ensure temporal continuity
-        // This evolves the weather patterns gradually rather than regenerating them
-        let mut rng_state = self
-            .pressure_seed
-            .wrapping_add((self.tick_count() / 10) as u64);
+        // Removed: RNG state for noise evolution - replaced with thermal circulation physics
 
         // Evolve pressure for each cell
         for y in 0..height {
@@ -957,16 +973,34 @@ impl ClimateSystem {
                 let seasonal_factor = (self.current_season * 2.0 * std::f32::consts::PI).sin();
                 target_pressure += seasonal_factor * self.parameters.seasonal_pressure_amplitude;
 
-                // Evolve weather noise gradually instead of regenerating
-                rng_state = rng_state.wrapping_mul(1664525).wrapping_add(1013904223);
-                let noise_factor = ((rng_state as f32) / (u64::MAX as f32)) * 2.0 - 1.0; // -1 to 1
-                let noise_contribution =
-                    noise_factor * self.parameters.pressure_noise_amplitude * 0.1; // Smaller noise evolution
-
-                // Gradually evolve toward target pressure instead of jumping to it
+                // Add spatial pressure smoothing for realistic circulation patterns
+                // This replaces random noise evolution with physically-motivated dynamics
                 let current_pressure_val = current_pressure.pressure[y][x];
-                let pressure_change =
-                    (target_pressure - current_pressure_val) * evolution_rate + noise_contribution;
+
+                // Calculate pressure gradient from neighboring cells for circulation effects
+                let mut neighbor_pressure_sum = 0.0;
+                let mut neighbor_count = 0;
+
+                // Sample surrounding pressure values for gradient-based evolution
+                for dy in -1i32..=1 {
+                    for dx in -1i32..=1 {
+                        if dx == 0 && dy == 0 {
+                            continue;
+                        }
+                        let nx = (x as i32 + dx).max(0).min(width as i32 - 1) as usize;
+                        let ny = (y as i32 + dy).max(0).min(height as i32 - 1) as usize;
+                        neighbor_pressure_sum += current_pressure.pressure[ny][nx];
+                        neighbor_count += 1;
+                    }
+                }
+
+                let avg_neighbor_pressure = neighbor_pressure_sum / neighbor_count as f32;
+                let spatial_pressure_tendency =
+                    (avg_neighbor_pressure - current_pressure_val) * 0.05;
+
+                // Gradually evolve toward target with spatial smoothing (no random noise)
+                let pressure_change = (target_pressure - current_pressure_val) * evolution_rate
+                    + spatial_pressure_tendency;
                 let new_pressure = current_pressure_val + pressure_change;
 
                 // Apply scale-aware pressure bounds (continental vs regional domains)
@@ -997,12 +1031,10 @@ impl ClimateSystem {
         // Pre-calculate constants outside the parallel loop
         let base_pressure = self.parameters.base_pressure_pa;
         let base_temp_c = self.parameters.base_temperature_c;
-        let noise_amplitude = self.parameters.pressure_noise_amplitude * 0.1; // Smaller noise evolution
+        // Removed: noise_amplitude - replaced with thermal circulation physics
         let scale_height_inv = 1.0 / 8400.0; // Pre-calculate reciprocal
         let (min_pressure, max_pressure) = get_pressure_bounds(scale); // Pre-calculate pressure bounds
-        let rng_base = self
-            .pressure_seed
-            .wrapping_add((self.tick_count() / 10) as u64);
+        // Removed: rng_base for pressure evolution - using thermal circulation
         let seasonal_factor = (self.current_season * 2.0 * std::f32::consts::PI).sin()
             * self.parameters.seasonal_pressure_amplitude;
         let thermal_coupling = self.parameters.pressure_temperature_coupling / 10.0;
@@ -1013,7 +1045,7 @@ impl ClimateSystem {
             .par_iter_mut()
             .enumerate()
             .for_each(|(y, row)| {
-                let mut rng_state = rng_base.wrapping_add(y as u64 * 1000);
+                // Removed: rng_state for pressure evolution - using thermal circulation instead
 
                 for x in 0..width {
                     let elevation = heightmap.get(x, y);
@@ -1029,15 +1061,9 @@ impl ClimateSystem {
                     let mut target_pressure =
                         base_pressure * elevation_factor + thermal_change + seasonal_factor;
 
-                    // Evolve weather noise gradually
-                    rng_state = rng_state.wrapping_mul(1664525).wrapping_add(1013904223);
-                    let noise_factor = ((rng_state as f32) / (u64::MAX as f32)) * 2.0 - 1.0;
-                    let noise_contribution = noise_factor * noise_amplitude;
-
-                    // Gradually evolve toward target pressure
+                    // Gradually evolve toward target pressure (no noise - using thermal circulation)
                     let current_pressure_val = row[x];
-                    let pressure_change = (target_pressure - current_pressure_val) * evolution_rate
-                        + noise_contribution;
+                    let pressure_change = (target_pressure - current_pressure_val) * evolution_rate;
                     let new_pressure = current_pressure_val + pressure_change;
 
                     // Apply scale-aware pressure bounds (continental vs regional domains)
