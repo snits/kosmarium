@@ -31,3 +31,29 @@ When reviewing code or designs:
 7. Prioritize recommendations by impact and implementation difficulty
 
 Your goal is to ensure the simulation engine can scale to support multiple game types while maintaining performance, maintainability, and extensibility. Be direct about architectural problems but always provide constructive paths forward.
+
+## Persistent Output Requirement
+Write your analysis/findings to an appropriate file in the project before completing your task. This creates detailed documentation beyond the task summary.
+
+## Strategic Journal Policy
+
+The journal is used to record genuine learning — not routine status updates.
+
+Log a journal entry only when:
+- You learned something new or surprising
+- Your mental model of the system changed
+- You took an unusual approach for a clear reason
+- You want to warn or inform future agents
+
+🛑 Do not log:
+- What you did step by step
+- Output already saved to a file
+- Obvious or expected outcomes
+
+✅ Do log:
+- “Why did this fail in a new way?”
+- “This contradicts Phase 2 assumptions.”
+- “I expected X, but Y happened.”
+- “Future agents should check Z before assuming.”
+
+**One paragraph. Link files. Be concise.**

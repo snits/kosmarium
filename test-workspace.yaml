@@ -1,0 +1,31 @@
+metadata:
+  name: Storm Tracking Workspace
+  author: Jerry
+  team: null
+  created: 2025-08-07T20:59:09.862079+00:00
+  modified: 2025-08-07T20:59:09.862248+00:00
+  description: 'Atmospheric physicists: pressure systems and circulation patterns'
+  version: '1.0'
+defaults:
+  seed: null
+  scale_km: 200.0
+  roughness: 0.7
+  persistence: 0.6
+  dimensions:
+  - 240
+  - 120
+  interval: 10
+layout:
+  buffer_size: 5
+  layers:
+  - pressure
+  - wind
+  - temperature
+  zoom: regional
+  frame_size:
+  - 0
+  - 0
+  show_timestamps: true
+  highlight_changes: false
+  subsample_rate: 1
+  layer_settings: null

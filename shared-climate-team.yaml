@@ -1,0 +1,38 @@
+metadata:
+  name: Climate Team Shared Analysis Workspace
+  author: Climate Research Team
+  team: atmospheric-physics-lab
+  created: 2025-08-07T21:00:00.000000+00:00
+  modified: null
+  description: 'Standard workspace for climate team multi-scale temperature-biome analysis with continental focus'
+  version: '2.0'
+defaults:
+  seed: 12345
+  scale_km: 500.0
+  roughness: 0.65
+  persistence: 0.7
+  dimensions:
+  - 480
+  - 240
+  interval: 15
+layout:
+  buffer_size: 8
+  layers:
+  - temperature
+  - biomes
+  - elevation
+  - pressure
+  zoom: continental
+  frame_size:
+  - 100
+  - 50
+  show_timestamps: true
+  highlight_changes: true
+  subsample_rate: 1
+  layer_settings:
+    temperature:
+      zoom_override: regional
+      color_scheme: thermal
+    pressure:
+      zoom_override: continental
+      color_scheme: atmospheric

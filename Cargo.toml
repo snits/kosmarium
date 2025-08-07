@@ -59,4 +59,7 @@ atty = "0.2"
 clap = { version = "4.0", features = ["derive"] }
 macroquad = "0.4"
 rayon = "1.8"
+serde = { version = "1.0", features = ["derive"] }
+serde_yaml = "0.9"
+chrono = { version = "0.4", features = ["serde"] }
 

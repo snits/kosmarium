@@ -771,7 +771,9 @@ mod tests {
 
     #[test]
     fn drainage_performance_scaling() {
-        use crate::applications::physics::{DiamondSquareConfig, DiamondSquareGenerator, TerrainGenerator};
+        use crate::applications::physics::{
+            DiamondSquareConfig, DiamondSquareGenerator, TerrainGenerator,
+        };
         use std::time::Instant;
 
         // Test different map sizes to verify O(n) scaling
