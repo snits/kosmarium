@@ -506,8 +506,8 @@ impl OptimizationAnalysis {
 
 #[cfg(test)]
 mod tests {
-    use super::super::core::scale::{DetailLevel, WorldScale};
     use super::*;
+    use crate::engine::core::scale::{DetailLevel, WorldScale};
 
     #[test]
     fn optimized_evolution_basic_functionality() {

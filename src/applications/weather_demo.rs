@@ -7,7 +7,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 // Import engine components
 use crate::engine::{
-    Simulation, SimulationDiagnostics,
+    Simulation, SimulationDiagnostics, WorkspaceConfig,
     core::{DetailLevel, WorldScale},
     physics::{DiamondSquareConfig, DiamondSquareGenerator, TerrainGenerator},
     rendering::{
@@ -71,11 +71,230 @@ pub struct WeatherDemoArgs {
     /// Frame buffer size for temporal analysis
     #[arg(long, default_value = "5")]
     pub buffer_size: usize,
+
+    /// Frame width for ASCII framebuffer (0 = auto-size based on scale)
+    #[arg(long, default_value = "0")]
+    pub frame_width: usize,
+
+    /// Frame height for ASCII framebuffer (0 = auto-size based on scale)
+    #[arg(long, default_value = "0")]
+    pub frame_height: usize,
+
+    /// Scale zoom level for detailed analysis (continental, regional, local)
+    #[arg(long, default_value = "continental")]
+    pub zoom: String,
+
+    /// Scientific workflow preset (climate-analysis, storm-tracking, change-detection, regional-deep-dive, custom)
+    #[arg(long, default_value = "custom")]
+    pub preset: String,
+
+    /// Load configuration from YAML workspace file
+    #[arg(long)]
+    pub load_config: Option<String>,
+
+    /// Save current configuration to YAML workspace file
+    #[arg(long)]
+    pub save_config: Option<String>,
+
+    /// Author name for workspace metadata
+    #[arg(long, default_value = "Unknown")]
+    pub author: String,
+}
+
+/// Calculate appropriate framebuffer dimensions based on zoom level and simulation scale
+fn calculate_scale_aware_dimensions(
+    zoom_level: &str,
+    user_width: usize,
+    user_height: usize,
+    sim_width: usize,
+    sim_height: usize,
+    scale_km: f64,
+) -> (usize, usize) {
+    // If user specified explicit dimensions, use those
+    if user_width > 0 && user_height > 0 {
+        return (user_width, user_height);
+    }
+
+    // Calculate base dimensions for scientific visibility (much larger than 8x8!)
+    let base_multiplier = match zoom_level.to_lowercase().as_str() {
+        "continental" => 2.0, // Continental overview - broader view
+        "regional" => 3.0,    // Regional detail - more resolution
+        "local" => 4.0,       // Local detail - maximum resolution
+        _ => 2.5,             // Default to reasonable size
+    };
+
+    // Scale based on simulation size and physical scale
+    let aspect_ratio = sim_width as f64 / sim_height as f64;
+    let scale_factor = (scale_km / 200.0).sqrt(); // Normalize to 200km reference
+
+    // Calculate scientific-grade dimensions (much bigger than tiny 8x8)
+    let base_height = (20.0 * base_multiplier * scale_factor) as usize;
+    let base_width = (base_height as f64 * aspect_ratio) as usize;
+
+    // Ensure minimum scientifically useful sizes
+    let min_width = 40; // Minimum for seeing atmospheric patterns
+    let min_height = 20; // Minimum for pressure gradients
+
+    // Cap at reasonable terminal sizes
+    let max_width = 120;
+    let max_height = 60;
+
+    let final_width = base_width.clamp(min_width, max_width);
+    let final_height = base_height.clamp(min_height, max_height);
+
+    (final_width, final_height)
+}
+
+/// Apply scientific workflow preset configuration
+fn apply_workflow_preset(preset: &str, args: &mut WeatherDemoArgs) {
+    match preset.to_lowercase().as_str() {
+        "climate-analysis" => {
+            // Climate scientists: temperature-biome relationships across scales
+            args.layers = "temperature,biomes,elevation".to_string();
+            args.zoom = "continental".to_string();
+            println!(
+                "🌡️  Climate Analysis preset: Temperature-biome relationships across continental scale"
+            );
+        }
+        "storm-tracking" => {
+            // Atmospheric physicists: pressure systems and circulation patterns
+            args.layers = "pressure,wind,temperature".to_string();
+            args.zoom = "regional".to_string();
+            println!("🌪️  Storm Tracking preset: Pressure systems and atmospheric circulation");
+        }
+        "change-detection" => {
+            // Research teams: temporal analysis and system evolution
+            args.layers = "pressure,temperature,water,changes".to_string();
+            args.zoom = "continental".to_string();
+            args.buffer_size = 10; // More frames for change analysis
+            println!("📈 Change Detection preset: Temporal evolution and system dynamics");
+        }
+        "regional-deep-dive" => {
+            // Detailed regional analysis: all layers at high resolution
+            args.layers = "elevation,water,temperature,pressure,biomes,wind".to_string();
+            args.zoom = "local".to_string();
+            println!("🔬 Regional Deep Dive preset: Complete local analysis with all layers");
+        }
+        "custom" => {
+            // User-specified configuration - no changes
+            println!("⚙️  Custom configuration: Using user-specified parameters");
+        }
+        _ => {
+            eprintln!(
+                "⚠️  Unknown preset '{}', using custom configuration",
+                preset
+            );
+            eprintln!(
+                "Available presets: climate-analysis, storm-tracking, change-detection, regional-deep-dive, custom"
+            );
+        }
+    }
+}
+
+/// Load workspace configuration from YAML file and apply to args
+fn load_workspace_config(
+    config_path: &str,
+    args: &mut WeatherDemoArgs,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let config = WorkspaceConfig::load_from_file(config_path)?;
+
+    println!(
+        "📁 Loading workspace: {} by {}",
+        config.metadata.name, config.metadata.author
+    );
+    if let Some(description) = &config.metadata.description {
+        println!("   Description: {}", description);
+    }
+
+    // Apply simulation defaults
+    if let Some(seed) = config.defaults.seed {
+        args.seed = Some(seed);
+    }
+    args.scale_km = config.defaults.scale_km;
+    args.roughness = config.defaults.roughness;
+    args.persistence = config.defaults.persistence;
+    args.width = config.defaults.dimensions.0;
+    args.height = config.defaults.dimensions.1;
+    args.interval = config.defaults.interval;
+
+    // Apply framebuffer layout
+    args.buffer_size = config.layout.buffer_size;
+    args.layers = config.layout.layers.join(",");
+    args.zoom = config.layout.zoom;
+    args.frame_width = config.layout.frame_size.0;
+    args.frame_height = config.layout.frame_size.1;
+
+    println!("✅ Workspace configuration loaded successfully");
+    Ok(())
+}
+
+/// Save current configuration to YAML workspace file
+fn save_workspace_config(
+    config_path: &str,
+    args: &WeatherDemoArgs,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let preset_name = if args.preset == "custom" {
+        "custom-workspace"
+    } else {
+        &args.preset
+    };
+    let mut config = WorkspaceConfig::from_preset(preset_name, &args.author);
+
+    // Update with current args
+    config.defaults.seed = args.seed;
+    config.defaults.scale_km = args.scale_km;
+    config.defaults.roughness = args.roughness;
+    config.defaults.persistence = args.persistence;
+    config.defaults.dimensions = (args.width, args.height);
+    config.defaults.interval = args.interval;
+
+    config.layout.buffer_size = args.buffer_size;
+    config.layout.layers = args
+        .layers
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .collect();
+    config.layout.zoom = args.zoom.clone();
+    config.layout.frame_size = (args.frame_width, args.frame_height);
+
+    config.mark_modified();
+    config.save_to_file(config_path)?;
+
+    println!("💾 Workspace configuration saved to: {}", config_path);
+    println!(
+        "   Name: {} by {}",
+        config.metadata.name, config.metadata.author
+    );
+
+    Ok(())
 }
 
 pub fn run_weather_demo() -> Result<(), Box<dyn std::error::Error>> {
     // Parse command line arguments
-    let args = WeatherDemoArgs::parse();
+    let mut args = WeatherDemoArgs::parse();
+
+    // Load workspace configuration from YAML if specified
+    let load_config_path = args.load_config.clone();
+    if let Some(config_path) = load_config_path {
+        if let Err(e) = load_workspace_config(&config_path, &mut args) {
+            eprintln!("⚠️  Failed to load workspace config: {}", e);
+            eprintln!("   Proceeding with command line arguments");
+        }
+    } else {
+        // Apply workflow preset if specified and no config loaded
+        let preset_name = args.preset.clone();
+        if preset_name != "custom" {
+            apply_workflow_preset(&preset_name, &mut args);
+        }
+    }
+
+    // Save workspace configuration if specified
+    let save_config_path = args.save_config.clone();
+    if let Some(config_path) = save_config_path {
+        if let Err(e) = save_workspace_config(&config_path, &args) {
+            eprintln!("⚠️  Failed to save workspace config: {}", e);
+        }
+    }
 
     // Step 1: Generate seed if not provided, then create generator
     let seed = args.seed.unwrap_or_else(|| {
@@ -274,12 +493,22 @@ fn run_ascii_framebuffer_mode(
         println!("No valid layers specified, using default: elevation,water,biomes");
     }
 
+    // Calculate scale-aware frame dimensions
+    let (frame_width, frame_height) = calculate_scale_aware_dimensions(
+        &args.zoom,
+        args.frame_width,
+        args.frame_height,
+        args.width,
+        args.height,
+        args.scale_km,
+    );
+
     // Create framebuffer configuration
     let config = FramebufferConfig {
         layers,
         buffer_size: args.buffer_size,
-        panel_width: 20,  // Compact terminal-friendly size
-        panel_height: 15, // Compact terminal-friendly size
+        panel_width: frame_width,
+        panel_height: frame_height,
         show_timestamps: true,
         highlight_changes: false,
         subsample_rate: 1,

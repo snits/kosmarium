@@ -525,7 +525,7 @@ impl WaterFlowSystem {
 
                 // Calculate water mass evaporated (m³/m² = m depth)
                 let evaporated_water_depth = current_depth - new_depth.max(0.0);
-                
+
                 // Apply latent heat cooling: Energy conservation E = m * λ
                 // Latent heat of vaporization: 2.45 MJ/kg
                 // Water density: 1000 kg/m³, so 2.45 MJ/m³ per meter depth
@@ -533,20 +533,20 @@ impl WaterFlowSystem {
                     // Energy removed per m² surface: evaporated_depth * latent_heat_per_depth
                     let latent_heat_per_meter = 2_450_000.0; // J/m³ (2.45 MJ/m³)
                     let energy_removed = evaporated_water_depth * latent_heat_per_meter; // J/m²
-                    
+
                     // Convert to temperature change: Q = m * c * ΔT
                     // Surface thermal mass approximation: ~1m depth with thermal capacity 4.18 MJ/(m³·K)
                     let surface_thermal_capacity = 4_180_000.0; // J/(m³·K)
                     let thermal_mass_per_m2 = 1.0; // Approximate 1m thermal depth
                     let total_thermal_capacity = surface_thermal_capacity * thermal_mass_per_m2; // J/(m²·K)
-                    
+
                     // Calculate temperature decrease: ΔT = Q / (m * c)
                     let temperature_decrease = energy_removed / total_thermal_capacity; // K = °C
-                    
+
                     // Apply cooling to surface temperature (energy conservation)
                     let current_temp = temperature_layer.get_temperature(x, y);
                     let new_temperature = current_temp - temperature_decrease;
-                    
+
                     // Set the cooled temperature back into the temperature layer
                     // Note: This requires temperature_layer to be mutable
                     temperature_layer.temperature[y][x] = new_temperature;
@@ -1947,7 +1947,7 @@ mod tests {
         sim.water_system.update_water_flow_with_climate(
             &mut sim.heightmap,
             &mut sim.water,
-            &sim.temperature_layer,
+            &mut sim.temperature_layer,
             &sim.climate_system,
         );
 

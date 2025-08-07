@@ -1374,7 +1374,7 @@ mod tests {
     }
 
     // Helper function for test setup
-    fn create_test_water_layer(width: usize, height: usize) -> super::super::sim::WaterLayer {
-        super::super::sim::WaterLayer::new(width, height)
+    fn create_test_water_layer(width: usize, height: usize) -> crate::engine::sim::WaterLayer {
+        crate::engine::sim::WaterLayer::new(width, height)
     }
 }

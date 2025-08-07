@@ -884,7 +884,7 @@ mod tests {
 
     #[test]
     fn agent_pathfinding() {
-        use super::biome::{BiomeMap, BiomeType};
+        use crate::engine::agents::biome::{BiomeMap, BiomeType};
 
         let bounds = WorldBounds::new(Vec2::new(0.0, 0.0), Vec2::new(100.0, 100.0));
         let mut agent_system = AgentSystem::new(bounds, 10);
@@ -918,7 +918,7 @@ mod tests {
 
     #[test]
     fn agent_biome_caching() {
-        use super::biome::{BiomeMap, BiomeType};
+        use crate::engine::agents::biome::{BiomeMap, BiomeType};
 
         let bounds = WorldBounds::new(Vec2::new(0.0, 0.0), Vec2::new(100.0, 100.0));
         let mut agent_system = AgentSystem::new(bounds, 10);
@@ -952,7 +952,7 @@ mod tests {
 
     #[test]
     fn agent_performance_300_agents() {
-        use super::biome::{BiomeMap, BiomeType};
+        use crate::engine::agents::biome::{BiomeMap, BiomeType};
         use std::time::Instant;
 
         let bounds = WorldBounds::new(Vec2::new(0.0, 0.0), Vec2::new(100.0, 100.0));

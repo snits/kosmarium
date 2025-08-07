@@ -561,8 +561,8 @@ impl DrainageNetworkStatistics {
 
 #[cfg(test)]
 mod tests {
-    use super::super::core::scale::{DetailLevel, WorldScale};
     use super::*;
+    use crate::engine::core::scale::{DetailLevel, WorldScale};
 
     fn test_scale() -> WorldScale {
         WorldScale::new(10.0, (100, 100), DetailLevel::Standard)
@@ -771,7 +771,7 @@ mod tests {
 
     #[test]
     fn drainage_performance_scaling() {
-        use super::{DiamondSquareConfig, DiamondSquareGenerator, TerrainGenerator};
+        use crate::applications::physics::{DiamondSquareConfig, DiamondSquareGenerator, TerrainGenerator};
         use std::time::Instant;
 
         // Test different map sizes to verify O(n) scaling

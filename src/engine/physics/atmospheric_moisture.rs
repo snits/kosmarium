@@ -456,9 +456,9 @@ impl AtmosphericMoistureSystem {
 
 #[cfg(test)]
 mod tests {
-    use super::super::core::scale::{DetailLevel, WorldScale};
-    use super::climate::ClimateSystem;
+    use crate::engine::physics::climate::ClimateSystem;
     use super::*;
+    use crate::engine::core::scale::{DetailLevel, WorldScale};
 
     fn test_scale(physical_size_km: f64, width: u32, height: u32) -> WorldScale {
         WorldScale::new(physical_size_km, (width, height), DetailLevel::Standard)

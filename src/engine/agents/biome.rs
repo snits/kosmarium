@@ -999,7 +999,7 @@ mod tests {
 
     #[test]
     fn atmospheric_moisture_enhanced_biome_generation() {
-        use super::super::physics::atmospheric_moisture::AtmosphericMoistureSystem;
+        use crate::engine::physics::atmospheric_moisture::AtmosphericMoistureSystem;
         use crate::engine::physics::climate::ClimateSystem;
 
         // Create test terrain - simpler flat terrain to avoid drainage network issues
