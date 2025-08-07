@@ -349,7 +349,7 @@ impl WaterFlowSystem {
         &self,
         heightmap: &mut HeightMap,
         water: &mut WaterLayer,
-        temperature_layer: &TemperatureLayer,
+        temperature_layer: &mut TemperatureLayer,
         climate_system: &ClimateSystem,
         drainage_network: &DrainageNetwork,
     ) {
@@ -374,7 +374,7 @@ impl WaterFlowSystem {
         &self,
         heightmap: &mut HeightMap,
         water: &mut WaterLayer,
-        temperature_layer: &TemperatureLayer,
+        temperature_layer: &mut TemperatureLayer,
         climate_system: &ClimateSystem,
     ) {
         // Calculate flow directions based on current state
@@ -500,11 +500,11 @@ impl WaterFlowSystem {
         }
     }
 
-    /// Apply temperature-dependent evaporation using climate data
+    /// Apply temperature-dependent evaporation using climate data WITH energy conservation
     fn apply_evaporation_with_temperature(
         &self,
         water: &mut WaterLayer,
-        temperature_layer: &TemperatureLayer,
+        temperature_layer: &mut TemperatureLayer,
         climate_system: &ClimateSystem,
     ) {
         for y in 0..water.height() {
@@ -519,9 +519,38 @@ impl WaterFlowSystem {
                 // Apply temperature-modified evaporation rate
                 let effective_evaporation_rate = self.parameters.evaporation_rate * temp_multiplier;
 
-                // Apply evaporation (bounded to prevent negative water)
+                // Apply evaporation with thermodynamic energy conservation
                 let current_depth = water.depth.get(x, y);
                 let new_depth = current_depth * (1.0 - effective_evaporation_rate.min(1.0));
+
+                // Calculate water mass evaporated (m³/m² = m depth)
+                let evaporated_water_depth = current_depth - new_depth.max(0.0);
+                
+                // Apply latent heat cooling: Energy conservation E = m * λ
+                // Latent heat of vaporization: 2.45 MJ/kg
+                // Water density: 1000 kg/m³, so 2.45 MJ/m³ per meter depth
+                if evaporated_water_depth > 0.0 {
+                    // Energy removed per m² surface: evaporated_depth * latent_heat_per_depth
+                    let latent_heat_per_meter = 2_450_000.0; // J/m³ (2.45 MJ/m³)
+                    let energy_removed = evaporated_water_depth * latent_heat_per_meter; // J/m²
+                    
+                    // Convert to temperature change: Q = m * c * ΔT
+                    // Surface thermal mass approximation: ~1m depth with thermal capacity 4.18 MJ/(m³·K)
+                    let surface_thermal_capacity = 4_180_000.0; // J/(m³·K)
+                    let thermal_mass_per_m2 = 1.0; // Approximate 1m thermal depth
+                    let total_thermal_capacity = surface_thermal_capacity * thermal_mass_per_m2; // J/(m²·K)
+                    
+                    // Calculate temperature decrease: ΔT = Q / (m * c)
+                    let temperature_decrease = energy_removed / total_thermal_capacity; // K = °C
+                    
+                    // Apply cooling to surface temperature (energy conservation)
+                    let current_temp = temperature_layer.get_temperature(x, y);
+                    let new_temperature = current_temp - temperature_decrease;
+                    
+                    // Set the cooled temperature back into the temperature layer
+                    // Note: This requires temperature_layer to be mutable
+                    temperature_layer.temperature[y][x] = new_temperature;
+                }
 
                 // Clear tiny amounts based on threshold
                 if new_depth < self.evaporation_threshold {
@@ -918,7 +947,7 @@ impl Simulation {
                 .update_water_flow_with_climate_and_drainage(
                     &mut self.heightmap,
                     &mut self.water,
-                    &self.temperature_layer,
+                    &mut self.temperature_layer,
                     &self.climate_system,
                     &self.drainage_network,
                 );

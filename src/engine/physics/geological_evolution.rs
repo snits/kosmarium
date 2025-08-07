@@ -157,7 +157,7 @@ impl GeologicalEvolution {
             water_system.update_water_flow_with_climate(
                 &mut heightmap_for_water,
                 &mut water_layer,
-                &temperature_layer,
+                &mut temperature_layer,
                 &climate_system,
             );
             // Convert back to nested format

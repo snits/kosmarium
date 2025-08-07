@@ -138,7 +138,7 @@ pub fn test_continuous_flow_updates() {
             .update_water_flow_with_climate_and_drainage(
                 &mut sim.heightmap,
                 &mut sim.water,
-                &sim.temperature_layer,
+                &mut sim.temperature_layer,
                 &sim.climate_system,
                 &sim.drainage_network,
             );
@@ -230,7 +230,7 @@ pub fn analyze_tick_details() {
                 .update_water_flow_with_climate_and_drainage(
                     &mut sim.heightmap,
                     &mut sim.water,
-                    &sim.temperature_layer,
+                    &mut sim.temperature_layer,
                     &sim.climate_system,
                     &sim.drainage_network,
                 );

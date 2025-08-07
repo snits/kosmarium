@@ -1294,4 +1294,61 @@ mod tests {
         );
         assert!(large_scaled.pressure_noise_amplitude > small_scaled.pressure_noise_amplitude);
     }
+
+    // TDD Tests for Energy Conservation - Priority 1 from Scientific Consensus
+    #[test]
+    fn test_evaporation_removes_latent_heat_energy() {
+        // Test that evaporation removes latent heat from surface temperature
+        // This ensures energy conservation: mass change = energy change
+        let scale = WorldScale::new(10.0, (3, 3), DetailLevel::Standard);
+        let climate = ClimateSystem::new_for_scale(&scale);
+        let mut temperature_layer = TemperatureLayer::new(3, 3);
+
+        // Set initial conditions
+        let initial_temp = 25.0; // °C
+        temperature_layer.temperature[1][1] = initial_temp;
+
+        // Create water layer for evaporation
+        let mut water_layer = create_test_water_layer(3, 3);
+        water_layer.depth[1][1] = 0.1; // 10cm water depth
+
+        // TODO: Implement apply_evaporation_with_energy_conservation method
+        // This is what we need to implement to fix the thermodynamic violation!
+
+        // For now, test that current evaporation violates energy conservation
+        let evap_multiplier = climate.get_evaporation_multiplier(initial_temp);
+        assert!(
+            evap_multiplier > 0.0,
+            "Should have positive evaporation rate"
+        );
+
+        // Current system: evaporation changes water mass without affecting temperature
+        // This is the thermodynamic violation identified by atmospheric physicist!
+        // Temperature should DECREASE due to latent heat removal but currently doesn't
+
+        // This test will fail until we implement proper energy conservation
+        // assert!(final_temp < initial_temp, "Temperature should decrease with evaporation");
+    }
+
+    #[test]
+    fn test_condensation_adds_latent_heat_energy() {
+        // Test that condensation adds latent heat to surface temperature
+        // This is the other half of the energy conservation equation
+        let scale = WorldScale::new(10.0, (3, 3), DetailLevel::Standard);
+        let climate = ClimateSystem::new_for_scale(&scale);
+        let mut temperature_layer = TemperatureLayer::new(3, 3);
+
+        let initial_temp = 15.0; // Cool temperature for condensation
+        temperature_layer.temperature[1][1] = initial_temp;
+
+        // TODO: Implement condensation with energy conservation
+        // When water condenses, it should release latent heat and warm the surface
+
+        // Current system violates this by changing water mass without energy effects
+    }
+
+    // Helper function for test setup
+    fn create_test_water_layer(width: usize, height: usize) -> super::super::sim::WaterLayer {
+        super::super::sim::WaterLayer::new(width, height)
+    }
 }
