@@ -44,7 +44,7 @@ ABOUTME: Documents why specific technical approaches were chosen and their trade
 **Trade-offs**:
 - ✅ Produces realistic terrain patterns
 - ✅ Fast enough for interactive use
-- ✅ Trait architecture supports future algorithms (GSD, Perlin, etc.)
+- ✅ Trait architecture supports future algorithms (GSS, Perlin, etc.)
 - ❌ Can produce artifacts at boundaries
 - ❌ Limited control over specific terrain features
 
@@ -212,7 +212,7 @@ ABOUTME: Documents why specific technical approaches were chosen and their trade
 **Context**: Need extensible system supporting multiple terrain generation approaches
 
 **Rationale**:
-- **Algorithm diversity**: Support Diamond-Square, GSD, Perlin, Simplex noise
+- **Algorithm diversity**: Support Diamond-Square, GSS, Perlin, Simplex noise
 - **Experimentation**: Easy to swap algorithms for comparison
 - **Testability**: Each generator can be unit tested independently
 - **Future-proofing**: New algorithms can be added without breaking existing code
@@ -321,7 +321,7 @@ trait SimulationRenderer {
 ### PD-003: Advanced Terrain Generation Evolution (Expert Guidance Available)
 **Context**: Evolution beyond Diamond-Square to geological realism
 **Expert recommendation (world-generation-architect)**:
-- **Generalized Stochastic Diffusion (GSD)**: Phase 1 priority for geological realism
+- **Generalized Stochastic Subdivision (GSS)**: Phase 1 priority for geological realism
 - **Hybrid pipeline**: Layered erosion, uplift, wind/rain post-processors  
 - **Performance architecture**: Hierarchical LOD, streaming, spatial partitioning
 - **Dynamic terrain modification**: Real-time erosion and agent terraforming support

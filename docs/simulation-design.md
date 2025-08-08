@@ -13,8 +13,8 @@
 - Good for prototyping
 - Grid artifacts, not geologically plausible
 
-#### 2. Generalized Stochastic Diffusion (GSD)
-- Simulates tectonics, erosion, and diffusion processes
+#### 2. Generalized Stochastic Subdivision (GSS)
+- Simulates tectonics, erosion, and subdivision processes
 - Supports natural terrain shaping and hydrology
 - Ideal for realistic terrain + simulation input
 

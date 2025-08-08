@@ -49,6 +49,22 @@ path = "debug_binaries_tmp/validate_opengl_data.rs"
 name = "debug_boundary_runtime"
 path = "debug_binaries_tmp/debug_boundary_runtime.rs"
 
+[[bin]]
+name = "debug_effective_rainfall"
+path = "debug_effective_rainfall.rs"
+
+[[bin]]
+name = "debug_rainfall_comparison"
+path = "debug_rainfall_comparison.rs"
+
+[[bin]]
+name = "debug_velocity_calculation"
+path = "debug_velocity_calculation.rs"
+
+[[bin]]
+name = "debug_boundary_flow_detailed"
+path = "debug_boundary_flow_detailed.rs"
+
 [dependencies]
 rand = "0.8"
 crossterm = "0.27"

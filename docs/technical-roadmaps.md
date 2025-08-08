@@ -5,20 +5,20 @@ ABOUTME: Comprehensive roadmaps for terrain generation evolution and simulation 
 
 ## World Generation Architect Roadmap
 
-### Phase 1: Generalized Stochastic Diffusion (GSD) Implementation (2-3 weeks)
+### Phase 1: Generalized Stochastic Subdivision (GSS) Implementation (2-3 weeks)
 
-**Core GSD Algorithm Architecture:**
+**Core GSS Algorithm Architecture:**
 ```rust
-pub struct GSDGenerator {
+pub struct GSSGenerator {
     seed: u64,
     tectonic_config: TectonicConfig,
     erosion_config: ErosionConfig,
 }
 
-pub struct GSDConfig {
+pub struct GSSConfig {
     pub iterations: usize,              // Simulation time steps
     pub initial_uplift: f32,            // Starting tectonic energy
-    pub diffusion_rate: f32,            // Erosion spreading rate
+    pub subdivision_rate: f32,          // Stochastic subdivision granularity
     pub precipitation_map: Option<PrecipitationField>,
     pub thermal_erosion_angle: f32,     // Angle of repose for sediment
     pub hydraulic_erosion_strength: f32, // Water-based erosion intensity
@@ -29,7 +29,7 @@ pub struct GSDConfig {
 1. **Tectonic Uplift Phase**: Random uplift events based on geological hotspots
 2. **Thermal Erosion Phase**: Simulate slope-based material movement using angle of repose
 3. **Hydraulic Erosion Phase**: Water flow simulation with sediment transport
-4. **Diffusion Phase**: Smooth terrain based on weathering over time
+4. **Subdivision Refinement Phase**: Apply stochastic subdivision at multiple resolution levels
 
 **Key Algorithm Components:**
 - **Uplift System**: Probabilistic elevation increases at tectonic hotspots

@@ -83,6 +83,6 @@ The renderer maps elevation values to colored symbols:
 - Rendering system can be extended for different visualization modes and data layers
 
 ### Future Algorithm Experiments
-- **Generalized Stochastic Diffusion** - Next planned terrain generation approach
+- **Generalized Stochastic Subdivision** - Next planned terrain generation approach
 - **Multi-layer Environmental Systems** - Temperature, precipitation, biome generation
 - **Post-processing Pipeline** - Erosion simulation, river carving, climate modeling

@@ -101,6 +101,11 @@ cargo flamegraph    # When you need to profile (install with: cargo install flam
 - Have unused code while experimenting
 - Use `dbg!()` and `println!()` for debugging (just clean up eventually)
 
+### Context Window Management
+- **Large debug outputs**: Use logging or file output instead of console spam
+- **Analysis scripts**: Write detailed data to files, summaries to stdout
+- **Agent debugging**: Preserve context tokens for reasoning, not raw data dumps
+
 ### Avoid:
 - Breaking the build (others can't experiment if it doesn't compile)
 - Committing without code-reviewer approval
