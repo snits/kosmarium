@@ -81,6 +81,15 @@ pub enum ZoomLevel {
     Local,       // High detail
 }
 
+/// Movement directions for WASD navigation
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum MovementDirection {
+    North, // W key - move up
+    South, // S key - move down
+    West,  // A key - move left
+    East,  // D key - move right
+}
+
 impl ZoomLevel {
     pub fn display_name(&self) -> &'static str {
         match self {
@@ -154,6 +163,72 @@ impl MultiViewportApp {
     /// Get current active viewport index
     pub fn get_active_viewport(&self) -> usize {
         self.renderer.config.active_viewport
+    }
+
+    /// Handle WASD navigation for active viewport
+    pub fn handle_movement(&mut self, direction: MovementDirection, fast: bool) -> bool {
+        let active_idx = self.renderer.config.active_viewport;
+        if active_idx >= self.renderer.config.viewports.len() {
+            return false;
+        }
+
+        let step_size = if fast { 5 } else { 1 };
+        let viewport_config = &mut self.renderer.config.viewports[active_idx];
+
+        match direction {
+            MovementDirection::North => {
+                if viewport_config.viewport.world_y >= step_size {
+                    viewport_config.viewport.world_y -= step_size;
+                    true
+                } else {
+                    viewport_config.viewport.world_y = 0;
+                    false // Hit boundary
+                }
+            }
+            MovementDirection::South => {
+                // Simple bounds checking - could be enhanced with world size limits
+                viewport_config.viewport.world_y += step_size;
+                true
+            }
+            MovementDirection::West => {
+                if viewport_config.viewport.world_x >= step_size {
+                    viewport_config.viewport.world_x -= step_size;
+                    true
+                } else {
+                    viewport_config.viewport.world_x = 0;
+                    false // Hit boundary
+                }
+            }
+            MovementDirection::East => {
+                // Simple bounds checking - could be enhanced with world size limits
+                viewport_config.viewport.world_x += step_size;
+                true
+            }
+        }
+    }
+
+    /// Get current viewport position for active viewport
+    pub fn get_active_viewport_position(&self) -> (i32, i32) {
+        let active_idx = self.renderer.config.active_viewport;
+        if active_idx < self.renderer.config.viewports.len() {
+            let viewport = &self.renderer.config.viewports[active_idx].viewport;
+            (viewport.world_x, viewport.world_y)
+        } else {
+            (0, 0)
+        }
+    }
+
+    /// Set viewport position for active viewport (for testing)
+    pub fn set_active_viewport_position(&mut self, x: i32, y: i32) -> bool {
+        let active_idx = self.renderer.config.active_viewport;
+        if active_idx < self.renderer.config.viewports.len() {
+            let viewport = &mut self.renderer.config.viewports[active_idx].viewport;
+            viewport.world_x = x;
+            viewport.world_y = y;
+            true
+        } else {
+            false
+        }
     }
 
     /// Quit application
@@ -597,5 +672,182 @@ mod tests {
 
         // This test mainly verifies the function doesn't panic with different parameters
         assert!(true); // Both widgets created successfully
+    }
+
+    #[test]
+    fn test_wasd_navigation_basic_movement() {
+        use crate::engine::core::scale::{DetailLevel, WorldScale};
+        use crate::engine::physics::{DiamondSquareGenerator, TerrainGenerator};
+
+        let generator = DiamondSquareGenerator::new(42);
+        let heightmap = generator.generate(50, 50, &Default::default());
+        let scale = WorldScale::new(200.0, (50, 50), DetailLevel::Standard);
+        let simulation = Simulation::_new_with_scale(heightmap, scale);
+
+        let mut app = MultiViewportApp::new(simulation);
+
+        // Start at origin
+        assert_eq!(app.get_active_viewport_position(), (0, 0));
+
+        // Test East movement (D key)
+        assert!(app.handle_movement(MovementDirection::East, false));
+        assert_eq!(app.get_active_viewport_position(), (1, 0));
+
+        // Test South movement (S key)
+        assert!(app.handle_movement(MovementDirection::South, false));
+        assert_eq!(app.get_active_viewport_position(), (1, 1));
+
+        // Test West movement (A key)
+        assert!(app.handle_movement(MovementDirection::West, false));
+        assert_eq!(app.get_active_viewport_position(), (0, 1));
+
+        // Test North movement (W key)
+        assert!(app.handle_movement(MovementDirection::North, false));
+        assert_eq!(app.get_active_viewport_position(), (0, 0));
+    }
+
+    #[test]
+    fn test_wasd_navigation_fast_movement() {
+        use crate::engine::core::scale::{DetailLevel, WorldScale};
+        use crate::engine::physics::{DiamondSquareGenerator, TerrainGenerator};
+
+        let generator = DiamondSquareGenerator::new(42);
+        let heightmap = generator.generate(50, 50, &Default::default());
+        let scale = WorldScale::new(200.0, (50, 50), DetailLevel::Standard);
+        let simulation = Simulation::_new_with_scale(heightmap, scale);
+
+        let mut app = MultiViewportApp::new(simulation);
+
+        // Start at origin
+        assert_eq!(app.get_active_viewport_position(), (0, 0));
+
+        // Test fast East movement (Shift+D)
+        assert!(app.handle_movement(MovementDirection::East, true));
+        assert_eq!(app.get_active_viewport_position(), (5, 0));
+
+        // Test fast South movement (Shift+S)
+        assert!(app.handle_movement(MovementDirection::South, true));
+        assert_eq!(app.get_active_viewport_position(), (5, 5));
+
+        // Test fast West movement (Shift+A)
+        assert!(app.handle_movement(MovementDirection::West, true));
+        assert_eq!(app.get_active_viewport_position(), (0, 5));
+
+        // Test fast North movement (Shift+W)
+        assert!(app.handle_movement(MovementDirection::North, true));
+        assert_eq!(app.get_active_viewport_position(), (0, 0));
+    }
+
+    #[test]
+    fn test_wasd_navigation_boundary_conditions() {
+        use crate::engine::core::scale::{DetailLevel, WorldScale};
+        use crate::engine::physics::{DiamondSquareGenerator, TerrainGenerator};
+
+        let generator = DiamondSquareGenerator::new(42);
+        let heightmap = generator.generate(50, 50, &Default::default());
+        let scale = WorldScale::new(200.0, (50, 50), DetailLevel::Standard);
+        let simulation = Simulation::_new_with_scale(heightmap, scale);
+
+        let mut app = MultiViewportApp::new(simulation);
+
+        // Start at origin (0, 0)
+        assert_eq!(app.get_active_viewport_position(), (0, 0));
+
+        // Test North movement at origin (should hit boundary)
+        assert!(!app.handle_movement(MovementDirection::North, false));
+        assert_eq!(app.get_active_viewport_position(), (0, 0)); // Should remain at origin
+
+        // Test West movement at origin (should hit boundary)
+        assert!(!app.handle_movement(MovementDirection::West, false));
+        assert_eq!(app.get_active_viewport_position(), (0, 0)); // Should remain at origin
+
+        // Test fast North movement at origin (should hit boundary)
+        assert!(!app.handle_movement(MovementDirection::North, true));
+        assert_eq!(app.get_active_viewport_position(), (0, 0)); // Should remain at origin
+
+        // Test fast West movement at origin (should hit boundary)
+        assert!(!app.handle_movement(MovementDirection::West, true));
+        assert_eq!(app.get_active_viewport_position(), (0, 0)); // Should remain at origin
+
+        // Move to position (3, 3) for partial boundary testing
+        app.set_active_viewport_position(3, 3);
+        assert_eq!(app.get_active_viewport_position(), (3, 3));
+
+        // Test fast West movement that would go past boundary
+        assert!(!app.handle_movement(MovementDirection::West, true)); // 3 - 5 = -2, clamped to 0
+        assert_eq!(app.get_active_viewport_position(), (0, 3)); // Should clamp to boundary
+
+        // Test fast North movement that would go past boundary
+        assert!(!app.handle_movement(MovementDirection::North, true)); // 3 - 5 = -2, clamped to 0
+        assert_eq!(app.get_active_viewport_position(), (0, 0)); // Should clamp to boundary
+    }
+
+    #[test]
+    fn test_wasd_navigation_active_viewport_isolation() {
+        use crate::engine::core::scale::{DetailLevel, WorldScale};
+        use crate::engine::physics::{DiamondSquareGenerator, TerrainGenerator};
+
+        let generator = DiamondSquareGenerator::new(42);
+        let heightmap = generator.generate(50, 50, &Default::default());
+        let scale = WorldScale::new(200.0, (50, 50), DetailLevel::Standard);
+        let simulation = Simulation::_new_with_scale(heightmap, scale);
+
+        let mut app = MultiViewportApp::new(simulation);
+
+        // Start with viewport 0 active
+        assert_eq!(app.get_active_viewport(), 0);
+        assert_eq!(app.get_active_viewport_position(), (0, 0));
+
+        // Move viewport 0 to (5, 5)
+        app.handle_movement(MovementDirection::East, true);
+        app.handle_movement(MovementDirection::South, true);
+        assert_eq!(app.get_active_viewport_position(), (5, 5));
+
+        // Switch to viewport 1
+        app.cycle_next_viewport();
+        assert_eq!(app.get_active_viewport(), 1);
+        // Viewport 1 should still be at origin
+        assert_eq!(app.get_active_viewport_position(), (0, 0));
+
+        // Move viewport 1 to (3, 3)
+        for _ in 0..3 {
+            app.handle_movement(MovementDirection::East, false);
+            app.handle_movement(MovementDirection::South, false);
+        }
+        assert_eq!(app.get_active_viewport_position(), (3, 3));
+
+        // Switch back to viewport 0
+        app.cycle_previous_viewport();
+        assert_eq!(app.get_active_viewport(), 0);
+        // Viewport 0 should still be at (5, 5)
+        assert_eq!(app.get_active_viewport_position(), (5, 5));
+
+        // Switch to viewport 1 again
+        app.cycle_next_viewport();
+        assert_eq!(app.get_active_viewport(), 1);
+        // Viewport 1 should still be at (3, 3)
+        assert_eq!(app.get_active_viewport_position(), (3, 3));
+    }
+
+    #[test]
+    fn test_movement_direction_enum() {
+        // Test that MovementDirection values are correct
+        use std::mem;
+
+        // Test enum size (should be small)
+        assert_eq!(mem::size_of::<MovementDirection>(), 1);
+
+        // Test that all variants are distinct
+        let north = MovementDirection::North;
+        let south = MovementDirection::South;
+        let west = MovementDirection::West;
+        let east = MovementDirection::East;
+
+        assert_ne!(north, south);
+        assert_ne!(north, west);
+        assert_ne!(north, east);
+        assert_ne!(south, west);
+        assert_ne!(south, east);
+        assert_ne!(west, east);
     }
 }
