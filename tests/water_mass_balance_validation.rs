@@ -550,9 +550,9 @@ fn test_boundary_outflow_mass_accounting() {
     ]);
 
     let mut test_sim = Simulation::new(heightmap);
-    
+
     // Adjust flow rate for sustained boundary outflow per computational-hydrologist analysis
-    // Default 0.1 leads to equilibrium after 1 tick (0.10% loss)  
+    // Default 0.1 leads to equilibrium after 1 tick (0.10% loss)
     // Hydrologist calculated need for 4.15% per tick to reach >1% total in 10 ticks
     // Increase flow rate significantly to overcome 3-tick update interval limitation
     test_sim.water_system.parameters.flow_rate = 1.5;
