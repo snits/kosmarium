@@ -3,6 +3,7 @@
 
 pub mod ascii_framebuffer;
 pub mod graphics_render;
+pub mod multi_viewport;
 pub mod render;
 pub mod tui;
 
