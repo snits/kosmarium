@@ -158,6 +158,16 @@ impl HeightMap {
         }
     }
 
+    /// Copy contents from another heightmap (same dimensions required)
+    pub fn copy_from(&mut self, other: &HeightMap) {
+        debug_assert_eq!(
+            self.data.len(),
+            other.data.len(),
+            "HeightMaps must have same dimensions for copy_from"
+        );
+        self.data.copy_from_slice(&other.data);
+    }
+
     /// Create new heightmap by applying function to all values
     pub fn map<F>(&self, f: F) -> Self
     where

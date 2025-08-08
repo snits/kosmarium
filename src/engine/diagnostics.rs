@@ -249,16 +249,9 @@ impl SimulationDiagnostics {
         let wind_layer = simulation.get_wind_layer();
         let atmospheric_system = simulation.get_atmospheric_system();
 
-        // Calculate pressure range
-        let mut min_pressure = f32::INFINITY;
-        let mut max_pressure = f32::NEG_INFINITY;
-
-        for row in &pressure_layer.pressure {
-            for &pressure in row {
-                min_pressure = min_pressure.min(pressure);
-                max_pressure = max_pressure.max(pressure);
-            }
-        }
+        // Calculate pressure range using PhysicsGrid's optimized methods
+        let min_pressure = pressure_layer.pressure.min();
+        let max_pressure = pressure_layer.pressure.max();
 
         let pressure_range_kpa = (min_pressure / 1000.0, max_pressure / 1000.0);
 

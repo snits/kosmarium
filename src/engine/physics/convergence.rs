@@ -402,10 +402,10 @@ impl ConvergenceStudy {
         );
 
         let climate_system = ClimateSystem::new_for_scale(&world_scale);
-        let heightmap_nested = heightmap.to_nested();
-        let temperature_layer = climate_system.generate_temperature_layer(&heightmap_nested);
+        let temperature_layer = climate_system.generate_temperature_layer_optimized(&heightmap);
 
-        // Compute climate metrics
+        // Compute climate metrics - use to_nested() temporarily for compatibility
+        let heightmap_nested = heightmap.to_nested();
         let grid_spacing = world_scale.meters_per_pixel();
         let climate_metrics =
             self.compute_climate_metrics(&heightmap_nested, &temperature_layer, grid_spacing);

@@ -239,8 +239,9 @@ impl FlowAccumulationMap {
                 {
                     let target_idx = target_y as usize * width + target_x as usize;
 
-                    // Add current cell's accumulation to target
+                    // Transfer current cell's accumulation to target
                     accumulation[target_idx] += accumulation[current_idx];
+                    accumulation[current_idx] = 0.0; // Clear source after transfer
 
                     // Decrease in-degree and add to queue if ready
                     in_degree[target_idx] -= 1;
@@ -771,7 +772,7 @@ mod tests {
 
     #[test]
     fn drainage_performance_scaling() {
-        use crate::applications::physics::{
+        use crate::engine::physics::worldgen::{
             DiamondSquareConfig, DiamondSquareGenerator, TerrainGenerator,
         };
         use std::time::Instant;

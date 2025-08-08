@@ -478,17 +478,9 @@ impl AsciiFramebuffer {
     ) {
         let pressure_layer = simulation.get_pressure_layer();
 
-        // Calculate pressure range for normalization
-        let mut min_pressure = f32::INFINITY;
-        let mut max_pressure = f32::NEG_INFINITY;
-
-        for row in &pressure_layer.pressure {
-            for &p in row {
-                min_pressure = min_pressure.min(p);
-                max_pressure = max_pressure.max(p);
-            }
-        }
-
+        // Calculate pressure range for normalization using PhysicsGrid's optimized methods
+        let min_pressure = pressure_layer.pressure.min();
+        let max_pressure = pressure_layer.pressure.max();
         let pressure_range = max_pressure - min_pressure;
 
         for y in 0..display_height {

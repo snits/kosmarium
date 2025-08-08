@@ -119,7 +119,7 @@ impl WaterFlowSystem {
                 // The base rate represents rainfall at reference scale, so we need inverse scaling:
                 // More cells = less rain per cell to maintain same total regional rainfall
                 let area_ratio = scale.scale_factor_from_reference(REFERENCE_SCALE) as f32;
-                params.base_rainfall_rate / area_ratio  // More cells = less rain per cell
+                params.base_rainfall_rate / area_ratio // More cells = less rain per cell
             }
             RainfallScaling::_IntensityBased => {
                 // Meteorological intensity remains constant - same as PerCell
@@ -129,7 +129,7 @@ impl WaterFlowSystem {
                 // Based on empirical relationships in hydrology
                 // Many watershed processes follow ~ Area^0.6 relationships
                 let area_ratio = scale.scale_factor_from_reference(REFERENCE_SCALE) as f32;
-                params.base_rainfall_rate / area_ratio.powf(0.6)  // Fixed: was multiplying instead of dividing
+                params.base_rainfall_rate / area_ratio.powf(0.6) // Fixed: was multiplying instead of dividing
             }
         }
     }
@@ -420,32 +420,32 @@ impl WaterFlowSystem {
                     // instead of rounding immediately to integer positions
                     let target_x_float = x as f32 + vx;
                     let target_y_float = y as f32 + vy;
-                    
+
                     // Calculate fractional flow distribution to neighboring cells
                     let x0 = target_x_float.floor() as i32;
                     let x1 = x0 + 1;
                     let y0 = target_y_float.floor() as i32;
                     let y1 = y0 + 1;
-                    
+
                     let fx = target_x_float.fract();
                     let fy = target_y_float.fract();
-                    
+
                     // Bilinear interpolation weights for flow distribution
                     let weight_00 = (1.0 - fx) * (1.0 - fy); // Bottom-left
-                    let weight_10 = fx * (1.0 - fy);         // Bottom-right
-                    let weight_01 = (1.0 - fx) * fy;         // Top-left
-                    let weight_11 = fx * fy;                 // Top-right
-                    
+                    let weight_10 = fx * (1.0 - fy); // Bottom-right
+                    let weight_01 = (1.0 - fx) * fy; // Top-left
+                    let weight_11 = fx * fy; // Top-right
+
                     // Get dimensions before mutable borrow
                     let width = water.width() as i32;
                     let height = water.height() as i32;
-                    
+
                     let buffer = water.get_depth_buffer_mut();
                     let current_depth = buffer.get(x, y);
-                    
+
                     // Remove water from current cell
                     buffer.set(x, y, current_depth - flow_amount);
-                    
+
                     // Distribute flow to target cells based on fractional position
                     let flow_cells = [
                         (x0, y0, weight_00),
@@ -453,11 +453,12 @@ impl WaterFlowSystem {
                         (x0, y1, weight_01),
                         (x1, y1, weight_11),
                     ];
-                    
+
                     for (tx, ty, weight) in flow_cells {
                         if tx >= 0 && tx < width && ty >= 0 && ty < height {
                             let target_flow = flow_amount * weight;
-                            if target_flow > 1e-8 { // Avoid microscopic flows
+                            if target_flow > 1e-8 {
+                                // Avoid microscopic flows
                                 let target_depth = buffer.get(tx as usize, ty as usize);
                                 buffer.set(tx as usize, ty as usize, target_depth + target_flow);
                             }
@@ -709,32 +710,32 @@ impl WaterFlowSystem {
                     // instead of rounding immediately to integer positions
                     let target_x_float = x as f32 + vx;
                     let target_y_float = y as f32 + vy;
-                    
+
                     // Calculate fractional flow distribution to neighboring cells
                     let x0 = target_x_float.floor() as i32;
                     let x1 = x0 + 1;
                     let y0 = target_y_float.floor() as i32;
                     let y1 = y0 + 1;
-                    
+
                     let fx = target_x_float.fract();
                     let fy = target_y_float.fract();
-                    
+
                     // Bilinear interpolation weights for flow distribution
                     let weight_00 = (1.0 - fx) * (1.0 - fy); // Bottom-left
-                    let weight_10 = fx * (1.0 - fy);         // Bottom-right
-                    let weight_01 = (1.0 - fx) * fy;         // Top-left
-                    let weight_11 = fx * fy;                 // Top-right
-                    
+                    let weight_10 = fx * (1.0 - fy); // Bottom-right
+                    let weight_01 = (1.0 - fx) * fy; // Top-left
+                    let weight_11 = fx * fy; // Top-right
+
                     // Get dimensions before mutable borrow
                     let width = water.width() as i32;
                     let height = water.height() as i32;
-                    
+
                     let buffer = water.get_depth_buffer_mut();
                     let current_depth = buffer.get(x, y);
-                    
+
                     // Remove water from current cell
                     buffer.set(x, y, current_depth - flow_amount);
-                    
+
                     // Distribute flow to target cells based on fractional position
                     let flow_cells = [
                         (x0, y0, weight_00),
@@ -742,11 +743,12 @@ impl WaterFlowSystem {
                         (x0, y1, weight_01),
                         (x1, y1, weight_11),
                     ];
-                    
+
                     for (tx, ty, weight) in flow_cells {
                         if tx >= 0 && tx < width && ty >= 0 && ty < height {
                             let target_flow = flow_amount * weight;
-                            if target_flow > 1e-8 { // Avoid microscopic flows
+                            if target_flow > 1e-8 {
+                                // Avoid microscopic flows
                                 let target_depth = buffer.get(tx as usize, ty as usize);
                                 buffer.set(tx as usize, ty as usize, target_depth + target_flow);
                             }
@@ -911,8 +913,18 @@ impl Simulation {
 
     /// Advance simulation by one time step with climate integration and atmospheric caching
     pub fn tick(&mut self) {
+        // Performance instrumentation (enabled with PERF_TRACE environment variable)
+        let perf_trace = std::env::var("PERF_TRACE").is_ok();
+        let tick_start = if perf_trace { Some(std::time::Instant::now()) } else { None };
+
         // Advance seasonal cycle
+        let climate_start = if perf_trace { Some(std::time::Instant::now()) } else { None };
         self.climate_system.tick();
+        if let Some(start) = climate_start {
+            if perf_trace {
+                eprintln!("PERF: climate_tick: {:.3}ms", start.elapsed().as_secs_f64() * 1000.0);
+            }
+        }
 
         // Define atmospheric update intervals (in ticks)
         // These intervals reflect realistic timescales for atmospheric changes
@@ -926,6 +938,8 @@ impl Simulation {
 
         // Update temperature layer only when needed (slow changes)
         if self.tick_count - self.last_temperature_update >= TEMPERATURE_UPDATE_INTERVAL {
+            let temp_start = if perf_trace { Some(std::time::Instant::now()) } else { None };
+            
             #[cfg(feature = "simd")]
             {
                 // Use specialized optimization for common continental scale
@@ -945,6 +959,13 @@ impl Simulation {
                     .climate_system
                     .generate_temperature_layer_optimized(&self.heightmap);
             }
+            
+            if let Some(start) = temp_start {
+                if perf_trace {
+                    eprintln!("PERF: temperature_generation: {:.3}ms", start.elapsed().as_secs_f64() * 1000.0);
+                }
+            }
+            
             self.last_temperature_update = self.tick_count;
             temperature_updated = true;
             // Invalidate biome cache due to temperature changes
@@ -1004,6 +1025,8 @@ impl Simulation {
         // Water only needs updates every few ticks for realistic flow rates
         const WATER_FLOW_UPDATE_INTERVAL: u64 = 3; // Every ~18 minutes simulation time
         if self.tick_count % WATER_FLOW_UPDATE_INTERVAL == 0 {
+            let water_start = if perf_trace { Some(std::time::Instant::now()) } else { None };
+            
             self.water_system
                 .update_water_flow_with_climate_and_drainage(
                     &mut self.heightmap,
@@ -1012,6 +1035,12 @@ impl Simulation {
                     &self.climate_system,
                     &self.drainage_network,
                 );
+                
+            if let Some(start) = water_start {
+                if perf_trace {
+                    eprintln!("PERF: water_flow_update: {:.3}ms", start.elapsed().as_secs_f64() * 1000.0);
+                }
+            }
         }
 
         // Invalidate biome cache due to water changes
@@ -1021,9 +1050,23 @@ impl Simulation {
         // No more periodic "nuclear redistribution" - water flows gradually toward drainage areas
 
         // Update drainage network periodically to account for terrain changes from erosion
+        let drainage_start = if perf_trace { Some(std::time::Instant::now()) } else { None };
         self.update_drainage_for_erosion();
+        if let Some(start) = drainage_start {
+            if perf_trace {
+                eprintln!("PERF: drainage_update: {:.3}ms", start.elapsed().as_secs_f64() * 1000.0);
+            }
+        }
 
         self.tick_count += 1;
+        
+        // Total tick timing
+        if let Some(start) = tick_start {
+            if perf_trace {
+                eprintln!("PERF: total_tick: {:.3}ms", start.elapsed().as_secs_f64() * 1000.0);
+                eprintln!("PERF: ---");
+            }
+        }
     }
 
     /// Get simulation time information for display

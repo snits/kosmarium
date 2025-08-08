@@ -560,7 +560,8 @@ mod tests {
         // Test that our fix actually produces water flow changes
         let width = 10;
         let height = 10;
-        let mut heightmap = crate::optimized_heightmap::FlatHeightmap::new(width, height);
+        let mut heightmap =
+            crate::engine::core::optimized_heightmap::FlatHeightmap::new(width, height);
 
         // Create a simple slope (high on left, low on right)
         for y in 0..height {

@@ -526,7 +526,7 @@ mod tests {
         let climate = ClimateSystem::new_for_scale(&scale);
 
         let heightmap = HeightMap::new(3, 3, 0.5);
-        let temperature_layer = climate.generate_temperature_layer(&heightmap.to_nested());
+        let temperature_layer = climate.generate_temperature_layer_optimized(&heightmap);
 
         let mut layer = SurfaceMoistureLayer::new(3, 3);
 

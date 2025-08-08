@@ -243,6 +243,16 @@ impl MultiViewportRenderer {
         Self { config }
     }
 
+    /// Get the number of viewports
+    pub fn viewport_count(&self) -> usize {
+        self.config.viewports.len()
+    }
+
+    /// Get the active viewport index
+    pub fn get_active_viewport(&self) -> usize {
+        self.config.active_viewport
+    }
+
     /// Generate 2x2 grid layout areas
     pub fn generate_2x2_layout(&self, area: Rect) -> Vec<Rect> {
         // Reserve space for status panel if enabled
@@ -274,6 +284,66 @@ impl MultiViewportRenderer {
             .split(rows[1]);
 
         vec![top_cols[0], top_cols[1], bottom_cols[0], bottom_cols[1]]
+    }
+
+    /// Generate status panel area (returns None if status panel disabled)
+    pub fn generate_status_panel(&self, area: Rect) -> Option<Rect> {
+        if self.config.show_status {
+            let main_layout = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([Constraint::Min(0), Constraint::Length(3)])
+                .split(area);
+            Some(main_layout[1])
+        } else {
+            None
+        }
+    }
+
+    /// Create status panel widget with keybinding legend and active viewport info
+    pub fn create_status_panel(&self) -> Paragraph {
+        let active_viewport_name = if self.config.active_viewport < self.config.viewports.len() {
+            &self.config.viewports[self.config.active_viewport].title
+        } else {
+            "NONE"
+        };
+
+        let keybinding_line1 = Line::from(vec![
+            Span::styled("Tab", Style::default().fg(Color::Yellow)),
+            Span::raw("/"),
+            Span::styled("Shift+Tab", Style::default().fg(Color::Yellow)),
+            Span::raw(": Cycle • "),
+            Span::styled("1-4", Style::default().fg(Color::Yellow)),
+            Span::raw(": Select • "),
+            Span::styled("WASD", Style::default().fg(Color::Yellow)),
+            Span::raw(": Navigate • "),
+            Span::styled("Shift+WASD", Style::default().fg(Color::Yellow)),
+            Span::raw(": Fast • "),
+            Span::styled("Q", Style::default().fg(Color::Yellow)),
+            Span::raw("/"),
+            Span::styled("Esc", Style::default().fg(Color::Yellow)),
+            Span::raw(": Quit")
+        ]);
+
+        let status_line = Line::from(vec![
+            Span::raw("Active: "),
+            Span::styled(
+                format!("{} ({})", active_viewport_name, self.config.active_viewport + 1), 
+                Style::default().fg(Color::White)
+            ),
+            Span::raw(" • Viewports: "),
+            Span::styled(
+                format!("{}", self.config.viewports.len()),
+                Style::default().fg(Color::Cyan)
+            ),
+        ]);
+
+        Paragraph::new(vec![keybinding_line1, status_line])
+            .block(
+                Block::default()
+                    .title("Controls & Status")
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(Color::Blue))
+            )
     }
 
     /// Render single viewport with ASCII framebuffer data
@@ -849,5 +919,59 @@ mod tests {
         assert_ne!(south, west);
         assert_ne!(south, east);
         assert_ne!(west, east);
+    }
+
+    #[test]
+    fn test_status_panel_generation() {
+        let config = MultiViewportConfig::default();
+        let renderer = MultiViewportRenderer::new(config);
+
+        // Test with status panel enabled (default)
+        let test_area = Rect {
+            x: 0,
+            y: 0,
+            width: 100,
+            height: 50,
+        };
+
+        let status_area = renderer.generate_status_panel(test_area);
+        assert!(status_area.is_some(), "Status panel should be generated when enabled");
+
+        let status_rect = status_area.unwrap();
+        assert_eq!(status_rect.height, 3, "Status panel should be 3 lines high");
+        assert_eq!(status_rect.width, 100, "Status panel should span full width");
+        
+        // Status panel should be at the bottom
+        assert!(status_rect.y > 0, "Status panel should not be at top");
+    }
+
+    #[test]
+    fn test_status_panel_widget_creation() {
+        let config = MultiViewportConfig::default();
+        let renderer = MultiViewportRenderer::new(config);
+
+        // Test that status panel widget can be created
+        let status_widget = renderer.create_status_panel();
+        
+        // Can't easily inspect the paragraph content, but we can verify it doesn't panic
+        // In a real TUI test environment, we'd verify the text content and styling
+        assert!(true); // Widget created successfully
+    }
+
+    #[test]
+    fn test_status_panel_disabled() {
+        let mut config = MultiViewportConfig::default();
+        config.show_status = false; // Disable status panel
+        let renderer = MultiViewportRenderer::new(config);
+
+        let test_area = Rect {
+            x: 0,
+            y: 0,
+            width: 100,
+            height: 50,
+        };
+
+        let status_area = renderer.generate_status_panel(test_area);
+        assert!(status_area.is_none(), "Status panel should not be generated when disabled");
     }
 }

@@ -13,6 +13,7 @@ use crate::engine::{
     rendering::{
         AsciiFramebuffer, FramebufferConfig, GraphicsRenderer, VisualizationLayer, ascii_render,
         run_tui,
+        multi_viewport::{MultiViewportApp, MovementDirection},
     },
 };
 
@@ -47,6 +48,10 @@ pub struct WeatherDemoArgs {
     /// Use graphics mode (macroquad) instead of TUI
     #[arg(long)]
     pub graphics: bool,
+
+    /// Use multi-viewport TUI mode for simultaneous layer monitoring
+    #[arg(long)]
+    pub multi_viewport: bool,
 
     /// Physical scale of the domain in kilometers
     #[arg(long, default_value = "200.0")]
@@ -393,12 +398,21 @@ pub fn run_weather_demo() -> Result<(), Box<dyn std::error::Error>> {
         };
 
         macroquad::Window::from_config(window_config, run_graphics(sim));
+    } else if args.multi_viewport {
+        // Step 4c: Multi-viewport TUI mode - simultaneous layer monitoring
+        println!("Starting multi-viewport TUI mode...");
+        println!("Controls:");
+        println!("  Tab/Shift+Tab: Cycle between viewports");
+        println!("  1-4: Direct viewport selection");
+        println!("  WASD: Navigate active viewport (Shift for fast movement)");
+        println!("  Q or Esc: Quit");
+        run_multi_viewport_tui(sim)?;
     } else if args.ascii {
-        // Step 4b: Static ASCII render (legacy mode)
+        // Step 4d: Static ASCII render (legacy mode)
         ascii_render(&sim);
         println!("\nElevation data for weather testing");
     } else {
-        // Step 4c: Interactive TUI mode (default)
+        // Step 4e: Interactive TUI mode (default)
         println!("Starting interactive weather demo...");
         println!("Use WASD or arrow keys to navigate, Q or Esc to quit");
         run_tui(sim)?;
@@ -549,4 +563,119 @@ fn run_ascii_framebuffer_mode(
         // Small delay to prevent CPU spinning
         std::thread::sleep(std::time::Duration::from_millis(10));
     }
+}
+
+/// Run the multi-viewport TUI with complete event loop integration
+fn run_multi_viewport_tui(simulation: Simulation) -> Result<(), Box<dyn std::error::Error>> {
+    use crossterm::{
+        event::{self, Event, KeyCode, KeyEventKind, KeyModifiers},
+        execute,
+        terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    };
+    use ratatui::{
+        backend::CrosstermBackend,
+        Terminal,
+    };
+    use std::io;
+
+    // Initialize terminal
+    enable_raw_mode()?;
+    let mut stdout = io::stdout();
+    execute!(stdout, EnterAlternateScreen)?;
+    let backend = CrosstermBackend::new(stdout);
+    let mut terminal = Terminal::new(backend)?;
+
+    // Create multi-viewport application
+    let mut app = MultiViewportApp::new(simulation);
+
+    // Main event loop
+    let result = loop {
+        // Render current frame
+        terminal.draw(|frame| {
+            let area = frame.size();
+            
+            // Generate layout areas for 2x2 grid
+            let layout_areas = app.renderer.generate_2x2_layout(area);
+            
+            // Render each viewport
+            for (viewport_idx, viewport_area) in layout_areas.iter().enumerate() {
+                if viewport_idx < app.renderer.viewport_count() {
+                    // Get content for this viewport
+                    if let Some(content) = app.renderer.render_viewport_content(&app.simulation, viewport_idx) {
+                        // Create widget for this viewport
+                        let is_active = viewport_idx == app.renderer.get_active_viewport();
+                        let widget = app.renderer.create_viewport_widget(content, viewport_idx, is_active);
+                        
+                        // Render widget to frame
+                        frame.render_widget(widget, *viewport_area);
+                    }
+                }
+            }
+            
+            // Render status panel if enabled
+            if let Some(status_area) = app.renderer.generate_status_panel(area) {
+                let status_widget = app.renderer.create_status_panel();
+                frame.render_widget(status_widget, status_area);
+            }
+        })?;
+
+        // Handle events with timeout
+        if event::poll(std::time::Duration::from_millis(50))? {
+            if let Event::Key(key) = event::read()? {
+                if key.kind == KeyEventKind::Press {
+                    match key.code {
+                        // Quit keys
+                        KeyCode::Char('q') | KeyCode::Esc => break Ok(()),
+                        
+                        // Viewport cycling
+                        KeyCode::Tab => {
+                            if key.modifiers.contains(KeyModifiers::SHIFT) {
+                                app.cycle_previous_viewport();
+                            } else {
+                                app.cycle_next_viewport();
+                            }
+                        }
+                        
+                        // Direct viewport selection
+                        KeyCode::Char('1') => { app.select_viewport(0); }
+                        KeyCode::Char('2') => { app.select_viewport(1); }
+                        KeyCode::Char('3') => { app.select_viewport(2); }
+                        KeyCode::Char('4') => { app.select_viewport(3); }
+                        
+                        // WASD navigation
+                        KeyCode::Char('w') | KeyCode::Up => {
+                            let fast = key.modifiers.contains(KeyModifiers::SHIFT);
+                            app.handle_movement(MovementDirection::North, fast);
+                        }
+                        KeyCode::Char('s') | KeyCode::Down => {
+                            let fast = key.modifiers.contains(KeyModifiers::SHIFT);
+                            app.handle_movement(MovementDirection::South, fast);
+                        }
+                        KeyCode::Char('a') | KeyCode::Left => {
+                            let fast = key.modifiers.contains(KeyModifiers::SHIFT);
+                            app.handle_movement(MovementDirection::West, fast);
+                        }
+                        KeyCode::Char('d') | KeyCode::Right => {
+                            let fast = key.modifiers.contains(KeyModifiers::SHIFT);
+                            app.handle_movement(MovementDirection::East, fast);
+                        }
+                        
+                        _ => {} // Ignore other keys
+                    }
+                }
+            }
+        }
+        
+        // Check if app wants to quit
+        if app.should_quit {
+            break Ok(());
+        }
+    };
+
+    // Clean up terminal
+    disable_raw_mode()?;
+    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+    terminal.show_cursor()?;
+
+    result
 }
