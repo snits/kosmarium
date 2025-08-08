@@ -1,0 +1,21 @@
+=== THERMAL-PRESSURE COUPLING ANALYSIS ===
+Scale: 100x50, 10km physical size
+Heightmap: 100x50 flat terrain (elevation = 0.0)
+Temperature gradient applied: 30°C (left) → 10°C (right)
+
+=== TEST POINT ANALYSIS ===
+Warm side (x=10): 28.0°C, 101306 Pa
+Cool side (x=90): 12.0°C, 101330 Pa
+
+=== VARIATION ANALYSIS ===
+Temperature difference: 16.0°C (57.14%)
+Pressure difference: 24 Pa (0.0237%)
+Pressure/Temperature ratio: 0.0004
+
+=== PHYSICS VALIDATION ===
+Physics correct (warm air = lower pressure): true
+
+=== TEST EXPECTATION ANALYSIS ===
+Expected pressure variation range: 0.5714% to 114.29%
+Actual pressure variation: 0.0237%
+❌ FAIL: Pressure variation 0.0237% is too weak (< 0.5714%)
