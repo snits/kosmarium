@@ -915,14 +915,25 @@ impl Simulation {
     pub fn tick(&mut self) {
         // Performance instrumentation (enabled with PERF_TRACE environment variable)
         let perf_trace = std::env::var("PERF_TRACE").is_ok();
-        let tick_start = if perf_trace { Some(std::time::Instant::now()) } else { None };
+        let tick_start = if perf_trace {
+            Some(std::time::Instant::now())
+        } else {
+            None
+        };
 
         // Advance seasonal cycle
-        let climate_start = if perf_trace { Some(std::time::Instant::now()) } else { None };
+        let climate_start = if perf_trace {
+            Some(std::time::Instant::now())
+        } else {
+            None
+        };
         self.climate_system.tick();
         if let Some(start) = climate_start {
             if perf_trace {
-                eprintln!("PERF: climate_tick: {:.3}ms", start.elapsed().as_secs_f64() * 1000.0);
+                eprintln!(
+                    "PERF: climate_tick: {:.3}ms",
+                    start.elapsed().as_secs_f64() * 1000.0
+                );
             }
         }
 
@@ -938,8 +949,12 @@ impl Simulation {
 
         // Update temperature layer only when needed (slow changes)
         if self.tick_count - self.last_temperature_update >= TEMPERATURE_UPDATE_INTERVAL {
-            let temp_start = if perf_trace { Some(std::time::Instant::now()) } else { None };
-            
+            let temp_start = if perf_trace {
+                Some(std::time::Instant::now())
+            } else {
+                None
+            };
+
             #[cfg(feature = "simd")]
             {
                 // Use specialized optimization for common continental scale
@@ -959,13 +974,16 @@ impl Simulation {
                     .climate_system
                     .generate_temperature_layer_optimized(&self.heightmap);
             }
-            
+
             if let Some(start) = temp_start {
                 if perf_trace {
-                    eprintln!("PERF: temperature_generation: {:.3}ms", start.elapsed().as_secs_f64() * 1000.0);
+                    eprintln!(
+                        "PERF: temperature_generation: {:.3}ms",
+                        start.elapsed().as_secs_f64() * 1000.0
+                    );
                 }
             }
-            
+
             self.last_temperature_update = self.tick_count;
             temperature_updated = true;
             // Invalidate biome cache due to temperature changes
@@ -1025,8 +1043,12 @@ impl Simulation {
         // Water only needs updates every few ticks for realistic flow rates
         const WATER_FLOW_UPDATE_INTERVAL: u64 = 3; // Every ~18 minutes simulation time
         if self.tick_count % WATER_FLOW_UPDATE_INTERVAL == 0 {
-            let water_start = if perf_trace { Some(std::time::Instant::now()) } else { None };
-            
+            let water_start = if perf_trace {
+                Some(std::time::Instant::now())
+            } else {
+                None
+            };
+
             self.water_system
                 .update_water_flow_with_climate_and_drainage(
                     &mut self.heightmap,
@@ -1035,10 +1057,13 @@ impl Simulation {
                     &self.climate_system,
                     &self.drainage_network,
                 );
-                
+
             if let Some(start) = water_start {
                 if perf_trace {
-                    eprintln!("PERF: water_flow_update: {:.3}ms", start.elapsed().as_secs_f64() * 1000.0);
+                    eprintln!(
+                        "PERF: water_flow_update: {:.3}ms",
+                        start.elapsed().as_secs_f64() * 1000.0
+                    );
                 }
             }
         }
@@ -1050,20 +1075,30 @@ impl Simulation {
         // No more periodic "nuclear redistribution" - water flows gradually toward drainage areas
 
         // Update drainage network periodically to account for terrain changes from erosion
-        let drainage_start = if perf_trace { Some(std::time::Instant::now()) } else { None };
+        let drainage_start = if perf_trace {
+            Some(std::time::Instant::now())
+        } else {
+            None
+        };
         self.update_drainage_for_erosion();
         if let Some(start) = drainage_start {
             if perf_trace {
-                eprintln!("PERF: drainage_update: {:.3}ms", start.elapsed().as_secs_f64() * 1000.0);
+                eprintln!(
+                    "PERF: drainage_update: {:.3}ms",
+                    start.elapsed().as_secs_f64() * 1000.0
+                );
             }
         }
 
         self.tick_count += 1;
-        
+
         // Total tick timing
         if let Some(start) = tick_start {
             if perf_trace {
-                eprintln!("PERF: total_tick: {:.3}ms", start.elapsed().as_secs_f64() * 1000.0);
+                eprintln!(
+                    "PERF: total_tick: {:.3}ms",
+                    start.elapsed().as_secs_f64() * 1000.0
+                );
                 eprintln!("PERF: ---");
             }
         }

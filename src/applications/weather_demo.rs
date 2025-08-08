@@ -12,8 +12,8 @@ use crate::engine::{
     physics::{DiamondSquareConfig, DiamondSquareGenerator, TerrainGenerator},
     rendering::{
         AsciiFramebuffer, FramebufferConfig, GraphicsRenderer, VisualizationLayer, ascii_render,
+        multi_viewport::{MovementDirection, MultiViewportApp},
         run_tui,
-        multi_viewport::{MultiViewportApp, MovementDirection},
     },
 };
 
@@ -570,12 +570,9 @@ fn run_multi_viewport_tui(simulation: Simulation) -> Result<(), Box<dyn std::err
     use crossterm::{
         event::{self, Event, KeyCode, KeyEventKind, KeyModifiers},
         execute,
-        terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+        terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
     };
-    use ratatui::{
-        backend::CrosstermBackend,
-        Terminal,
-    };
+    use ratatui::{Terminal, backend::CrosstermBackend};
     use std::io;
 
     // Initialize terminal
@@ -593,25 +590,30 @@ fn run_multi_viewport_tui(simulation: Simulation) -> Result<(), Box<dyn std::err
         // Render current frame
         terminal.draw(|frame| {
             let area = frame.size();
-            
+
             // Generate layout areas for 2x2 grid
             let layout_areas = app.renderer.generate_2x2_layout(area);
-            
+
             // Render each viewport
             for (viewport_idx, viewport_area) in layout_areas.iter().enumerate() {
                 if viewport_idx < app.renderer.viewport_count() {
                     // Get content for this viewport
-                    if let Some(content) = app.renderer.render_viewport_content(&app.simulation, viewport_idx) {
+                    if let Some(content) = app
+                        .renderer
+                        .render_viewport_content(&app.simulation, viewport_idx)
+                    {
                         // Create widget for this viewport
                         let is_active = viewport_idx == app.renderer.get_active_viewport();
-                        let widget = app.renderer.create_viewport_widget(content, viewport_idx, is_active);
-                        
+                        let widget =
+                            app.renderer
+                                .create_viewport_widget(content, viewport_idx, is_active);
+
                         // Render widget to frame
                         frame.render_widget(widget, *viewport_area);
                     }
                 }
             }
-            
+
             // Render status panel if enabled
             if let Some(status_area) = app.renderer.generate_status_panel(area) {
                 let status_widget = app.renderer.create_status_panel();
@@ -626,7 +628,7 @@ fn run_multi_viewport_tui(simulation: Simulation) -> Result<(), Box<dyn std::err
                     match key.code {
                         // Quit keys
                         KeyCode::Char('q') | KeyCode::Esc => break Ok(()),
-                        
+
                         // Viewport cycling
                         KeyCode::Tab => {
                             if key.modifiers.contains(KeyModifiers::SHIFT) {
@@ -635,13 +637,21 @@ fn run_multi_viewport_tui(simulation: Simulation) -> Result<(), Box<dyn std::err
                                 app.cycle_next_viewport();
                             }
                         }
-                        
+
                         // Direct viewport selection
-                        KeyCode::Char('1') => { app.select_viewport(0); }
-                        KeyCode::Char('2') => { app.select_viewport(1); }
-                        KeyCode::Char('3') => { app.select_viewport(2); }
-                        KeyCode::Char('4') => { app.select_viewport(3); }
-                        
+                        KeyCode::Char('1') => {
+                            app.select_viewport(0);
+                        }
+                        KeyCode::Char('2') => {
+                            app.select_viewport(1);
+                        }
+                        KeyCode::Char('3') => {
+                            app.select_viewport(2);
+                        }
+                        KeyCode::Char('4') => {
+                            app.select_viewport(3);
+                        }
+
                         // WASD navigation
                         KeyCode::Char('w') | KeyCode::Up => {
                             let fast = key.modifiers.contains(KeyModifiers::SHIFT);
@@ -659,13 +669,13 @@ fn run_multi_viewport_tui(simulation: Simulation) -> Result<(), Box<dyn std::err
                             let fast = key.modifiers.contains(KeyModifiers::SHIFT);
                             app.handle_movement(MovementDirection::East, fast);
                         }
-                        
+
                         _ => {} // Ignore other keys
                     }
                 }
             }
         }
-        
+
         // Check if app wants to quit
         if app.should_quit {
             break Ok(());

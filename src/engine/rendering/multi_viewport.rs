@@ -321,29 +321,32 @@ impl MultiViewportRenderer {
             Span::styled("Q", Style::default().fg(Color::Yellow)),
             Span::raw("/"),
             Span::styled("Esc", Style::default().fg(Color::Yellow)),
-            Span::raw(": Quit")
+            Span::raw(": Quit"),
         ]);
 
         let status_line = Line::from(vec![
             Span::raw("Active: "),
             Span::styled(
-                format!("{} ({})", active_viewport_name, self.config.active_viewport + 1), 
-                Style::default().fg(Color::White)
+                format!(
+                    "{} ({})",
+                    active_viewport_name,
+                    self.config.active_viewport + 1
+                ),
+                Style::default().fg(Color::White),
             ),
             Span::raw(" • Viewports: "),
             Span::styled(
                 format!("{}", self.config.viewports.len()),
-                Style::default().fg(Color::Cyan)
+                Style::default().fg(Color::Cyan),
             ),
         ]);
 
-        Paragraph::new(vec![keybinding_line1, status_line])
-            .block(
-                Block::default()
-                    .title("Controls & Status")
-                    .borders(Borders::ALL)
-                    .border_style(Style::default().fg(Color::Blue))
-            )
+        Paragraph::new(vec![keybinding_line1, status_line]).block(
+            Block::default()
+                .title("Controls & Status")
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(Color::Blue)),
+        )
     }
 
     /// Render single viewport with ASCII framebuffer data
@@ -935,12 +938,18 @@ mod tests {
         };
 
         let status_area = renderer.generate_status_panel(test_area);
-        assert!(status_area.is_some(), "Status panel should be generated when enabled");
+        assert!(
+            status_area.is_some(),
+            "Status panel should be generated when enabled"
+        );
 
         let status_rect = status_area.unwrap();
         assert_eq!(status_rect.height, 3, "Status panel should be 3 lines high");
-        assert_eq!(status_rect.width, 100, "Status panel should span full width");
-        
+        assert_eq!(
+            status_rect.width, 100,
+            "Status panel should span full width"
+        );
+
         // Status panel should be at the bottom
         assert!(status_rect.y > 0, "Status panel should not be at top");
     }
@@ -952,7 +961,7 @@ mod tests {
 
         // Test that status panel widget can be created
         let status_widget = renderer.create_status_panel();
-        
+
         // Can't easily inspect the paragraph content, but we can verify it doesn't panic
         // In a real TUI test environment, we'd verify the text content and styling
         assert!(true); // Widget created successfully
@@ -972,6 +981,9 @@ mod tests {
         };
 
         let status_area = renderer.generate_status_panel(test_area);
-        assert!(status_area.is_none(), "Status panel should not be generated when disabled");
+        assert!(
+            status_area.is_none(),
+            "Status panel should not be generated when disabled"
+        );
     }
 }
