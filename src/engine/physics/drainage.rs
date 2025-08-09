@@ -347,6 +347,8 @@ impl ScaleAware for DrainageNetworkParameters {
     fn derive_parameters(&self, scale: &WorldScale) -> Self {
         let total_cells = scale.resolution.0 * scale.resolution.1;
         let scale_factor = total_cells as f32 / (240.0 * 120.0); // Relative to reference size
+        let meters_per_pixel = scale.meters_per_pixel() as f32;
+        let physical_size_km = scale.physical_size_km as f32;
 
         Self {
             // Scale thresholds proportionally to map size
@@ -354,9 +356,18 @@ impl ScaleAware for DrainageNetworkParameters {
             major_river_threshold: self.major_river_threshold * scale_factor,
             lake_accumulation_threshold: self.lake_accumulation_threshold * scale_factor,
 
-            // Concentration and depth parameters remain constant
-            concentration_factor: self.concentration_factor,
-            permanent_water_threshold: self.permanent_water_threshold,
+            // ScaleAware concentration and depth parameters
+            // Concentration factor scales with domain connectivity: larger domains need less concentration
+            concentration_factor: {
+                let connectivity_factor = (physical_size_km / 100.0).ln().max(1.0).min(3.0); // 1.0-3.0
+                self.concentration_factor / connectivity_factor
+            },
+
+            // Permanent water threshold scales with resolution: finer grids need lower thresholds
+            permanent_water_threshold: {
+                let resolution_factor = (meters_per_pixel / 100.0).max(0.1).min(10.0); // 0.1-10.0
+                self.permanent_water_threshold * resolution_factor
+            },
         }
     }
 }

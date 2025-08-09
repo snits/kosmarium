@@ -2,19 +2,61 @@
 // ABOUTME: Implements elevation-based temperature gradients with scale-aware parameters
 
 use super::super::core::PhysicsGrid;
-use super::super::core::scale::{ScaleAware, WorldScale};
+use super::super::core::scale::{REFERENCE_SCALE, ScaleAware, WorldScale};
 use super::water::Vec2;
 
 /// Helper function to determine pressure bounds based on domain scale
 /// Continental domains need wider pressure ranges for realistic weather systems
-fn get_pressure_bounds(scale: &WorldScale) -> (f32, f32) {
-    if scale.physical_size_km > 1000.0 {
-        // Continental scale: wider pressure range for large-scale weather systems
-        (30000.0, 120000.0) // 300-1200 hPa
-    } else {
-        // Regional scale: standard atmospheric range
-        (50000.0, 110000.0) // 500-1100 hPa
+/// ScaleAware pressure bounds parameters for atmospheric systems
+#[derive(Clone, Debug)]
+pub struct PressureBoundsParameters {
+    /// Base minimum pressure for regional domains (Pa)
+    pub base_min_pressure: f32,
+    /// Base maximum pressure for regional domains (Pa)
+    pub base_max_pressure: f32,
+    /// Expansion factor for larger domains
+    pub continental_expansion_factor: f32,
+}
+
+impl Default for PressureBoundsParameters {
+    fn default() -> Self {
+        Self {
+            base_min_pressure: 50000.0,        // 500 hPa
+            base_max_pressure: 110000.0,       // 1100 hPa
+            continental_expansion_factor: 0.3, // 30% expansion for large domains
+        }
     }
+}
+
+impl ScaleAware for PressureBoundsParameters {
+    fn derive_parameters(&self, scale: &WorldScale) -> Self {
+        let physical_extent_km = scale.physical_size_km as f32;
+
+        // Logarithmic scaling for smooth transition from regional to continental
+        // Avoids the step function artifact at arbitrary thresholds
+        let scale_factor = (physical_extent_km / 100.0).ln().max(1.0).min(3.0);
+        let expansion_ratio = (scale_factor - 1.0) / 2.0; // 0.0 to 1.0 range
+
+        Self {
+            base_min_pressure: self.base_min_pressure
+                * (1.0 - self.continental_expansion_factor * expansion_ratio),
+            base_max_pressure: self.base_max_pressure
+                * (1.0 + self.continental_expansion_factor * 0.3 * expansion_ratio),
+            continental_expansion_factor: self.continental_expansion_factor,
+        }
+    }
+}
+
+impl PressureBoundsParameters {
+    /// Get the pressure bounds tuple for this scale
+    pub fn get_bounds(&self) -> (f32, f32) {
+        (self.base_min_pressure, self.base_max_pressure)
+    }
+}
+
+fn get_pressure_bounds(scale: &WorldScale) -> (f32, f32) {
+    let params = PressureBoundsParameters::default().derive_parameters(scale);
+    params.get_bounds()
 }
 
 /// Core temperature data layer
@@ -281,7 +323,10 @@ impl ScaleAware for ClimateParameters {
             pressure_temperature_coupling: {
                 let domain_scaling = (physical_extent_km / 100.0).min(3.0);
                 // Reduce coupling for fine resolution to prevent mesoscale pressure artifacts
-                let resolution_scaling = (meters_per_pixel / 50000.0).sqrt().max(0.3);
+                // Use ScaleAware reference: reference scale at ~100km domain size gives ~416m/pixel
+                let reference_resolution =
+                    100.0 * 1000.0 / REFERENCE_SCALE.0.max(REFERENCE_SCALE.1) as f32;
+                let resolution_scaling = (meters_per_pixel / reference_resolution).sqrt().max(0.3);
                 self.pressure_temperature_coupling * domain_scaling * resolution_scaling
             },
 

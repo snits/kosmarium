@@ -83,10 +83,26 @@ impl Default for WaterFlowParameters {
 }
 
 impl ScaleAware for WaterFlowParameters {
-    fn derive_parameters(&self, _scale: &WorldScale) -> Self {
-        // For now, most parameters don't scale - just return copy
-        // Future enhancement: could scale flow_rate based on meters_per_pixel, etc.
-        self.clone()
+    fn derive_parameters(&self, scale: &WorldScale) -> Self {
+        let grid_spacing_m = scale.meters_per_pixel() as f32;
+        let physical_size_km = scale.physical_size_km as f32;
+
+        // ScaleAware CFL parameters - scale with grid resolution and domain size
+        // Larger grids need longer timesteps, larger domains allow longer timesteps
+        let domain_factor = (physical_size_km / 100.0).ln().max(1.0).min(4.0); // 1.0-4.0 range
+        let resolution_factor = grid_spacing_m / 100.0; // Reference: 100m/pixel
+
+        Self {
+            flow_rate: self.flow_rate,
+            evaporation_rate: self.evaporation_rate,
+            erosion_strength: self.erosion_strength,
+            deposition_rate: self.deposition_rate,
+            base_rainfall_rate: self.base_rainfall_rate,
+            rainfall_scaling: self.rainfall_scaling.clone(),
+            // ScaleAware CFL parameters instead of hardcoded bounds
+            max_expected_velocity_ms: self.max_expected_velocity_ms,
+            cfl_safety_factor: self.cfl_safety_factor * (1.0 + 0.1 * (domain_factor - 1.0)), // Slightly more conservative for larger domains
+        }
     }
 }
 
@@ -143,10 +159,19 @@ impl WaterFlowSystem {
         // CFL condition with safety factor
         let cfl_timestep = params.cfl_safety_factor * dx / max_velocity;
 
-        // Scale-aware bounds based on grid resolution for continental domains
+        // ScaleAware bounds - smooth scaling without hardcoded thresholds
+        let physical_size_km = scale.physical_size_km as f32;
         let grid_spacing_m = scale.meters_per_pixel() as f32;
-        let min_timestep = (grid_spacing_m / 100000.0).max(0.001).min(10.0);
-        let max_timestep = (grid_spacing_m / 10.0).max(60.0).min(3600.0);
+
+        // Domain-aware scaling: larger domains can support longer timesteps
+        let domain_scale_factor = (physical_size_km / 100.0).ln().max(1.0).min(4.0); // 1.0-4.0
+
+        // Resolution-aware scaling: coarser grids need longer minimum timesteps
+        let base_min_timestep = 0.001; // 1ms base for fine grids
+        let base_max_timestep = 60.0; // 1 minute base for small domains
+
+        let min_timestep = base_min_timestep * (grid_spacing_m / 10.0).max(1.0); // Scale with resolution
+        let max_timestep = base_max_timestep * domain_scale_factor; // Scale with domain size
 
         cfl_timestep.max(min_timestep).min(max_timestep)
     }

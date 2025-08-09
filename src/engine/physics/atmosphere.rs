@@ -24,10 +24,10 @@ impl Default for CoordinateMappingParameters {
     fn default() -> Self {
         Self {
             // Default: moderate latitude range centered at mid-latitude
-            latitude_range_degrees: 10.0,        // 10 degrees total range
-            center_latitude_degrees: 45.0,       // 45°N center (realistic for most landmasses)
-            momentum_threshold_base: 10.0,       // 10 m/s base momentum per cell
-            momentum_scaling_factor: 1.0,        // Linear scaling baseline
+            latitude_range_degrees: 10.0,  // 10 degrees total range
+            center_latitude_degrees: 45.0, // 45°N center (realistic for most landmasses)
+            momentum_threshold_base: 10.0, // 10 m/s base momentum per cell
+            momentum_scaling_factor: 1.0,  // Linear scaling baseline
         }
     }
 }
@@ -35,14 +35,14 @@ impl Default for CoordinateMappingParameters {
 impl ScaleAware for CoordinateMappingParameters {
     fn derive_parameters(&self, scale: &WorldScale) -> Self {
         let physical_size_km = scale.physical_size_km;
-        
+
         // Use continuous scaling functions instead of step thresholds to eliminate jumps
         // This ensures smooth transitions across all domain sizes
-        
+
         // Latitude range scales realistically from local to global
         // Based on physical geography:
         // - Local (1km): 2° range (city scale)
-        // - Regional (100km): ~5° range (state scale)  
+        // - Regional (100km): ~5° range (state scale)
         // - Continental (1000-8000km): 8-20° range (continental scale)
         // - Global (20000km): Full 180° range
         let latitude_range = if physical_size_km >= 15000.0 {
@@ -61,7 +61,7 @@ impl ScaleAware for CoordinateMappingParameters {
             let log_factor = (physical_size_km / 1.0).ln() / (1000.0f64 / 1.0f64).ln();
             2.0 + 6.0 * log_factor.powf(0.5) // Gentler curve for small domains
         };
-        
+
         // Center latitude: continental domains centered at mid-latitude, global at equator
         let center_lat = if physical_size_km >= 15000.0 {
             0.0 // Global domains centered at equator for full coverage
@@ -77,7 +77,9 @@ impl ScaleAware for CoordinateMappingParameters {
             latitude_range_degrees: latitude_range,
             center_latitude_degrees: center_lat,
             momentum_threshold_base: self.momentum_threshold_base,
-            momentum_scaling_factor: self.momentum_scaling_factor * cell_count_factor * domain_size_factor,
+            momentum_scaling_factor: self.momentum_scaling_factor
+                * cell_count_factor
+                * domain_size_factor,
         }
     }
 }
@@ -290,26 +292,23 @@ impl WindLayer {
 
         // Apply atmospheric outflow boundary conditions instead of zero-gradient extrapolation
         // This allows winds to naturally exit the domain and prevents artifact formation
-        
+
         // North boundary (y = 0): Natural atmospheric boundary conditions
         for x in 0..width {
             if height > 1 {
                 let interior_velocity = self.velocity.get(x, 1).clone();
-                
+
                 // For continental domains, use realistic boundary conditions
                 // that don't create artificial horizontal banding
                 let outflow_velocity = if interior_velocity.y < 0.0 {
                     // Outward flow (southward): allow natural exit with minimal damping
-                    Vec2::new(
-                        interior_velocity.x * 0.8,
-                        interior_velocity.y * 0.8
-                    )
+                    Vec2::new(interior_velocity.x * 0.8, interior_velocity.y * 0.8)
                 } else {
                     // Inward flow (northward): prevent unrealistic flow into boundary
                     // but don't force artificial horizontal flow
                     Vec2::new(
                         interior_velocity.x * 0.5,
-                        0.0  // Zero normal component to prevent boundary flow
+                        0.0, // Zero normal component to prevent boundary flow
                     )
                 };
                 self.velocity.set(x, 0, outflow_velocity);
@@ -320,19 +319,16 @@ impl WindLayer {
         for x in 0..width {
             if height > 1 {
                 let interior_velocity = self.velocity.get(x, height - 2).clone();
-                
+
                 // For continental domains, use realistic boundary conditions
                 let outflow_velocity = if interior_velocity.y > 0.0 {
                     // Outward flow (northward): allow natural exit with minimal damping
-                    Vec2::new(
-                        interior_velocity.x * 0.8,
-                        interior_velocity.y * 0.8
-                    )
+                    Vec2::new(interior_velocity.x * 0.8, interior_velocity.y * 0.8)
                 } else {
                     // Inward flow (southward): prevent unrealistic flow into boundary
                     Vec2::new(
                         interior_velocity.x * 0.5,
-                        0.0  // Zero normal component to prevent boundary flow
+                        0.0, // Zero normal component to prevent boundary flow
                     )
                 };
                 self.velocity.set(x, height - 1, outflow_velocity);
@@ -346,7 +342,7 @@ impl WindLayer {
                 let outflow_damping = 0.7;
                 let outflow_velocity = Vec2::new(
                     interior_velocity.x * outflow_damping,
-                    interior_velocity.y * outflow_damping
+                    interior_velocity.y * outflow_damping,
                 );
                 self.velocity.set(0, y, outflow_velocity);
             }
@@ -359,7 +355,7 @@ impl WindLayer {
                 let outflow_damping = 0.7;
                 let outflow_velocity = Vec2::new(
                     interior_velocity.x * outflow_damping,
-                    interior_velocity.y * outflow_damping
+                    interior_velocity.y * outflow_damping,
                 );
                 self.velocity.set(width - 1, y, outflow_velocity);
             }
@@ -656,7 +652,7 @@ impl AtmosphericSystem {
     /// Convert grid coordinates to latitude (ScaleAware - no hardcoded thresholds)
     pub fn grid_y_to_latitude(&self, y: usize, height: usize) -> f64 {
         let coord_params = &self.parameters.coordinate_mapping;
-        
+
         // Calculate normalized Y position (0 = north, 1 = south)
         let normalized_y = if height > 1 {
             (y as f64) / ((height - 1) as f64)
@@ -670,7 +666,7 @@ impl AtmosphericSystem {
 
         // Map normalized Y to latitude range around center
         // For global scale: center=0° (equator), range=180° gives full ±90° coverage
-        // For regional scale: center=45°N, range=10° gives 40°N to 50°N coverage  
+        // For regional scale: center=45°N, range=10° gives 40°N to 50°N coverage
         // Note: y=0 (north) should have higher latitude than y=height-1 (south)
         let latitude_offset = (0.5 - normalized_y) * range_rad;
         center_lat_rad + latitude_offset
@@ -847,11 +843,11 @@ impl AtmosphericSystem {
     /// Uses derived parameters instead of hardcoded domain size thresholds
     fn calculate_momentum_conservation_threshold(&self, _total_cells: f32) -> f32 {
         let coord_params = &self.parameters.coordinate_mapping;
-        
+
         // Use ScaleAware parameters for momentum threshold calculation
         let base_threshold = coord_params.momentum_threshold_base;
         let scaling_factor = coord_params.momentum_scaling_factor;
-        
+
         // Apply cell count scaling (already computed in derive_parameters)
         base_threshold * scaling_factor
     }
@@ -1115,62 +1111,110 @@ mod tests {
         // Test ScaleAware coordinate mapping eliminates hardcoded thresholds
         // and works correctly across all domain sizes (1km to 40,000km)
         use crate::engine::core::scale::{DetailLevel, WorldScale};
-        
+
         // Test scales from local to global
         let test_scales = vec![
-            ("Local", WorldScale::new(1.0, (50, 50), DetailLevel::Standard)),          // 1km
-            ("City", WorldScale::new(50.0, (100, 100), DetailLevel::Standard)),        // 50km  
-            ("Regional", WorldScale::new(500.0, (200, 200), DetailLevel::Standard)),    // 500km
-            ("Continental", WorldScale::new(3000.0, (300, 300), DetailLevel::Standard)), // 3000km
-            ("Large Continental", WorldScale::new(8000.0, (400, 400), DetailLevel::Standard)), // 8000km
-            ("Global", WorldScale::new(20000.0, (500, 500), DetailLevel::Standard)),   // 20,000km
-            ("Planetary", WorldScale::new(40000.0, (600, 600), DetailLevel::Standard)), // 40,000km
+            (
+                "Local",
+                WorldScale::new(1.0, (50, 50), DetailLevel::Standard),
+            ), // 1km
+            (
+                "City",
+                WorldScale::new(50.0, (100, 100), DetailLevel::Standard),
+            ), // 50km
+            (
+                "Regional",
+                WorldScale::new(500.0, (200, 200), DetailLevel::Standard),
+            ), // 500km
+            (
+                "Continental",
+                WorldScale::new(3000.0, (300, 300), DetailLevel::Standard),
+            ), // 3000km
+            (
+                "Large Continental",
+                WorldScale::new(8000.0, (400, 400), DetailLevel::Standard),
+            ), // 8000km
+            (
+                "Global",
+                WorldScale::new(20000.0, (500, 500), DetailLevel::Standard),
+            ), // 20,000km
+            (
+                "Planetary",
+                WorldScale::new(40000.0, (600, 600), DetailLevel::Standard),
+            ), // 40,000km
         ];
 
         for (scale_name, scale) in test_scales {
-            println!("Testing {} scale ({}km)", scale_name, scale.physical_size_km);
-            
+            println!(
+                "Testing {} scale ({}km)",
+                scale_name, scale.physical_size_km
+            );
+
             let atmospheric_system = AtmosphericSystem::new_for_scale(&scale);
             let coord_params = &atmospheric_system.parameters.coordinate_mapping;
-            
+
             // Verify coordinate parameters make physical sense for each scale
-            assert!(coord_params.latitude_range_degrees > 0.0, 
-                "Latitude range must be positive for {} scale", scale_name);
-            assert!(coord_params.latitude_range_degrees <= 180.0, 
-                "Latitude range cannot exceed 180° for {} scale", scale_name);
-            assert!(coord_params.center_latitude_degrees.abs() <= 90.0,
-                "Center latitude must be valid for {} scale", scale_name);
-            
+            assert!(
+                coord_params.latitude_range_degrees > 0.0,
+                "Latitude range must be positive for {} scale",
+                scale_name
+            );
+            assert!(
+                coord_params.latitude_range_degrees <= 180.0,
+                "Latitude range cannot exceed 180° for {} scale",
+                scale_name
+            );
+            assert!(
+                coord_params.center_latitude_degrees.abs() <= 90.0,
+                "Center latitude must be valid for {} scale",
+                scale_name
+            );
+
             // Test coordinate mapping at different grid positions
             let height = scale.resolution.1 as usize;
             let north_lat = atmospheric_system.grid_y_to_latitude(0, height);
-            let center_lat = atmospheric_system.grid_y_to_latitude(height/2, height);
-            let south_lat = atmospheric_system.grid_y_to_latitude(height-1, height);
-            
-            // Verify latitude ordering (north > center > south) 
-            assert!(north_lat > south_lat, 
-                "North latitude must be greater than south for {} scale", scale_name);
-            
-            // Verify latitudes are within valid Earth range
-            assert!(north_lat.abs() <= std::f64::consts::PI/2.0 + 0.01, 
-                "North latitude must be valid (≤90°) for {} scale: {:.1}°", 
-                scale_name, north_lat * 180.0 / std::f64::consts::PI);
-            assert!(south_lat.abs() <= std::f64::consts::PI/2.0 + 0.01, 
-                "South latitude must be valid (≤90°) for {} scale: {:.1}°", 
-                scale_name, south_lat * 180.0 / std::f64::consts::PI);
-            
-            // Verify momentum thresholds scale appropriately
-            let momentum_threshold = atmospheric_system.calculate_momentum_conservation_threshold(
-                scale.total_cells() as f32
+            let center_lat = atmospheric_system.grid_y_to_latitude(height / 2, height);
+            let south_lat = atmospheric_system.grid_y_to_latitude(height - 1, height);
+
+            // Verify latitude ordering (north > center > south)
+            assert!(
+                north_lat > south_lat,
+                "North latitude must be greater than south for {} scale",
+                scale_name
             );
-            assert!(momentum_threshold > 0.0, 
-                "Momentum threshold must be positive for {} scale", scale_name);
-            
-            println!("  ✓ {} scale: lat_range={:.1}°, center={:.1}°, momentum_threshold={:.1} m/s", 
-                scale_name, coord_params.latitude_range_degrees, 
-                coord_params.center_latitude_degrees, momentum_threshold);
+
+            // Verify latitudes are within valid Earth range
+            assert!(
+                north_lat.abs() <= std::f64::consts::PI / 2.0 + 0.01,
+                "North latitude must be valid (≤90°) for {} scale: {:.1}°",
+                scale_name,
+                north_lat * 180.0 / std::f64::consts::PI
+            );
+            assert!(
+                south_lat.abs() <= std::f64::consts::PI / 2.0 + 0.01,
+                "South latitude must be valid (≤90°) for {} scale: {:.1}°",
+                scale_name,
+                south_lat * 180.0 / std::f64::consts::PI
+            );
+
+            // Verify momentum thresholds scale appropriately
+            let momentum_threshold = atmospheric_system
+                .calculate_momentum_conservation_threshold(scale.total_cells() as f32);
+            assert!(
+                momentum_threshold > 0.0,
+                "Momentum threshold must be positive for {} scale",
+                scale_name
+            );
+
+            println!(
+                "  ✓ {} scale: lat_range={:.1}°, center={:.1}°, momentum_threshold={:.1} m/s",
+                scale_name,
+                coord_params.latitude_range_degrees,
+                coord_params.center_latitude_degrees,
+                momentum_threshold
+            );
         }
-        
+
         println!("✓ ScaleAware coordinate mapping works correctly across all scales");
         println!("✓ No hardcoded thresholds - all parameters derived from WorldScale");
     }
@@ -1179,51 +1223,61 @@ mod tests {
     fn test_coordinate_mapping_consistency_across_scales() {
         // Verify that coordinate mapping produces consistent physics across scale transitions
         // This ensures no sudden jumps in behavior at arbitrary thresholds
-        
+
         use crate::engine::core::scale::{DetailLevel, WorldScale};
-        
+
         // Test scales around traditional threshold boundaries
         let boundary_test_scales = vec![
-            WorldScale::new(99.0, (100, 100), DetailLevel::Standard),   // Just below 100km
-            WorldScale::new(101.0, (100, 100), DetailLevel::Standard),  // Just above 100km  
-            WorldScale::new(999.0, (200, 200), DetailLevel::Standard),  // Just below 1000km
+            WorldScale::new(99.0, (100, 100), DetailLevel::Standard), // Just below 100km
+            WorldScale::new(101.0, (100, 100), DetailLevel::Standard), // Just above 100km
+            WorldScale::new(999.0, (200, 200), DetailLevel::Standard), // Just below 1000km
             WorldScale::new(1001.0, (200, 200), DetailLevel::Standard), // Just above 1000km
             WorldScale::new(4999.0, (300, 300), DetailLevel::Standard), // Just below 5000km (old threshold)
             WorldScale::new(5001.0, (300, 300), DetailLevel::Standard), // Just above 5000km (old threshold)
         ];
-        
+
         let mut previous_lat_range = 0.0;
         let mut previous_momentum_factor = 0.0;
-        
+
         for scale in boundary_test_scales {
             let atmospheric_system = AtmosphericSystem::new_for_scale(&scale);
             let coord_params = &atmospheric_system.parameters.coordinate_mapping;
-            
+
             let current_lat_range = coord_params.latitude_range_degrees;
             let current_momentum_factor = coord_params.momentum_scaling_factor;
-            
+
             if previous_lat_range > 0.0 {
                 // Verify smooth transitions - no sudden jumps
                 let lat_range_ratio = current_lat_range / previous_lat_range;
                 let momentum_ratio = current_momentum_factor / previous_momentum_factor;
-                
+
                 // Ratios should be reasonable (not sudden 2x+ jumps)
-                assert!(lat_range_ratio >= 0.5 && lat_range_ratio <= 3.0,
-                    "Latitude range transition too abrupt: {:.1} to {:.1} (ratio {:.2})", 
-                    previous_lat_range, current_lat_range, lat_range_ratio);
-                    
-                assert!(momentum_ratio >= 0.5 && momentum_ratio <= 3.0,
-                    "Momentum scaling transition too abrupt: {:.2} to {:.2} (ratio {:.2})", 
-                    previous_momentum_factor, current_momentum_factor, momentum_ratio);
+                assert!(
+                    lat_range_ratio >= 0.5 && lat_range_ratio <= 3.0,
+                    "Latitude range transition too abrupt: {:.1} to {:.1} (ratio {:.2})",
+                    previous_lat_range,
+                    current_lat_range,
+                    lat_range_ratio
+                );
+
+                assert!(
+                    momentum_ratio >= 0.5 && momentum_ratio <= 3.0,
+                    "Momentum scaling transition too abrupt: {:.2} to {:.2} (ratio {:.2})",
+                    previous_momentum_factor,
+                    current_momentum_factor,
+                    momentum_ratio
+                );
             }
-            
+
             previous_lat_range = current_lat_range;
             previous_momentum_factor = current_momentum_factor;
-            
-            println!("Scale {}km: lat_range={:.1}°, momentum_factor={:.2}", 
-                scale.physical_size_km, current_lat_range, current_momentum_factor);
+
+            println!(
+                "Scale {}km: lat_range={:.1}°, momentum_factor={:.2}",
+                scale.physical_size_km, current_lat_range, current_momentum_factor
+            );
         }
-        
+
         println!("✓ Coordinate mapping transitions are smooth - no hardcoded threshold artifacts");
     }
 }
