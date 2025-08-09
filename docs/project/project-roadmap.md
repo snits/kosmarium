@@ -14,11 +14,22 @@ ABOUTME: Tracks what's been tried, what worked, and what to investigate next
 - [x] **Diagnostic Infrastructure**: --stats mode with quantitative scale metrics and threshold validation
 - [x] **Terminal-Based Monitoring**: Efficient debugging without graphics rendering overhead
 
-### Active Priority - Complete Phase 1 Scale-Aware Fixes
-- [ ] **Remove atmospheric pressure clamping** (50-110 kPa → 30-120 kPa for continental domains)
-- [ ] **Implement scale-aware CFL timestep bounds** (fix hardcoded 0.001-60.0 second limits)  
-- [ ] **Scale drainage system thresholds** (river_accumulation_threshold: 100.0 too high for 8km/pixel)
-- [ ] **Validate fixes eliminate horizontal blue wind bands** using ASCII framebuffer monitoring
+### Recently Completed - **✅ COMPREHENSIVE SCALEAWARE ARCHITECTURE OVERHAUL**
+- [x] **Systematic hardcoded threshold elimination COMPLETE** - Systems-architect comprehensive audit and conversion
+  - **Pressure bounds step function removed** - 1000km discontinuity replaced with continuous ScaleAware scaling
+  - **CFL timestep bounds made ScaleAware** - Domain and resolution-aware scaling replaces hardcoded 0.001-60.0s limits
+  - **Drainage constants converted** - concentration_factor and permanent_water_threshold now scale properly
+  - **Climate coupling references fixed** - REFERENCE_SCALE-derived calculations replace hardcoded 50000.0 value
+  - **Architecture milestone achieved** - ALL arbitrary thresholds throughout physics systems now ScaleAware
+
+### Active Priority - **⚠️ PERSISTENT WIND BAND DEBUGGING**
+- [x] **~~Remove atmospheric pressure clamping~~** ✅ **COMPLETED** - Continuous ScaleAware pressure bounds implemented
+- [x] **~~Implement scale-aware CFL timestep bounds~~** ✅ **COMPLETED** - Domain and resolution-aware scaling
+- [x] **~~Scale drainage system thresholds~~** ✅ **COMPLETED** - All drainage constants now ScaleAware
+- [ ] **🚨 INVESTIGATE REMAINING WIND BAND CAUSES** - Artifact persists despite systematic ScaleAware conversion
+  - **Complex multi-factor issue**: Step functions eliminated but artifact remains
+  - **Water accumulation coupling**: May be related to atmospheric-hydrological interactions
+  - **Fresh debugging approach needed**: Current systematic fixes insufficient
 
 ### Active Experiments
 

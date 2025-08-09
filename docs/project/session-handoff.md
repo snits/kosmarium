@@ -10,7 +10,7 @@ ABOUTME: Tracks active development state for smooth transitions between sessions
 - **Current Branch**: main (all features merged and validated)
   - **Key Progress**: Multi-viewport TUI system complete + Performance instrumentation + Atmospheric physics fixes
   - **Status**: Complete multi-viewport scientific analysis interface + Performance optimizations implemented
-- **Last Session Focus**: Multi-viewport TUI implementation + Performance optimization + Atmospheric physics corrections
+- **Last Session Focus**: Project cleanup + Documentation restructure + Commit discipline restoration
 - **System Status**: ✅ **PRODUCTION READY** - Full-featured TUI, optimized performance, corrected atmospheric physics
 
 ### System Status
@@ -21,22 +21,39 @@ ABOUTME: Tracks active development state for smooth transitions between sessions
 - **Performance**: ✅ Excellent (>350 ticks/10s on 240x120, graphics mode smooth at 4096km scale)
 - **Multi-Viewport TUI**: ✅ Complete with keybinding legend and status panel
 
-### Recently Completed (This Session) - **✅ MULTI-VIEWPORT TUI + PERFORMANCE OPTIMIZATION COMPLETE**
-- ✅ **MULTI-VIEWPORT TUI SYSTEM COMPLETE** (Full TDD Implementation)
-  - **Complete 2x2 grid layout**: Simultaneous monitoring of elevation, temperature, pressure, wind data layers
-  - **Tab navigation system**: Tab/Shift+Tab viewport cycling + 1-4 direct selection + visual active indication
-  - **WASD navigation**: Independent viewport navigation with Shift for fast movement + boundary handling
-  - **CLI integration**: `--multi-viewport` flag with complete ratatui event loop integration
-  - **Keybinding legend**: Status panel with color-coded controls and active viewport status
-  - **18 comprehensive tests**: All TDD methodology with complete coverage of functionality
-- ✅ **PERFORMANCE OPTIMIZATION IMPLEMENTED**
-  - **Performance instrumentation**: PERF_TRACE=1 provides detailed subsystem timing (climate, temperature, water, drainage)
-  - **Major optimizations verified**: water.depth.clone() elimination + PhysicsGrid flat arrays already implemented by performance team
-  - **Current performance**: >350 ticks in 10 seconds on 240x120 grid (excellent for real-time use)
-- ✅ **ATMOSPHERIC PHYSICS CORRECTIONS**
-  - **Coriolis scale fix**: CONTINENTAL_THRESHOLD_KM increased from 1000km to 5000km
-  - **Blue wind band artifact eliminated**: Fixed inappropriate global-scale latitude mapping for continental domains
-  - **Atmospheric-physicist validation**: Confirmed realistic continental-scale geostrophic circulation patterns
+### Recently Completed (This Session) - **✅ COMPREHENSIVE SCALEAWARE ARCHITECTURE CONVERSION**
+- ✅ **SYSTEMATIC HARDCODED THRESHOLD ELIMINATION** (Systems-architect comprehensive audit)
+  - **Pressure bounds step function**: Replaced 1000km step function with continuous ScaleAware PressureBoundsParameters
+  - **CFL timestep bounds**: Converted hardcoded 0.001-60.0s limits to domain and resolution-aware scaling
+  - **Drainage constants**: Made concentration_factor and permanent_water_threshold ScaleAware with connectivity/resolution scaling
+  - **Climate coupling references**: Replaced hardcoded 50000.0 with REFERENCE_SCALE-derived calculations
+  - **Architecture achievement**: Eliminated ALL arbitrary hardcoded thresholds throughout physics systems
+- ⚠️ **WIND BAND ARTIFACT STATUS**: **STILL PERSISTS** despite systematic ScaleAware conversion
+  - **Issue complexity**: Multiple contributing factors beyond identified step functions
+  - **Additional symptoms**: Water accumulation problems also observed
+  - **Next session priority**: Fresh debugging approach needed to identify remaining root causes
+- ✅ **SCALEAWARE ARCHITECTURE EXTENDED** 
+  - **Coordinate mapping**: Atmospheric physics now uses WorldScale trait system for latitude/longitude calculations
+  - **Boundary conditions**: Flow-aware outflow handling prevents artificial horizontal wind patterns
+  - **Momentum conservation**: System stability improved (865,557 m/s → 205,004 m/s total momentum)
+  - **Domain scaling**: Continental-scale simulations (4096km, 8192km) now have proper atmospheric physics
+
+### Previously Completed - **✅ PROJECT CLEANUP & ORGANIZATIONAL RESTRUCTURE COMPLETE**
+- ✅ **SYSTEMATIC COMMIT CLEANUP** (All uncommitted work resolved)
+  - **900+ lines of code changes committed**: Physics engine improvements, multi-viewport enhancements, weather demo updates
+  - **Test infrastructure updates**: Water mass balance validation, energy conservation tests, performance baseline validation
+  - **Documentation synchronization**: Architecture decisions, development standards, project roadmaps updated
+  - **Proper commit discipline restored**: 6 logical commits with clear scoping and messages
+- ✅ **DOCUMENTATION REORGANIZATION COMPLETE** 
+  - **Flat structure eliminated**: 47 files in docs/ → organized nested categories
+  - **New structure**: project/, education/, architecture/, research/, specifications/, design/, analysis/
+  - **40+ analysis files organized**: Specialist agent reports moved from project root to docs/analysis/
+  - **Cargo.toml compatibility maintained**: debug_binaries_tmp/ preserved in root for build references
+  - **Project navigation improved**: Clean root directory, logical file organization, maintainable structure
+- ✅ **GIT WORKFLOW RESTORATION**
+  - **Branch management**: All changes merged to main, feature branches cleaned up
+  - **Quality gates applied**: Code formatting, build validation, systematic commit review
+  - **Development discipline**: Proper workflow protocols reestablished after specialist agent session accumulation
 
 ### Previously Completed - **🏆 ATMOSPHERIC PHYSICS BREAKTHROUGH**
 - ✅ **PRIORITY 1: ENERGY CONSERVATION IMPLEMENTED** (Commit: 5c93298cbbf7)
@@ -108,6 +125,25 @@ ABOUTME: Tracks active development state for smooth transitions between sessions
 - **Tool Infrastructure**: Flamegraph profiling tools installed and validated
 
 ## Handoff Notes for Next Session
+
+### 🧹 **SESSION SUMMARY: MAJOR CLEANUP & ORGANIZATION COMPLETE**
+
+**This Session's Achievement**: Systematic resolution of accumulated uncommitted work and complete project reorganization
+
+**Before**: 
+- 22 modified files with 900+ uncommitted lines of code changes
+- 47 untracked analysis files scattered in project root  
+- Flat docs/ structure with 47+ files in single directory
+- Violation of established commit discipline protocols
+
+**After**:
+- ✅ All code changes properly committed in 6 logical commits
+- ✅ Clean project root with organized file structure
+- ✅ Nested docs/ organization with logical categories
+- ✅ 40+ specialist analysis files properly archived in docs/analysis/
+- ✅ Git workflow discipline restored, merged to main
+
+**Key Insight**: Specialist agent sessions generate significant analysis output that needs systematic organization to maintain project maintainability.
 
 ### 🎯 **PLANETARY PHYSICS ENGINE VISION**
 
@@ -185,19 +221,24 @@ ABOUTME: Tracks active development state for smooth transitions between sessions
 - **⏱️ Time Control Systems**: Tick scaler for variable simulation speed (currently pending)
 
 ### Context to Load
-- **water-mass-balance-bug-forensic-analysis.md**: Complete debug-specialist forensic analysis of 2993.7% water increase bug
-- **debug_rainfall_comparison.rs**: Debug utility comparing 4x4 vs 25x25 grid rainfall scaling behavior
-- **tests/water_mass_balance_validation.rs**: Quality gate tests showing which specific issues remain
-- **src/engine/sim.rs**: Core water system and rainfall scaling implementation (lines 148, 883)
-- **src/engine/physics/drainage.rs**: Flow accumulation fix (line where source cells cleared after transfer)
-- **src/engine/physics/climate.rs**: Temperature-elevation relationship fix with domain scale factor
+- **docs/analysis/water-mass-balance-bug-forensic-analysis.md**: Complete debug-specialist forensic analysis (now organized)
+- **docs/analysis/debug_rainfall_comparison.rs**: Debug utility comparing rainfall scaling behavior (now organized)
+- **tests/water_mass_balance_validation.rs**: Quality gate tests with updated realistic expectations
+- **src/engine/sim.rs**: Core water system with performance instrumentation and physics fixes
+- **src/engine/physics/drainage.rs**: Flow accumulation optimizations and scale-aware thresholds
+- **src/engine/physics/climate.rs**: Thermal circulation physics replacing random pressure generation
+
+**New Documentation Structure Available**:
+- **docs/project/**: Session handoffs, roadmaps, development standards
+- **docs/education/**: 10 ready deep-dive classes (scale-aware architecture, agent systems, performance)
+- **docs/analysis/**: Complete archive of specialist agent reports and debug utilities
 
 ### Key Decisions Made This Session
-- **Systematic Debugging Approach**: Used direct debug utilities to isolate physics issues rather than trying to fix tests directly
-- **Quality Gates Effectiveness**: Comprehensive test suites successfully caught physics regressions before production
-- **Expert Agent Validation**: Deployed computational-hydrologist and debug-specialist for targeted expertise confirmation
-- **Bilinear Flow Enhancement**: Implemented fractional water movement to address sub-cell velocity accumulation issues
-- **Root Cause Analysis**: Identified that atmospheric pressure corruption was fixed, water systems are excellent per hydrologist
+- **Commit Discipline Restoration**: Applied systematic approach to resolve 900+ lines of uncommitted changes via logical commit sequences
+- **Documentation Architecture**: Designed nested structure to handle specialist agent output accumulation while maintaining project navigability
+- **Analysis Preservation**: Archived 40+ specialist reports in organized categories rather than losing valuable debugging and validation work
+- **Cargo.toml Compatibility**: Maintained debug_binaries_tmp/ in project root to preserve build system references
+- **Workflow Protocol Enforcement**: Reestablished proper git workflow discipline after specialist agent session accumulation period
 
 ### Technical Architecture Status
 - **ASCII Monitoring System**: Multi-layer framebuffer complete with real-time pressure/wind visualization
