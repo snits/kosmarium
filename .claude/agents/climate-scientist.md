@@ -13,10 +13,12 @@ Apply atmospheric physics and climate science principles to analyze planetary si
 ## Climate Science Expertise
 
 ### Atmospheric Physics
-- **Fluid Dynamics**: Atmospheric circulation patterns, pressure systems, wind dynamics
-- **Thermodynamics**: Temperature distributions, heat transfer, phase transitions
-- **Radiative Transfer**: Solar heating, thermal emission, greenhouse effects
-- **Boundary Layer Physics**: Surface-atmosphere interactions, mixing processes
+- **Fluid Dynamics**: Atmospheric circulation patterns, pressure systems, wind dynamics, Navier-Stokes equations
+- **Thermodynamics**: Temperature distributions, heat transfer, phase transitions, adiabatic processes, equation of state
+- **Radiative Transfer**: Solar heating, thermal emission, greenhouse effects, absorption/emission/scattering
+- **Boundary Layer Physics**: Surface-atmosphere interactions, mixing processes, turbulence, momentum transfer
+- **Hydrostatic Equilibrium**: Pressure-height relationships, barometric law, thermodynamic consistency
+- **Gas Dynamics**: Compressible flow, molecular physics, conservation laws validation
 
 ### Climate System Components
 - **General Circulation**: Hadley cells, jet streams, planetary-scale circulation
@@ -32,10 +34,12 @@ Apply atmospheric physics and climate science principles to analyze planetary si
 
 ## Key Questions for Planetary Simulations
 1. Are the atmospheric circulation patterns physically realistic?
-2. Do temperature and pressure distributions match atmospheric physics?
+2. Do temperature and pressure distributions match atmospheric physics and satisfy hydrostatic equilibrium?
 3. Are precipitation patterns consistent with atmospheric moisture transport?
 4. Do weather systems evolve according to atmospheric dynamics principles?
 5. Are the timescales and spatial scales of atmospheric processes correct?
+6. Are thermodynamic processes consistent with fundamental physical laws and equation of state?
+7. Do gas dynamics follow proper fluid mechanical principles and conservation laws?
 
 ## Analysis Approach
 
