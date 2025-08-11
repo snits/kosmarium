@@ -701,7 +701,7 @@ impl ClimateSystem {
         let height = pressure_layer.pressure.height();
         let width = pressure_layer.pressure.width();
         let domain_size_km = scale.physical_size_km;
-        
+
         // Only apply synoptic patterns for domains large enough to support them (>100km)
         if domain_size_km < 100.0 {
             return;
@@ -710,38 +710,38 @@ impl ClimateSystem {
         // Create synoptic-scale pressure patterns using realistic wavelengths
         // Weather systems typically span 500-2000km, so adjust pattern count based on domain size
         let num_pressure_systems = ((domain_size_km / 800.0).round() as usize).max(1).min(4);
-        
-        // Generate organized pressure systems (highs and lows) 
+
+        // Generate organized pressure systems (highs and lows)
         // This creates the large-scale patterns needed for geostrophic balance
         let mut synoptic_pressure = vec![vec![0.0; width]; height];
-        
+
         for system_idx in 0..num_pressure_systems {
             // Position systems across domain with some randomization based on pressure_seed
             let rng_state = self.pressure_seed.wrapping_add(system_idx as u64 * 12345);
-            
+
             // Create pseudo-random but deterministic positions
             let center_x_norm = 0.2 + 0.6 * ((rng_state % 1000) as f32 / 999.0);
             let center_y_norm = 0.2 + 0.6 * (((rng_state / 1000) % 1000) as f32 / 999.0);
-            
+
             let center_x = (center_x_norm * width as f32) as usize;
             let center_y = (center_y_norm * height as f32) as usize;
-            
+
             // Determine system type (high vs low pressure) based on seed
             let is_high_pressure = (rng_state % 2) == 0;
             // Scale pressure amplitude based on domain size to create appropriate gradients
             // Use larger amplitudes to create synoptic-scale gradients
             let base_amplitude = 2500.0f32; // ±25 hPa base amplitude for stronger gradients
             let domain_scale_factor = (domain_size_km as f32 / 500.0).max(0.8).min(1.5);
-            let pressure_amplitude = if is_high_pressure { 
-                base_amplitude * domain_scale_factor 
-            } else { 
-                -base_amplitude * domain_scale_factor 
+            let pressure_amplitude = if is_high_pressure {
+                base_amplitude * domain_scale_factor
+            } else {
+                -base_amplitude * domain_scale_factor
             };
-            
+
             // Make systems smaller and more concentrated for stronger gradients
             // Typical synoptic systems are 200-800km in diameter
             let system_radius_cells = ((domain_size_km as f32 / 1000.0) * 8.0).max(3.0).min(12.0);
-            
+
             // Apply Gaussian pressure pattern centered on system
             for y in 0..height {
                 for x in 0..width {
@@ -749,94 +749,117 @@ impl ClimateSystem {
                     let dy = (y as f32 - center_y as f32);
                     let distance_sq = dx * dx + dy * dy;
                     let radius_sq = system_radius_cells * system_radius_cells;
-                    
+
                     // Broader Gaussian profile for more realistic synoptic systems
                     // Using σ = radius/1.8 for broader pressure patterns
                     let sigma_sq = radius_sq / 3.24; // (1.8)²  
                     let gaussian = (-distance_sq / (2.0 * sigma_sq)).exp();
-                    
+
                     synoptic_pressure[y][x] += pressure_amplitude * gaussian;
                 }
             }
         }
-        
+
         // Apply spatial smoothing to create realistic pressure gradients
         // This is critical - unsmoothed patterns create unrealistic high-frequency gradients
         self.apply_synoptic_smoothing(&mut synoptic_pressure);
-        
+
         // Add synoptic patterns to existing pressure field
         for y in 0..height {
             for x in 0..width {
                 let current_pressure = *pressure_layer.pressure.get(x, y);
                 let new_pressure = current_pressure + synoptic_pressure[y][x];
-                
+
                 // Apply scale-aware pressure bounds
                 let (min_pressure, max_pressure) = get_pressure_bounds(scale);
                 let bounded_pressure = new_pressure.max(min_pressure).min(max_pressure);
-                
+
                 pressure_layer.pressure.set(x, y, bounded_pressure);
             }
         }
-        
+
         // Validate that pressure gradients are in realistic range
         // This ensures the patterns we created will support proper geostrophic balance
         self.validate_pressure_gradients(pressure_layer, scale);
     }
-    
+
     /// Apply spatial smoothing to synoptic pressure patterns
     /// This creates realistic gradients and prevents numerical instabilities
     fn apply_synoptic_smoothing(&self, pressure_field: &mut Vec<Vec<f32>>) {
         let height = pressure_field.len();
-        let width = if height > 0 { pressure_field[0].len() } else { 0 };
-        
+        let width = if height > 0 {
+            pressure_field[0].len()
+        } else {
+            0
+        };
+
         if height < 3 || width < 3 {
             return;
         }
-        
+
         // Minimal smoothing to preserve realistic gradients while removing numerical noise
         for _pass in 0..1 {
             // Create backup for smoothing operation (must be inside the loop)
             let original = pressure_field.clone();
-            
+
             for y in 1..height - 1 {
                 for x in 1..width - 1 {
                     // 5-point stencil smoothing for better gradient quality
                     let center_weight = 0.4;
                     let neighbor_weight = 0.15; // 0.6 / 4 neighbors
-                    
-                    let smoothed = original[y][x] * center_weight +
-                        (original[y-1][x] + original[y+1][x] + 
-                         original[y][x-1] + original[y][x+1]) * neighbor_weight;
-                    
+
+                    let smoothed = original[y][x] * center_weight
+                        + (original[y - 1][x]
+                            + original[y + 1][x]
+                            + original[y][x - 1]
+                            + original[y][x + 1])
+                            * neighbor_weight;
+
                     pressure_field[y][x] = smoothed;
                 }
             }
         }
     }
-    
+
     /// Validate that pressure gradients are in realistic synoptic range
     /// Based on SageMath validation: 0.0006-0.0032 Pa/m for geostrophic balance
-    fn validate_pressure_gradients(&self, pressure_layer: &AtmosphericPressureLayer, scale: &WorldScale) {
+    fn validate_pressure_gradients(
+        &self,
+        pressure_layer: &AtmosphericPressureLayer,
+        scale: &WorldScale,
+    ) {
         let max_gradient = pressure_layer.get_max_pressure_gradient_magnitude();
         let meters_per_pixel = scale.meters_per_pixel() as f32;
-        
+
         // Convert to Pa/m (gradients are currently in Pa/pixel)
         let max_gradient_pa_per_m = max_gradient / meters_per_pixel;
-        
+
         // Realistic synoptic range from SageMath validation
         const MIN_GRADIENT: f32 = 0.0006; // Pa/m
         const MAX_GRADIENT: f32 = 0.0032; // Pa/m  
-        const SAFETY_MAX: f32 = 0.010;    // Pa/m - above this causes instability
-        
+        const SAFETY_MAX: f32 = 0.010; // Pa/m - above this causes instability
+
         // Log validation results for monitoring
         if max_gradient_pa_per_m < MIN_GRADIENT {
-            eprintln!("Warning: Pressure gradients too weak ({:.6} Pa/m) - may produce insufficient winds", max_gradient_pa_per_m);
+            eprintln!(
+                "Warning: Pressure gradients too weak ({:.6} Pa/m) - may produce insufficient winds",
+                max_gradient_pa_per_m
+            );
         } else if max_gradient_pa_per_m > SAFETY_MAX {
-            eprintln!("Warning: Pressure gradients too strong ({:.6} Pa/m) - may cause physics violations", max_gradient_pa_per_m);
+            eprintln!(
+                "Warning: Pressure gradients too strong ({:.6} Pa/m) - may cause physics violations",
+                max_gradient_pa_per_m
+            );
         } else if max_gradient_pa_per_m > MAX_GRADIENT {
-            eprintln!("Notice: Strong pressure gradients ({:.6} Pa/m) - monitor for stability", max_gradient_pa_per_m);
+            eprintln!(
+                "Notice: Strong pressure gradients ({:.6} Pa/m) - monitor for stability",
+                max_gradient_pa_per_m
+            );
         } else {
-            eprintln!("✓ Pressure gradients in realistic range: {:.6} Pa/m", max_gradient_pa_per_m);
+            eprintln!(
+                "✓ Pressure gradients in realistic range: {:.6} Pa/m",
+                max_gradient_pa_per_m
+            );
         }
     }
 
