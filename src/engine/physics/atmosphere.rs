@@ -292,7 +292,7 @@ impl WindLayer {
         // Current boundary conditions block inflow and artificially damp outflow
         // This creates massive flux imbalances (-2.25×10¹⁰ kg/s observed)
         // Solution: Allow natural flow across boundaries with minimal constraint
-        
+
         self.apply_natural_atmospheric_boundary_conditions(use_sponge_layer);
     }
 
@@ -316,21 +316,21 @@ impl WindLayer {
                 // Use second-order extrapolation to maintain natural atmospheric patterns
                 let interior1 = self.velocity.get(x, 1).clone();
                 let interior2 = self.velocity.get(x, 2).clone();
-                
+
                 // Natural extrapolation: v_boundary = 2*v_interior1 - v_interior2
                 // This allows pressure gradients and geostrophic balance to extend naturally
                 let natural_velocity = Vec2::new(
                     2.0 * interior1.x - interior2.x,
                     2.0 * interior1.y - interior2.y,
                 );
-                
+
                 // Apply minimal damping only for numerical stability (not mass blocking)
                 let stability_factor = 0.95; // 5% damping for stability
                 let boundary_velocity = Vec2::new(
                     natural_velocity.x * stability_factor,
                     natural_velocity.y * stability_factor,
                 );
-                
+
                 self.velocity.set(x, 0, boundary_velocity);
             } else if height > 1 {
                 // Fallback for small domains: simple extrapolation
@@ -339,24 +339,24 @@ impl WindLayer {
             }
         }
 
-        // South boundary (y = height-1): Natural atmospheric extrapolation  
+        // South boundary (y = height-1): Natural atmospheric extrapolation
         for x in 0..width {
             if height > 2 {
                 let interior1 = self.velocity.get(x, height - 2).clone();
                 let interior2 = self.velocity.get(x, height - 3).clone();
-                
+
                 // Natural extrapolation to south boundary
                 let natural_velocity = Vec2::new(
                     2.0 * interior1.x - interior2.x,
                     2.0 * interior1.y - interior2.y,
                 );
-                
+
                 let stability_factor = 0.95;
                 let boundary_velocity = Vec2::new(
                     natural_velocity.x * stability_factor,
                     natural_velocity.y * stability_factor,
                 );
-                
+
                 self.velocity.set(x, height - 1, boundary_velocity);
             } else if height > 1 {
                 let interior_velocity = self.velocity.get(x, height - 2).clone();
@@ -369,18 +369,18 @@ impl WindLayer {
             if width > 2 {
                 let interior1 = self.velocity.get(1, y).clone();
                 let interior2 = self.velocity.get(2, y).clone();
-                
+
                 let natural_velocity = Vec2::new(
                     2.0 * interior1.x - interior2.x,
                     2.0 * interior1.y - interior2.y,
                 );
-                
+
                 let stability_factor = 0.95;
                 let boundary_velocity = Vec2::new(
                     natural_velocity.x * stability_factor,
                     natural_velocity.y * stability_factor,
                 );
-                
+
                 self.velocity.set(0, y, boundary_velocity);
             } else if width > 1 {
                 let interior_velocity = self.velocity.get(1, y).clone();
@@ -393,18 +393,18 @@ impl WindLayer {
             if width > 2 {
                 let interior1 = self.velocity.get(width - 2, y).clone();
                 let interior2 = self.velocity.get(width - 3, y).clone();
-                
+
                 let natural_velocity = Vec2::new(
                     2.0 * interior1.x - interior2.x,
                     2.0 * interior1.y - interior2.y,
                 );
-                
+
                 let stability_factor = 0.95;
                 let boundary_velocity = Vec2::new(
                     natural_velocity.x * stability_factor,
                     natural_velocity.y * stability_factor,
                 );
-                
+
                 self.velocity.set(width - 1, y, boundary_velocity);
             } else if width > 1 {
                 let interior_velocity = self.velocity.get(width - 2, y).clone();
@@ -433,50 +433,50 @@ impl WindLayer {
         let width = self.width();
         let height = self.height();
         let air_density = 1.225; // kg/m³ (standard atmospheric density)
-        
+
         // Calculate net mass flux across all boundaries
         let mut north_flux = 0.0;
         let mut south_flux = 0.0;
         let mut east_flux = 0.0;
         let mut west_flux = 0.0;
-        
+
         // North boundary (y = 0): positive v is outward (northward)
         for x in 0..width {
             let velocity = self.velocity.get(x, 0);
             north_flux += velocity.y * air_density; // kg/(m·s)
         }
-        
+
         // South boundary (y = height-1): negative v is outward (southward)
         for x in 0..width {
             let velocity = self.velocity.get(x, height - 1);
             south_flux += -velocity.y * air_density; // kg/(m·s)
         }
-        
+
         // West boundary (x = 0): negative u is outward (westward)
         for y in 0..height {
             let velocity = self.velocity.get(0, y);
             west_flux += -velocity.x * air_density; // kg/(m·s)
         }
-        
-        // East boundary (x = width-1): positive u is outward (eastward)  
+
+        // East boundary (x = width-1): positive u is outward (eastward)
         for y in 0..height {
             let velocity = self.velocity.get(width - 1, y);
             east_flux += velocity.x * air_density; // kg/(m·s)
         }
-        
+
         // Total net outflow (should be zero for mass conservation)
         let total_flux = north_flux + south_flux + east_flux + west_flux;
-        
+
         // Phase 4.1 Key Insight: Distribute the flux correction across all boundaries
         // proportional to their boundary length and current flux magnitude
         let boundary_lengths = [
             width as f32,  // North boundary length
-            width as f32,  // South boundary length  
+            width as f32,  // South boundary length
             height as f32, // West boundary length
             height as f32, // East boundary length
         ];
         let total_boundary_length = 2.0 * (width as f32 + height as f32);
-        
+
         // Calculate flux corrections proportional to boundary length
         let flux_corrections = [
             -total_flux * (boundary_lengths[0] / total_boundary_length), // North correction
@@ -484,7 +484,7 @@ impl WindLayer {
             -total_flux * (boundary_lengths[2] / total_boundary_length), // West correction
             -total_flux * (boundary_lengths[3] / total_boundary_length), // East correction
         ];
-        
+
         // Apply flux corrections to boundary velocities
         // North boundary correction
         for x in 0..width {
@@ -493,7 +493,7 @@ impl WindLayer {
             velocity.y += correction_velocity; // Adjust normal component
             self.velocity.set(x, 0, velocity);
         }
-        
+
         // South boundary correction
         for x in 0..width {
             let mut velocity = self.velocity.get(x, height - 1).clone();
@@ -501,7 +501,7 @@ impl WindLayer {
             velocity.y += correction_velocity;
             self.velocity.set(x, height - 1, velocity);
         }
-        
+
         // West boundary correction
         for y in 0..height {
             let mut velocity = self.velocity.get(0, y).clone();
@@ -509,7 +509,7 @@ impl WindLayer {
             velocity.x += correction_velocity;
             self.velocity.set(0, y, velocity);
         }
-        
+
         // East boundary correction
         for y in 0..height {
             let mut velocity = self.velocity.get(width - 1, y).clone();
@@ -566,23 +566,23 @@ impl WindLayer {
         // Even with perfect local geostrophic balance, domain-integrated momentum can accumulate
         // due to coherent pressure patterns. This correction maintains bounded total momentum
         // while preserving the excellent local pressure-wind coupling achieved in earlier phases.
-        
+
         let width = self.width();
         let height = self.height();
-        
+
         // Calculate current total momentum
         let total_momentum = self.calculate_total_momentum();
         let momentum_magnitude = total_momentum.magnitude();
-        
+
         // Determine target momentum based on domain size and realistic atmospheric constraints
         // For continental domains: typical total momentum should scale with domain size but remain bounded
         let total_cells = (width * height) as f32;
         let target_momentum_magnitude = (total_cells.sqrt() * 2.0).min(800.0); // Adaptive target, max 800 m/s
-        
+
         // Apply correction only if momentum exceeds reasonable bounds
         if momentum_magnitude > target_momentum_magnitude {
             let correction_factor = target_momentum_magnitude / momentum_magnitude;
-            
+
             // Apply spatially uniform momentum correction to preserve geostrophic patterns
             // This maintains the pressure-wind relationships while reducing total momentum
             for y in 0..height {
@@ -595,58 +595,60 @@ impl WindLayer {
                     self.velocity.set(x, y, corrected_velocity);
                 }
             }
-            
+
             // Apply continuity correction to reduce divergence violations
             self.apply_continuity_correction();
         }
     }
-    
+
     /// Apply continuity equation correction to reduce divergence violations (Phase 5)
     /// Addresses the 9% continuity violations identified in diagnostics
     fn apply_continuity_correction(&mut self) {
         let width = self.width();
         let height = self.height();
-        
+
         // Iterative continuity correction: reduce ∇·v in interior cells
         // Use simple pressure relaxation approach for divergence removal
         const MAX_ITERATIONS: usize = 3;
         const RELAXATION_FACTOR: f32 = 0.3;
-        
+
         for _iteration in 0..MAX_ITERATIONS {
             // Calculate divergence field
             let mut divergence_field = vec![vec![0.0f32; width]; height];
-            
+
             for y in 1..height - 1 {
                 for x in 1..width - 1 {
                     // Central differences for divergence: ∇·v = ∂u/∂x + ∂v/∂y
-                    let du_dx = (self.velocity.get(x + 1, y).x - self.velocity.get(x - 1, y).x) / 2.0;
-                    let dv_dy = (self.velocity.get(x, y + 1).y - self.velocity.get(x, y - 1).y) / 2.0;
-                    
+                    let du_dx =
+                        (self.velocity.get(x + 1, y).x - self.velocity.get(x - 1, y).x) / 2.0;
+                    let dv_dy =
+                        (self.velocity.get(x, y + 1).y - self.velocity.get(x, y - 1).y) / 2.0;
+
                     divergence_field[y][x] = du_dx + dv_dy;
                 }
             }
-            
+
             // Apply divergence correction to velocity field
             for y in 1..height - 1 {
                 for x in 1..width - 1 {
                     let divergence = divergence_field[y][x];
-                    
+
                     // Reduce divergence by adjusting velocity components
                     // Distribute correction equally between u and v components
                     if divergence.abs() > 1e-6 {
                         let mut velocity = self.velocity.get(x, y).clone();
                         let correction = divergence * RELAXATION_FACTOR * 0.5;
-                        
+
                         // Apply correction to reduce local divergence
                         velocity.x -= correction;
                         velocity.y -= correction;
-                        
+
                         self.velocity.set(x, y, velocity);
                     }
                 }
             }
         }
-        
+
         // Update derived fields after correction
         self.update_derived_fields();
     }
@@ -981,19 +983,19 @@ impl AtmosphericSystem {
 
                 // Apply F_THRESHOLD safety parameter from SageMath validation
                 const F_THRESHOLD: f64 = 1e-6; // s⁻¹ - numerical stability limit
-                
+
                 // Handle special latitude cases and numerical stability
                 if f.abs() < F_THRESHOLD {
                     // Near equator or numerical instability region
                     // Use direct pressure-driven flow with proper scaling
                     let rho = self.parameters.air_density_sea_level;
-                    
+
                     // Scale pressure gradient to reasonable wind speeds for non-geostrophic regions
                     // Use reduced coupling to prevent unrealistic winds near equator
                     let pressure_scale_factor = 0.1 / rho; // Empirical scaling for equatorial regions
                     let direct_u = -pressure_gradient.x * pressure_scale_factor;
                     let direct_v = -pressure_gradient.y * pressure_scale_factor;
-                    
+
                     wind_layer.velocity.set(x, y, Vec2::new(direct_u, direct_v));
                     continue;
                 }
@@ -1014,20 +1016,21 @@ impl AtmosphericSystem {
                 // f × v = f*(u_j - v_i) = -(∇P_x/ρ)_i - (∇P_y/ρ)_j
                 // Therefore: f*u = ∇P_y/ρ  and  f*v = -∇P_x/ρ
                 // So: u = ∇P_y/(ρf)  and  v = -∇P_x/(ρf)
-                
+
                 let rho = self.parameters.air_density_sea_level;
                 let f_f32 = f_stable as f32;
-                
+
                 // Calculate geostrophic wind components
                 let geostrophic_u = pressure_gradient.y / (rho * f_f32);
                 let geostrophic_v = -pressure_gradient.x / (rho * f_f32);
-                
+
                 // Apply realistic wind speed limits based on latitude
                 let (limited_u, limited_v) = if latitude_abs > polar_threshold {
                     // Polar regions: stronger Coriolis effects, but limit extreme speeds
                     let max_polar_wind = 40.0; // m/s - typical polar jet stream speeds
-                    let wind_magnitude = (geostrophic_u * geostrophic_u + geostrophic_v * geostrophic_v).sqrt();
-                    
+                    let wind_magnitude =
+                        (geostrophic_u * geostrophic_u + geostrophic_v * geostrophic_v).sqrt();
+
                     if wind_magnitude > max_polar_wind {
                         let scale_factor = max_polar_wind / wind_magnitude;
                         (geostrophic_u * scale_factor, geostrophic_v * scale_factor)
@@ -1037,8 +1040,9 @@ impl AtmosphericSystem {
                 } else {
                     // Mid-latitudes: apply reasonable continental wind speed limits
                     let max_continental_wind = 30.0; // m/s - realistic for continental domains
-                    let wind_magnitude = (geostrophic_u * geostrophic_u + geostrophic_v * geostrophic_v).sqrt();
-                    
+                    let wind_magnitude =
+                        (geostrophic_u * geostrophic_u + geostrophic_v * geostrophic_v).sqrt();
+
                     if wind_magnitude > max_continental_wind {
                         let scale_factor = max_continental_wind / wind_magnitude;
                         (geostrophic_u * scale_factor, geostrophic_v * scale_factor)
@@ -1046,7 +1050,7 @@ impl AtmosphericSystem {
                         (geostrophic_u, geostrophic_v)
                     }
                 };
-                
+
                 let (geostrophic_u, geostrophic_v) = (limited_u, limited_v);
 
                 // Apply geostrophic strength scaling
