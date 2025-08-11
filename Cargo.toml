@@ -50,9 +50,6 @@ name = "debug_boundary_runtime"
 path = "debug_binaries_tmp/debug_boundary_runtime.rs"
 
 
-[[bin]]
-name = "debug_wind_band_analysis"
-path = "debug_binaries_tmp/debug_wind_band_analysis.rs"
 
 [dependencies]
 rand = "0.8"
