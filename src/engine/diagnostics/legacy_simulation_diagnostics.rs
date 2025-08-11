@@ -1,7 +1,7 @@
 // ABOUTME: Simulation diagnostics and monitoring system for ASCII stats output
 // ABOUTME: Collects and formats key metrics for debugging scale-aware simulation parameters
 
-use super::sim::Simulation;
+use crate::engine::sim::Simulation;
 
 /// Comprehensive simulation diagnostics for monitoring system health
 #[derive(Debug, Clone)]
@@ -202,16 +202,16 @@ impl SimulationDiagnostics {
 
         for (_, _, biome) in biome_map.iter_coords() {
             match biome {
-                super::agents::biome::BiomeType::Ocean
-                | super::agents::biome::BiomeType::Lake
-                | super::agents::biome::BiomeType::River
-                | super::agents::biome::BiomeType::Wetland => water_count += 1,
-                super::agents::biome::BiomeType::Desert => desert_count += 1,
-                super::agents::biome::BiomeType::Grassland
-                | super::agents::biome::BiomeType::Savanna => grassland_count += 1,
-                super::agents::biome::BiomeType::TemperateForest
-                | super::agents::biome::BiomeType::RainForest
-                | super::agents::biome::BiomeType::BorealForest => forest_count += 1,
+crate::engine::agents::biome::BiomeType::Ocean
+                | crate::engine::agents::biome::BiomeType::Lake
+                | crate::engine::agents::biome::BiomeType::River
+                | crate::engine::agents::biome::BiomeType::Wetland => water_count += 1,
+crate::engine::agents::biome::BiomeType::Desert => desert_count += 1,
+crate::engine::agents::biome::BiomeType::Grassland
+                | crate::engine::agents::biome::BiomeType::Savanna => grassland_count += 1,
+crate::engine::agents::biome::BiomeType::TemperateForest
+                | crate::engine::agents::biome::BiomeType::RainForest
+                | crate::engine::agents::biome::BiomeType::BorealForest => forest_count += 1,
                 _ => {} // Handle other biome types (tundra, alpine, ice, etc.)
             }
         }

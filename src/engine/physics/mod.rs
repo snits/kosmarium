@@ -6,6 +6,7 @@ pub mod atmospheric_moisture;
 pub mod climate;
 pub mod convergence;
 pub mod convergence_detection;
+pub mod corrected_water_flow;
 pub mod drainage;
 pub mod geological_evolution;
 pub mod optimized_geological_evolution;

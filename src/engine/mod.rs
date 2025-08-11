@@ -11,5 +11,5 @@ pub mod rendering;
 // Main simulation struct - keep at engine level
 pub mod sim;
 pub use config::WorkspaceConfig;
-pub use diagnostics::SimulationDiagnostics;
+pub use diagnostics::{SimulationDiagnostics, WaterFlowDiagnostics, WaterFlowValidation};
 pub use sim::{RainfallScaling, Simulation, WaterFlowParameters, WaterFlowSystem};
