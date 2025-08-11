@@ -449,10 +449,37 @@ impl AsciiFramebuffer {
     ) {
         let temp_layer = simulation.get_temperature_layer();
 
-        // Calculate temperature range for color mapping
-        let min_temp = -20.0; // Reasonable minimum for color scaling
-        let max_temp = 50.0; // Reasonable maximum for color scaling
+        // Calculate dynamic temperature range from actual data for better color mapping
+        let mut min_temp = f32::INFINITY;
+        let mut max_temp = f32::NEG_INFINITY;
 
+        // First pass: find actual temperature range
+        for y in 0..display_height {
+            for x in 0..display_width {
+                let sim_x = (x * sim_width) / display_width;
+                let sim_y = (y * sim_height) / display_height;
+
+                if sim_x < sim_width && sim_y < sim_height {
+                    let temperature = temp_layer.get_temperature(sim_x, sim_y);
+                    min_temp = min_temp.min(temperature);
+                    max_temp = max_temp.max(temperature);
+                }
+            }
+        }
+
+        // Expand range slightly for better color distribution
+        let temp_range = max_temp - min_temp;
+        if temp_range > 0.1 {
+            let expansion = temp_range * 0.1; // 10% expansion
+            min_temp -= expansion;
+            max_temp += expansion;
+        } else {
+            // Fallback for uniform temperatures
+            min_temp = (min_temp - 5.0).max(-20.0);
+            max_temp = (max_temp + 5.0).min(50.0);
+        }
+
+        // Second pass: generate characters and colors
         for y in 0..display_height {
             for x in 0..display_width {
                 let sim_x = (x * sim_width) / display_width;
@@ -474,7 +501,7 @@ impl AsciiFramebuffer {
                     _ => '#',              // Very hot
                 };
 
-                // Store ANSI color code for this temperature
+                // Store ANSI color code using dynamic range for better color distribution
                 let ansi_color = temperature_to_ansi_color(temperature, min_temp, max_temp);
                 colors[y][x] = ansi_color as u8;
             }
