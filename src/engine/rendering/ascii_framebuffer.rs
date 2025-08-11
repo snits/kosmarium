@@ -3,6 +3,10 @@
 
 use super::super::agents::biome::BiomeType;
 use super::super::sim::Simulation;
+use super::ansi_colors::{
+    AnsiColor, colorize_char, elevation_to_ansi_color, pressure_to_ansi_color,
+    temperature_to_ansi_color, wind_to_ansi_color,
+};
 use std::collections::VecDeque;
 
 /// Available visualization layers for ASCII framebuffer
@@ -321,7 +325,7 @@ impl AsciiFramebuffer {
         &self,
         simulation: &Simulation,
         chars: &mut Vec<Vec<char>>,
-        _colors: &mut Vec<Vec<u8>>,
+        colors: &mut Vec<Vec<u8>>,
         display_width: usize,
         display_height: usize,
         sim_width: usize,
@@ -343,6 +347,10 @@ impl AsciiFramebuffer {
                     e if e < 0.8 => '@',  // Mountains
                     _ => '%',             // High peaks
                 };
+
+                // Store ANSI color code for this elevation
+                let ansi_color = elevation_to_ansi_color(elevation);
+                colors[y][x] = ansi_color as u8;
             }
         }
     }
@@ -433,13 +441,17 @@ impl AsciiFramebuffer {
         &self,
         simulation: &Simulation,
         chars: &mut Vec<Vec<char>>,
-        _colors: &mut Vec<Vec<u8>>,
+        colors: &mut Vec<Vec<u8>>,
         display_width: usize,
         display_height: usize,
         sim_width: usize,
         sim_height: usize,
     ) {
         let temp_layer = simulation.get_temperature_layer();
+
+        // Calculate temperature range for color mapping
+        let min_temp = -20.0; // Reasonable minimum for color scaling
+        let max_temp = 50.0; // Reasonable maximum for color scaling
 
         for y in 0..display_height {
             for x in 0..display_width {
@@ -461,6 +473,10 @@ impl AsciiFramebuffer {
                     t if t < 40.0 => '+',  // Hot
                     _ => '#',              // Very hot
                 };
+
+                // Store ANSI color code for this temperature
+                let ansi_color = temperature_to_ansi_color(temperature, min_temp, max_temp);
+                colors[y][x] = ansi_color as u8;
             }
         }
     }
@@ -470,7 +486,7 @@ impl AsciiFramebuffer {
         &self,
         simulation: &Simulation,
         chars: &mut Vec<Vec<char>>,
-        _colors: &mut Vec<Vec<u8>>,
+        colors: &mut Vec<Vec<u8>>,
         display_width: usize,
         display_height: usize,
         sim_width: usize,
@@ -502,6 +518,10 @@ impl AsciiFramebuffer {
                     n if n < 0.8 => '+', // Above average
                     _ => '#',            // High pressure
                 };
+
+                // Store ANSI color code for this pressure
+                let ansi_color = pressure_to_ansi_color(pressure, min_pressure, max_pressure);
+                colors[y][x] = ansi_color as u8;
             }
         }
     }
@@ -511,7 +531,7 @@ impl AsciiFramebuffer {
         &self,
         simulation: &Simulation,
         chars: &mut Vec<Vec<char>>,
-        _colors: &mut Vec<Vec<u8>>,
+        colors: &mut Vec<Vec<u8>>,
         display_width: usize,
         display_height: usize,
         sim_width: usize,
@@ -547,6 +567,11 @@ impl AsciiFramebuffer {
                         _ => '→', // Default to east
                     };
                 }
+
+                // Apply combined wind colorization (speed + direction)
+                let velocity_tuple = (velocity.x, velocity.y);
+                let ansi_color = wind_to_ansi_color(velocity_tuple);
+                colors[y][x] = ansi_color as u8;
             }
         }
     }
@@ -714,5 +739,80 @@ impl AsciiFramebuffer {
     /// Get number of buffered frames
     pub fn frame_count(&self) -> usize {
         self.frame_buffer.len()
+    }
+
+    /// Format frame with ANSI colors for display  
+    pub fn format_frame_colorized(&self, frame: &AsciiFrame) -> String {
+        let mut output = String::new();
+
+        if self.config.show_timestamps {
+            output.push_str(&format!(
+                "=== FRAME {:03} (t={:>6} ticks) ===\n",
+                frame.frame_number, frame.simulation_time
+            ));
+        }
+
+        let (width, height) = frame.dimensions;
+        let layers_per_row = (self.config.layers.len()).min(4); // Max 4 layers per row
+        let rows_needed = (self.config.layers.len() + layers_per_row - 1) / layers_per_row;
+
+        for row in 0..rows_needed {
+            // Headers
+            for col in 0..layers_per_row {
+                let layer_idx = row * layers_per_row + col;
+                if layer_idx < frame.layer_data.len() {
+                    let layer_name = frame.layer_data[layer_idx].layer_type.display_name();
+                    output.push_str(&format!("{:<12} ", layer_name));
+                }
+            }
+            output.push('\n');
+
+            // Layer content with colors
+            for y in 0..height {
+                for col in 0..layers_per_row {
+                    let layer_idx = row * layers_per_row + col;
+                    if layer_idx < frame.layer_data.len() {
+                        let layer = &frame.layer_data[layer_idx];
+                        for x in 0..width {
+                            if x < layer.chars[y].len() && x < layer.colors[y].len() {
+                                let ch = layer.chars[y][x];
+                                let color_code = layer.colors[y][x];
+
+                                // Convert u8 back to AnsiColor enum
+                                let ansi_color = match color_code {
+                                    30 => AnsiColor::Black,
+                                    31 => AnsiColor::Red,
+                                    32 => AnsiColor::Green,
+                                    33 => AnsiColor::Yellow,
+                                    34 => AnsiColor::Blue,
+                                    35 => AnsiColor::Magenta,
+                                    36 => AnsiColor::Cyan,
+                                    37 => AnsiColor::White,
+                                    90 => AnsiColor::BrightBlack,
+                                    91 => AnsiColor::BrightRed,
+                                    92 => AnsiColor::BrightGreen,
+                                    93 => AnsiColor::BrightYellow,
+                                    94 => AnsiColor::BrightBlue,
+                                    95 => AnsiColor::BrightMagenta,
+                                    96 => AnsiColor::BrightCyan,
+                                    97 => AnsiColor::BrightWhite,
+                                    _ => AnsiColor::White, // Default fallback
+                                };
+
+                                // Add colorized character to output
+                                output.push_str(&colorize_char(ch, ansi_color));
+                            } else {
+                                output.push(' ');
+                            }
+                        }
+                        output.push_str("  "); // Space between layers
+                    }
+                }
+                output.push('\n');
+            }
+            output.push('\n'); // Space between rows
+        }
+
+        output
     }
 }
