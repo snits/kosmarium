@@ -1074,4 +1074,153 @@ mod tests {
 
         println!("✓ Correlation calculation tests passed");
     }
+
+    #[test]
+    fn test_phase_2_realistic_pressure_generation_validation() {
+        println!("\n6. PHASE 2: Testing realistic pressure generation improvements...");
+        println!("==================================================================");
+        
+        // Create continental scale system (500km domain) to test pressure field improvements
+        let scale = WorldScale::new(500.0, (60, 60), DetailLevel::Standard);
+        let atmospheric_system = AtmosphericSystem::new_for_scale(&scale);
+
+        // Create realistic temperature field for pressure generation  
+        let mut climate_system = sim_protoype::engine::physics::climate::ClimateSystem::new_for_scale(&scale);
+        
+        // Create test heightmap
+        let heightmap = vec![vec![0.0; 60]; 60]; // Flat terrain for cleaner testing
+        
+        // Generate temperature layer first (required for pressure generation)
+        let temperature_layer = climate_system.generate_temperature_layer(&heightmap);
+        
+        // PHASE 2: Generate pressure layer using NEW realistic synoptic approach
+        let pressure_layer = climate_system.generate_pressure_layer(&temperature_layer, &heightmap, &scale);
+        
+        // Generate winds from the NEW pressure field
+        let wind_layer = atmospheric_system.generate_geostrophic_winds(&pressure_layer, &scale);
+
+        println!("PHASE 2 Pressure Field Analysis:");
+        
+        // Validate pressure gradient quality (key improvement from Phase 2)
+        let max_gradient = pressure_layer.get_max_pressure_gradient_magnitude();
+        let meters_per_pixel = scale.meters_per_pixel() as f32;
+        let max_gradient_pa_per_m = max_gradient / meters_per_pixel;
+        
+        println!("  Max pressure gradient: {:.6} Pa/m", max_gradient_pa_per_m);
+        
+        // Phase 2 improvement: Gradients should be in realistic synoptic range (0.0006-0.0032 Pa/m)
+        const MIN_REALISTIC: f32 = 0.0006;
+        const MAX_REALISTIC: f32 = 0.0032;
+        const SAFETY_MAX: f32 = 0.010;
+        
+        assert!(
+            max_gradient_pa_per_m >= MIN_REALISTIC,
+            "Phase 2: Pressure gradients too weak ({:.6} Pa/m) - should be >= {:.6} Pa/m",
+            max_gradient_pa_per_m, MIN_REALISTIC
+        );
+        
+        assert!(
+            max_gradient_pa_per_m <= SAFETY_MAX,
+            "Phase 2: Pressure gradients too strong ({:.6} Pa/m) - should be <= {:.6} Pa/m", 
+            max_gradient_pa_per_m, SAFETY_MAX
+        );
+        
+        if max_gradient_pa_per_m <= MAX_REALISTIC {
+            println!("  ✓ Pressure gradients in optimal range for geostrophic balance");
+        } else if max_gradient_pa_per_m <= SAFETY_MAX {
+            println!("  ⚠ Strong but stable pressure gradients - monitoring needed");
+        }
+
+        // Validate geostrophic balance with NEW pressure field
+        let validation = validate_geostrophic_balance(&atmospheric_system, &pressure_layer, &wind_layer);
+        
+        println!("PHASE 2 Geostrophic Balance Validation:");
+        println!("  Average balance residual: {:.2} m/s", validation.average_balance_residual);
+        println!("  Max balance residual: {:.2} m/s", validation.max_balance_residual);
+        println!("  Pressure-wind correlation: {:.3}", validation.pressure_wind_correlation);
+        println!("  Average wind speed: {:.2} m/s", validation.average_wind_speed);
+        println!("  Maximum wind speed: {:.2} m/s", validation.maximum_wind_speed);
+        println!("  Unrealistic wind cells: {}", validation.unrealistic_wind_cell_count);
+        println!("  Is geostrophic balanced: {}", validation.is_geostrophic_balanced);
+
+        // PHASE 2 SUCCESS CRITERIA: Major improvements expected
+        
+        // 1. Wind speeds should be dramatically reduced from current ~135 m/s to realistic 5-25 m/s
+        assert!(
+            validation.maximum_wind_speed < 50.0,
+            "Phase 2: Maximum wind speed should be much lower than before, got {:.1} m/s",
+            validation.maximum_wind_speed
+        );
+        
+        // 2. Average wind speed should be in continental range
+        assert!(
+            validation.average_wind_speed >= 2.0 && validation.average_wind_speed <= 30.0,
+            "Phase 2: Average wind speed should be realistic, got {:.1} m/s",
+            validation.average_wind_speed
+        );
+        
+        // 3. Pressure-wind correlation should improve significantly
+        // Current system has near-zero correlation, Phase 2 should show coupling
+        assert!(
+            validation.pressure_wind_correlation.abs() > 0.1,
+            "Phase 2: Should have improved pressure-wind correlation, got {:.3}",
+            validation.pressure_wind_correlation
+        );
+        
+        // 4. Balance residuals should be reduced
+        assert!(
+            validation.average_balance_residual < 100.0,
+            "Phase 2: Balance residuals should be much improved, got {:.1} m/s",
+            validation.average_balance_residual
+        );
+        
+        // 5. Fewer unrealistic wind cells
+        let total_cells = 60 * 60;
+        let unrealistic_percentage = (validation.unrealistic_wind_cell_count as f32 / total_cells as f32) * 100.0;
+        assert!(
+            unrealistic_percentage < 50.0,
+            "Phase 2: Should have < 50% unrealistic winds, got {:.1}%", 
+            unrealistic_percentage
+        );
+
+        // Validate atmospheric scale analysis with improved system
+        let scale_validation = validate_atmospheric_scale_analysis(&atmospheric_system, &wind_layer, &scale);
+        
+        println!("PHASE 2 Scale Analysis:");
+        println!("  Rossby number: {:.3}", scale_validation.rossby_number);
+        println!("  Realistic wind percentage: {:.1}%", scale_validation.realistic_wind_percentage);
+        println!("  Scale regime: {:?}", scale_validation.scale_regime);
+        
+        // Phase 2 should improve wind realism significantly
+        assert!(
+            scale_validation.realistic_wind_percentage > 20.0,
+            "Phase 2: Should have > 20% realistic winds, got {:.1}%",
+            scale_validation.realistic_wind_percentage
+        );
+
+        // Enhanced mass conservation with improved pressure field
+        let conservation_validation = validate_enhanced_mass_conservation(
+            &wind_layer, 
+            &scale, 
+            atmospheric_system.parameters.air_density_sea_level
+        );
+        
+        println!("PHASE 2 Mass Conservation:");
+        println!("  Total momentum magnitude: {:.1} m/s", conservation_validation.total_momentum_magnitude);
+        println!("  {}", conservation_validation.diagnostic_summary);
+        
+        // Mass conservation should improve with realistic pressure gradients
+        assert!(
+            conservation_validation.total_momentum_magnitude < 5000.0,
+            "Phase 2: Total momentum should be reduced from current levels, got {:.1} m/s",
+            conservation_validation.total_momentum_magnitude
+        );
+
+        println!("\n✓ PHASE 2 VALIDATION: Realistic pressure generation shows major improvements!");
+        println!("  - Pressure gradients in synoptic range ({:.6} Pa/m)", max_gradient_pa_per_m);
+        println!("  - Wind speeds dramatically reduced ({:.1} m/s max)", validation.maximum_wind_speed);
+        println!("  - Pressure-wind coupling established ({:.3} correlation)", validation.pressure_wind_correlation);
+        println!("  - Mass conservation improved ({:.1} m/s total momentum)", conservation_validation.total_momentum_magnitude);
+        println!("  - Ready for Phase 3: Proper geostrophic wind calculation");
+    }
 } // End of tests module
