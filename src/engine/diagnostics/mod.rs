@@ -12,5 +12,7 @@ pub use water_flow_validation::*;
 pub struct SimulationDiagnostics;
 
 impl SimulationDiagnostics {
-    pub fn _placeholder() -> Self { Self }
+    pub fn _placeholder() -> Self {
+        Self
+    }
 }
