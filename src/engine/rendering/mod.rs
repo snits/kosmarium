@@ -1,6 +1,7 @@
 // ABOUTME: Rendering and visualization systems - ASCII, TUI, and graphics rendering
 // ABOUTME: Provides multiple visualization modes for simulation data and user interaction
 
+pub mod ansi_colors;
 pub mod ascii_framebuffer;
 pub mod graphics_render;
 pub mod multi_viewport;

@@ -237,6 +237,99 @@ impl MultiViewportApp {
     }
 }
 
+/// Parse ANSI color codes and convert to ratatui Spans (returns owned data)
+fn parse_ansi_to_spans(text: &str) -> Vec<Span<'static>> {
+    let mut spans = Vec::new();
+    let mut current_pos = 0;
+    let mut current_color = Color::White; // Default color
+
+    while current_pos < text.len() {
+        if let Some(ansi_start) = text[current_pos..].find('\x1b') {
+            let abs_ansi_start = current_pos + ansi_start;
+
+            // Add any text before the ANSI code as a span with current color
+            if ansi_start > 0 {
+                let before_text = text[current_pos..abs_ansi_start].to_owned();
+                if !before_text.is_empty() {
+                    spans.push(Span::styled(
+                        before_text,
+                        Style::default().fg(current_color),
+                    ));
+                }
+            }
+
+            // Find the end of the ANSI escape sequence (look for 'm')
+            if let Some(ansi_end) = text[abs_ansi_start..].find('m') {
+                let abs_ansi_end = abs_ansi_start + ansi_end + 1;
+                let ansi_code = &text[abs_ansi_start..abs_ansi_end];
+
+                // Parse the ANSI color code and update current color
+                current_color = parse_ansi_color(ansi_code);
+                current_pos = abs_ansi_end;
+            } else {
+                // No 'm' found, treat as regular text
+                current_pos = abs_ansi_start + 1;
+            }
+        } else {
+            // No more ANSI codes, add remaining text
+            let remaining_text = text[current_pos..].to_owned();
+            if !remaining_text.is_empty() {
+                spans.push(Span::styled(
+                    remaining_text,
+                    Style::default().fg(current_color),
+                ));
+            }
+            break;
+        }
+    }
+
+    // Handle edge case where text has no ANSI codes
+    if spans.is_empty() && !text.is_empty() {
+        spans.push(Span::styled(
+            text.to_owned(),
+            Style::default().fg(current_color),
+        ));
+    }
+
+    spans
+}
+
+/// Convert ANSI escape sequence to ratatui Color
+fn parse_ansi_color(ansi_code: &str) -> Color {
+    // Extract the numeric code from sequences like "\x1b[31m"
+    if let Some(code_str) = ansi_code
+        .strip_prefix('\x1b')
+        .and_then(|s| s.strip_prefix('['))
+    {
+        if let Some(code_str) = code_str.strip_suffix('m') {
+            match code_str {
+                "30" => Color::Black,
+                "31" => Color::Red,
+                "32" => Color::Green,
+                "33" => Color::Yellow,
+                "34" => Color::Blue,
+                "35" => Color::Magenta,
+                "36" => Color::Cyan,
+                "37" => Color::White,
+                "90" => Color::DarkGray,
+                "91" => Color::LightRed,
+                "92" => Color::LightGreen,
+                "93" => Color::LightYellow,
+                "94" => Color::LightBlue,
+                "95" => Color::LightMagenta,
+                "96" => Color::LightCyan,
+                "97" => Color::Gray,
+                "0" => Color::White, // Reset code
+                _ => Color::White,   // Default fallback
+            }
+        } else {
+            Color::White
+        }
+    } else {
+        Color::White
+    }
+}
+
 impl MultiViewportRenderer {
     /// Create new multi-viewport renderer
     pub fn new(config: MultiViewportConfig) -> Self {
@@ -349,11 +442,12 @@ impl MultiViewportRenderer {
         )
     }
 
-    /// Render single viewport with ASCII framebuffer data
+    /// Render single viewport with colorized ASCII framebuffer data
     pub fn render_viewport_content(
         &self,
         simulation: &Simulation,
         viewport_idx: usize,
+        area: Rect,
     ) -> Option<Vec<Line>> {
         if viewport_idx >= self.config.viewports.len() {
             return None;
@@ -362,111 +456,71 @@ impl MultiViewportRenderer {
         let viewport_config = &self.config.viewports[viewport_idx];
         let layer = &viewport_config.layer;
 
-        // Create simple ASCII content for the viewport
-        let mut lines = Vec::new();
-        let sample_size = 20; // Small viewport sample
+        // Use actual viewport dimensions (minus borders)
+        let display_width = (area.width.saturating_sub(2) as usize).max(10); // Leave space for borders
+        let display_height = (area.height.saturating_sub(2) as usize).max(5); // Leave space for borders
 
-        match layer {
-            VisualizationLayer::Elevation => {
-                for y in 0..sample_size {
-                    let mut spans = Vec::new();
-                    for x in 0..sample_size {
-                        let elevation = simulation.get_elevation(x, y);
-                        let symbol = match elevation {
-                            e if e < 0.2 => '.',
-                            e if e < 0.4 => '~',
-                            e if e < 0.6 => '^',
-                            e if e < 0.8 => '#',
-                            _ => '@',
-                        };
-                        spans.push(Span::raw(symbol.to_string()));
-                    }
-                    lines.push(Line::from(spans));
-                }
-            }
-            VisualizationLayer::Temperature => {
-                for y in 0..sample_size {
-                    let mut spans = Vec::new();
-                    for x in 0..sample_size {
-                        let temp = simulation.get_temperature_layer().get_temperature(x, y);
-                        let symbol = match temp {
-                            t if t < -10.0 => '■',
-                            t if t < 0.0 => '▓',
-                            t if t < 10.0 => '▒',
-                            t if t < 20.0 => '░',
-                            t if t < 30.0 => '.',
-                            t if t < 40.0 => '+',
-                            _ => '#',
-                        };
-                        spans.push(Span::raw(symbol.to_string()));
-                    }
-                    lines.push(Line::from(spans));
-                }
-            }
-            VisualizationLayer::Pressure => {
-                for y in 0..sample_size {
-                    let mut spans = Vec::new();
-                    for x in 0..sample_size {
-                        let pressure = simulation.get_pressure_layer().get_pressure(x, y);
-                        let avg_pressure = 101300.0; // Standard pressure
-                        let normalized = (pressure - avg_pressure) / 2000.0 + 0.5;
+        // Create colorized ASCII framebuffer for this layer
+        use super::ascii_framebuffer::{AsciiFramebuffer, FramebufferConfig};
 
-                        let symbol = match normalized {
-                            n if n < 0.2 => '-',
-                            n if n < 0.4 => '.',
-                            n if n < 0.6 => '0',
-                            n if n < 0.8 => '+',
-                            _ => '#',
-                        };
-                        spans.push(Span::raw(symbol.to_string()));
-                    }
-                    lines.push(Line::from(spans));
-                }
-            }
-            VisualizationLayer::Wind => {
-                for y in 0..sample_size {
-                    let mut spans = Vec::new();
-                    for x in 0..sample_size {
-                        let velocity = simulation.get_wind_layer().get_velocity(x, y);
-                        let speed = velocity.magnitude();
+        let config = FramebufferConfig {
+            layers: vec![layer.clone()],
+            buffer_size: 1,
+            panel_width: display_width,
+            panel_height: display_height,
+            show_timestamps: false,
+            highlight_changes: false,
+            subsample_rate: 1,
+        };
 
-                        let symbol = if speed < 1.0 {
-                            '.'
-                        } else {
-                            let angle = velocity.y.atan2(velocity.x);
-                            let angle_deg = angle.to_degrees();
-                            let normalized_angle = ((angle_deg + 360.0) % 360.0) / 45.0;
+        let mut framebuffer = AsciiFramebuffer::new(config);
+        let frame = framebuffer.capture_frame(simulation);
+        framebuffer.add_frame(frame);
 
-                            match normalized_angle as i32 {
-                                0 => '→',
-                                1 => '↗',
-                                2 => '↑',
-                                3 => '↖',
-                                4 => '←',
-                                5 => '↙',
-                                6 => '↓',
-                                7 => '↘',
-                                _ => '→',
-                            }
-                        };
-                        spans.push(Span::raw(symbol.to_string()));
-                    }
+        if let Some(latest_frame) = framebuffer.latest_frame() {
+            // Get colorized output from our new framebuffer system
+            let colorized_output = framebuffer.format_frame_colorized(latest_frame);
+
+            // Parse the colorized output into ratatui Line objects
+            let mut lines = Vec::new();
+
+            // Collect lines into owned strings to avoid lifetime issues
+            let line_strings: Vec<String> =
+                colorized_output.lines().map(|s| s.to_owned()).collect();
+
+            for line_text in line_strings {
+                if line_text.trim().is_empty()
+                    || line_text.contains("===")
+                    || line_text.contains("ELEVATION")
+                    || line_text.contains("TEMPERATURE")
+                    || line_text.contains("PRESSURE")
+                    || line_text.contains("WIND")
+                {
+                    continue; // Skip empty lines, frame headers, and layer headers
+                }
+
+                // Parse ANSI color codes and convert to ratatui Spans
+                let spans = parse_ansi_to_spans(&line_text);
+                if !spans.is_empty() {
                     lines.push(Line::from(spans));
                 }
             }
-            _ => {
-                // Other layers - placeholder for now
-                for _y in 0..sample_size {
-                    let mut spans = Vec::new();
-                    for _x in 0..sample_size {
-                        spans.push(Span::raw("?"));
-                    }
-                    lines.push(Line::from(spans));
-                }
+
+            // Ensure we have at least some content
+            if lines.is_empty() {
+                lines.push(Line::from(vec![Span::raw("Loading...")]));
             }
+
+            Some(lines)
+        } else {
+            // Fallback to simple visualization
+            let mut lines = Vec::new();
+            lines.push(Line::from(vec![Span::raw(format!(
+                "No data for {}",
+                layer.display_name()
+            ))]));
+            Some(lines)
         }
-
-        Some(lines)
     }
 
     /// Create viewport paragraph widget with proper borders and titles
@@ -581,7 +635,14 @@ mod tests {
 
         // Test that we can render each viewport type
         for viewport_idx in 0..4 {
-            let result = renderer.render_viewport_content(&simulation, viewport_idx);
+            // Create test area for the viewport
+            let test_area = Rect {
+                x: 0,
+                y: 0,
+                width: 50,
+                height: 30,
+            };
+            let result = renderer.render_viewport_content(&simulation, viewport_idx, test_area);
 
             // Should return content for valid viewport indices
             assert!(
@@ -612,7 +673,13 @@ mod tests {
         }
 
         // Test invalid viewport index
-        let invalid_result = renderer.render_viewport_content(&simulation, 999);
+        let test_area = Rect {
+            x: 0,
+            y: 0,
+            width: 50,
+            height: 30,
+        };
+        let invalid_result = renderer.render_viewport_content(&simulation, 999, test_area);
         assert!(
             invalid_result.is_none(),
             "Invalid viewport index should return None"
