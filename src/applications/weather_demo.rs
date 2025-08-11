@@ -598,10 +598,11 @@ fn run_multi_viewport_tui(simulation: Simulation) -> Result<(), Box<dyn std::err
             for (viewport_idx, viewport_area) in layout_areas.iter().enumerate() {
                 if viewport_idx < app.renderer.viewport_count() {
                     // Get content for this viewport
-                    if let Some(content) = app
-                        .renderer
-                        .render_viewport_content(&app.simulation, viewport_idx)
-                    {
+                    if let Some(content) = app.renderer.render_viewport_content(
+                        &app.simulation,
+                        viewport_idx,
+                        *viewport_area,
+                    ) {
                         // Create widget for this viewport
                         let is_active = viewport_idx == app.renderer.get_active_viewport();
                         let widget =
