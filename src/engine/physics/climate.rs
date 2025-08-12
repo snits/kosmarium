@@ -613,6 +613,131 @@ impl ClimateSystem {
         multiplier.max(0.1).min(10.0)
     }
 
+    /// Apply energy-conserving evaporation that removes latent heat from temperature
+    /// Fixes the thermodynamic violation identified by Metis mathematical validation
+    /// Implementation formula: ΔT = -(evap_depth / water_depth) × 540.0
+    pub fn apply_evaporation_energy_conservation(
+        &self,
+        temperature_layer: &mut TemperatureLayer,
+        evaporation_depth: f32,
+        water_depth: f32,
+        x: usize,
+        y: usize,
+    ) {
+        // Thermodynamic constants from Metis validation
+        const TEMP_CORRECTION_FACTOR: f32 = -540.0; // K per (kg_evap / kg_water)
+
+        // Prevent division by zero and handle edge cases
+        if water_depth < 1e-6 || evaporation_depth <= 0.0 {
+            return; // Skip correction for no water or no evaporation
+        }
+
+        // Ensure evaporation doesn't exceed water depth (physical constraint)
+        let safe_evap_depth = evaporation_depth.min(water_depth * 0.99);
+        let evaporation_fraction = safe_evap_depth / water_depth;
+
+        // Calculate temperature drop due to latent heat removal
+        // ΔT = -(L_vap / c_p) × (m_evap / m_water) = -540.0 × evap_fraction
+        let temperature_change = TEMP_CORRECTION_FACTOR * evaporation_fraction;
+
+        // Apply temperature correction (bounds checking handled by bounds checking in temperature layer)
+        if x < temperature_layer.width() && y < temperature_layer.height() {
+            let current_temp = *temperature_layer.temperature.get(x, y);
+            let new_temp = current_temp + temperature_change;
+
+            // Apply reasonable climate bounds to prevent extreme temperatures
+            let bounded_temp = new_temp.max(-50.0).min(100.0);
+            temperature_layer.temperature.set(x, y, bounded_temp);
+        }
+    }
+
+    /// Apply energy-conserving condensation that adds latent heat to temperature
+    /// Reverse process of evaporation - adds energy when water vapor condenses
+    /// Implementation formula: ΔT = +(cond_depth / water_depth) × 540.0
+    pub fn apply_condensation_energy_conservation(
+        &self,
+        temperature_layer: &mut TemperatureLayer,
+        condensation_depth: f32,
+        water_depth: f32,
+        x: usize,
+        y: usize,
+    ) {
+        // Thermodynamic constants from Metis validation (positive for heat addition)
+        const TEMP_CORRECTION_FACTOR: f32 = 540.0; // K per (kg_cond / kg_water)
+
+        // Prevent division by zero and handle edge cases
+        if water_depth < 1e-6 || condensation_depth <= 0.0 {
+            return; // Skip correction for no water or no condensation
+        }
+
+        // Calculate condensation fraction (condensation adds to water depth)
+        let condensation_fraction = condensation_depth / (water_depth + condensation_depth);
+
+        // Calculate temperature rise due to latent heat addition
+        // ΔT = +(L_vap / c_p) × (m_cond / m_water) = +540.0 × cond_fraction
+        let temperature_change = TEMP_CORRECTION_FACTOR * condensation_fraction;
+
+        // Apply temperature correction
+        if x < temperature_layer.width() && y < temperature_layer.height() {
+            let current_temp = *temperature_layer.temperature.get(x, y);
+            let new_temp = current_temp + temperature_change;
+
+            // Apply reasonable climate bounds to prevent extreme temperatures
+            let bounded_temp = new_temp.max(-50.0).min(100.0);
+            temperature_layer.temperature.set(x, y, bounded_temp);
+        }
+    }
+
+    /// Calculate temperature-evaporation correlation for energy conservation validation
+    /// Returns correlation coefficient that should be ≈-0.999 for proper energy conservation
+    pub fn validate_energy_conservation(
+        &self,
+        temperature_layer: &TemperatureLayer,
+        evaporation_rates: &[Vec<f32>],
+    ) -> f32 {
+        let mut temp_values = Vec::new();
+        let mut evap_values = Vec::new();
+
+        // Collect temperature and evaporation data
+        for y in 0..temperature_layer.height() {
+            for x in 0..temperature_layer.width() {
+                if y < evaporation_rates.len() && x < evaporation_rates[y].len() {
+                    temp_values.push(temperature_layer.get_temperature(x, y));
+                    evap_values.push(evaporation_rates[y][x]);
+                }
+            }
+        }
+
+        // Calculate correlation coefficient
+        if temp_values.len() < 2 {
+            return 0.0; // Not enough data for correlation
+        }
+
+        let n = temp_values.len() as f32;
+        let temp_mean: f32 = temp_values.iter().sum::<f32>() / n;
+        let evap_mean: f32 = evap_values.iter().sum::<f32>() / n;
+
+        let mut numerator = 0.0;
+        let mut temp_var = 0.0;
+        let mut evap_var = 0.0;
+
+        for i in 0..temp_values.len() {
+            let temp_diff = temp_values[i] - temp_mean;
+            let evap_diff = evap_values[i] - evap_mean;
+
+            numerator += temp_diff * evap_diff;
+            temp_var += temp_diff * temp_diff;
+            evap_var += evap_diff * evap_diff;
+        }
+
+        let denominator = (temp_var * evap_var).sqrt();
+        if denominator < 1e-10 {
+            return 0.0; // Avoid division by zero
+        }
+
+        numerator / denominator
+    }
+
     /// Generate atmospheric pressure layer from temperature field
     /// Pressure is coupled to temperature through the ideal gas law and hydrostatic balance
     pub fn generate_pressure_layer(
@@ -1557,26 +1682,42 @@ mod tests {
         let initial_temp = 25.0; // °C
         temperature_layer.temperature.set(1, 1, initial_temp);
 
-        // Create water layer for evaporation
-        let mut water_layer = create_test_water_layer(3, 3);
-        water_layer.depth[1][1] = 0.1; // 10cm water depth
+        // Test energy-conserving evaporation - IMPLEMENTED!
+        let water_depth = 0.1; // 10cm water depth
+        let evaporation_depth = 0.001; // 1mm evaporation (1% of water depth)
 
-        // TODO: Implement apply_evaporation_with_energy_conservation method
-        // This is what we need to implement to fix the thermodynamic violation!
-
-        // For now, test that current evaporation violates energy conservation
-        let evap_multiplier = climate.get_evaporation_multiplier(initial_temp);
-        assert!(
-            evap_multiplier > 0.0,
-            "Should have positive evaporation rate"
+        // Apply energy-conserving evaporation
+        climate.apply_evaporation_energy_conservation(
+            &mut temperature_layer,
+            evaporation_depth,
+            water_depth,
+            1,
+            1,
         );
 
-        // Current system: evaporation changes water mass without affecting temperature
-        // This is the thermodynamic violation identified by atmospheric physicist!
-        // Temperature should DECREASE due to latent heat removal but currently doesn't
+        // Verify temperature decreased due to latent heat removal
+        let final_temp = temperature_layer.get_temperature(1, 1);
+        assert!(
+            final_temp < initial_temp,
+            "Temperature should decrease with evaporation: {} -> {}",
+            initial_temp,
+            final_temp
+        );
 
-        // This test will fail until we implement proper energy conservation
-        // assert!(final_temp < initial_temp, "Temperature should decrease with evaporation");
+        // Verify expected temperature drop using Metis-derived formula
+        // Expected: ΔT = -(evap_depth / water_depth) × 540.0 = -0.001/0.1 × 540 = -5.4°C
+        let expected_temp_drop = -(evaporation_depth / water_depth) * 540.0;
+        let actual_temp_drop = final_temp - initial_temp;
+
+        assert!(
+            (actual_temp_drop - expected_temp_drop).abs() < 0.001,
+            "Temperature drop should match thermodynamic prediction: expected {:.3}, got {:.3}",
+            expected_temp_drop,
+            actual_temp_drop
+        );
+
+        // Energy conservation is now SATISFIED ✓
+        println!("✓ Energy conservation test PASSED - evaporation removes latent heat");
     }
 
     #[test]
@@ -1590,10 +1731,114 @@ mod tests {
         let initial_temp = 15.0; // Cool temperature for condensation
         temperature_layer.temperature.set(1, 1, initial_temp);
 
-        // TODO: Implement condensation with energy conservation
-        // When water condenses, it should release latent heat and warm the surface
+        // Test energy-conserving condensation - IMPLEMENTED!
+        let water_depth = 0.05; // 5cm water depth
+        let condensation_depth = 0.001; // 1mm condensation
 
-        // Current system violates this by changing water mass without energy effects
+        // Apply energy-conserving condensation
+        climate.apply_condensation_energy_conservation(
+            &mut temperature_layer,
+            condensation_depth,
+            water_depth,
+            1,
+            1,
+        );
+
+        // Verify temperature increased due to latent heat addition
+        let final_temp = temperature_layer.get_temperature(1, 1);
+        assert!(
+            final_temp > initial_temp,
+            "Temperature should increase with condensation: {} -> {}",
+            initial_temp,
+            final_temp
+        );
+
+        // Verify expected temperature rise using Metis-derived formula
+        // Expected: ΔT = +(cond_depth / (water_depth + cond_depth)) × 540.0
+        let condensation_fraction = condensation_depth / (water_depth + condensation_depth);
+        let expected_temp_rise = condensation_fraction * 540.0;
+        let actual_temp_rise = final_temp - initial_temp;
+
+        assert!(
+            (actual_temp_rise - expected_temp_rise).abs() < 0.001,
+            "Temperature rise should match thermodynamic prediction: expected {:.3}, got {:.3}",
+            expected_temp_rise,
+            actual_temp_rise
+        );
+
+        // Energy conservation is now SATISFIED ✓
+        println!("✓ Energy conservation test PASSED - condensation adds latent heat");
+    }
+
+    #[test]
+    fn test_energy_conservation_correlation_validation() {
+        // Test that the correlation detection algorithm correctly identifies energy conservation
+        let scale = WorldScale::new(10.0, (5, 5), DetailLevel::Standard);
+        let climate = ClimateSystem::new_for_scale(&scale);
+        let mut temperature_layer = TemperatureLayer::new(5, 5);
+
+        // Set up temperature gradient for testing
+        for y in 0..5 {
+            for x in 0..5 {
+                let temp = 20.0 + (x as f32) * 2.0; // Temperature gradient across map
+                temperature_layer.temperature.set(x, y, temp);
+            }
+        }
+
+        // Create evaporation rates that correlate with temperature (realistic scenario)
+        let evaporation_rates = vec![
+            vec![0.001, 0.002, 0.003, 0.004, 0.005],
+            vec![0.001, 0.002, 0.003, 0.004, 0.005],
+            vec![0.001, 0.002, 0.003, 0.004, 0.005],
+            vec![0.001, 0.002, 0.003, 0.004, 0.005],
+            vec![0.001, 0.002, 0.003, 0.004, 0.005],
+        ];
+
+        // Test correlation before energy conservation (should be positive: hot = more evaporation)
+        let initial_correlation =
+            climate.validate_energy_conservation(&temperature_layer, &evaporation_rates);
+        assert!(
+            initial_correlation > 0.8,
+            "Initial correlation should be strong positive (hot temperature = high evaporation): {}",
+            initial_correlation
+        );
+
+        // Apply energy-conserving evaporation across the map
+        let water_depth = 0.1;
+        for y in 0..5 {
+            for x in 0..5 {
+                let evap_depth = evaporation_rates[y][x];
+                climate.apply_evaporation_energy_conservation(
+                    &mut temperature_layer,
+                    evap_depth,
+                    water_depth,
+                    x,
+                    y,
+                );
+            }
+        }
+
+        // Test correlation after energy conservation (should be strongly negative due to cooling effect)
+        let final_correlation =
+            climate.validate_energy_conservation(&temperature_layer, &evaporation_rates);
+        assert!(
+            final_correlation < -0.8,
+            "Final correlation should be strongly negative (evaporation cools temperature): {}",
+            final_correlation
+        );
+
+        // Verify the correlation magnitude indicates proper energy conservation
+        assert!(
+            final_correlation.abs() > 0.8,
+            "Correlation magnitude should indicate strong energy coupling: |{}| > 0.8",
+            final_correlation
+        );
+
+        println!(
+            "✓ Correlation validation PASSED: {:.3} -> {:.3}",
+            initial_correlation, final_correlation
+        );
+        println!("✓ Energy conservation correlation algorithm working correctly");
     }
 
     // Helper function for test setup

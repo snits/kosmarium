@@ -278,17 +278,17 @@ impl WaterFlowSystem {
         let width = heightmap.width();
         let height = heightmap.height();
         let total_cells = width * height;
-        
+
         // Estimate based on common scaling patterns:
         // Small grids (< 10k cells): ~100m/pixel
-        // Medium grids (10k-100k cells): ~1000m/pixel  
+        // Medium grids (10k-100k cells): ~1000m/pixel
         // Large grids (> 100k cells): ~10000m/pixel
         if total_cells < 10_000 {
-            100.0  // Small domain
+            100.0 // Small domain
         } else if total_cells < 100_000 {
-            1000.0  // Medium domain
+            1000.0 // Medium domain
         } else {
-            10000.0  // Large domain
+            10000.0 // Large domain
         }
     }
 
@@ -301,7 +301,12 @@ impl WaterFlowSystem {
         self.calculate_flow_directions_with_spacing(heightmap, water, grid_spacing_m);
     }
 
-    fn calculate_flow_directions_with_spacing(&self, heightmap: &HeightMap, water: &mut WaterLayer, grid_spacing_m: f32) {
+    fn calculate_flow_directions_with_spacing(
+        &self,
+        heightmap: &HeightMap,
+        water: &mut WaterLayer,
+        grid_spacing_m: f32,
+    ) {
         let height = heightmap.height();
         let width = heightmap.width();
         if height == 0 || width == 0 {
@@ -345,17 +350,19 @@ impl WaterFlowSystem {
                 if flow_direction.magnitude() > 0.0 {
                     let magnitude = flow_direction.magnitude();
                     let grid_spacing = grid_spacing_m;
-                    
+
                     // Calculate distance to neighbor (diagonal neighbors have √2 distance)
-                    let distance = if magnitude > 1.4 { // diagonal
+                    let distance = if magnitude > 1.4 {
+                        // diagonal
                         grid_spacing * 1.414213562
-                    } else { // orthogonal  
+                    } else {
+                        // orthogonal
                         grid_spacing
                     };
-                    
+
                     // Convert height difference to gradient: gradient = slope / distance
                     let gradient = steepest_slope / distance;
-                    
+
                     flow_direction.x =
                         (flow_direction.x / magnitude) * gradient * self.parameters.flow_rate;
                     flow_direction.y =
@@ -377,7 +384,12 @@ impl WaterFlowSystem {
         drainage_network: &DrainageNetwork,
     ) {
         // Calculate flow directions based on current state and drainage network
-        self.calculate_flow_directions_with_drainage(heightmap, water, drainage_network, self.estimate_grid_spacing_from_context(heightmap));
+        self.calculate_flow_directions_with_drainage(
+            heightmap,
+            water,
+            drainage_network,
+            self.estimate_grid_spacing_from_context(heightmap),
+        );
 
         // Add rainfall
         self.add_rainfall(water);
@@ -395,7 +407,11 @@ impl WaterFlowSystem {
     /// Simulate one tick of water flow (legacy method without drainage awareness)
     pub fn update_water_flow(&self, heightmap: &mut HeightMap, water: &mut WaterLayer) {
         // Calculate flow directions based on current state
-        self.calculate_flow_directions_with_spacing(heightmap, water, self.estimate_grid_spacing_from_context(heightmap));
+        self.calculate_flow_directions_with_spacing(
+            heightmap,
+            water,
+            self.estimate_grid_spacing_from_context(heightmap),
+        );
 
         // Add rainfall
         self.add_rainfall(water);
@@ -420,7 +436,12 @@ impl WaterFlowSystem {
         drainage_network: &DrainageNetwork,
     ) {
         // Calculate flow directions based on current state and drainage network
-        self.calculate_flow_directions_with_drainage(heightmap, water, drainage_network, self.estimate_grid_spacing_from_context(heightmap));
+        self.calculate_flow_directions_with_drainage(
+            heightmap,
+            water,
+            drainage_network,
+            self.estimate_grid_spacing_from_context(heightmap),
+        );
 
         // Add rainfall
         self.add_rainfall(water);
@@ -444,7 +465,11 @@ impl WaterFlowSystem {
         climate_system: &ClimateSystem,
     ) {
         // Calculate flow directions based on current state
-        self.calculate_flow_directions_with_spacing(heightmap, water, self.estimate_grid_spacing_from_context(heightmap));
+        self.calculate_flow_directions_with_spacing(
+            heightmap,
+            water,
+            self.estimate_grid_spacing_from_context(heightmap),
+        );
 
         // Add rainfall
         self.add_rainfall(water);
@@ -742,14 +767,16 @@ impl WaterFlowSystem {
                     // Apply enhanced flow rate with proper gradient calculation
                     let enhanced_flow_rate = self.parameters.flow_rate * drainage_enhancement;
                     let grid_spacing = grid_spacing_m;
-                    
+
                     // Calculate distance to neighbor (diagonal neighbors have √2 distance)
-                    let distance = if magnitude > 1.4 { // diagonal
+                    let distance = if magnitude > 1.4 {
+                        // diagonal
                         grid_spacing * 1.414213562
-                    } else { // orthogonal  
+                    } else {
+                        // orthogonal
                         grid_spacing
                     };
-                    
+
                     // Convert height difference to gradient: gradient = slope / distance
                     let gradient = steepest_slope / distance;
 
