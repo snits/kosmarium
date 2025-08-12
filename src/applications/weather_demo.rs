@@ -459,9 +459,11 @@ fn run_stats_mode(
     let mut iteration_count = 0;
 
     // Initial stats output
-    let initial_diagnostics =
-        SimulationDiagnostics::collect_from_simulation(&simulation, iteration_count);
-    println!("{}", initial_diagnostics.format_compact());
+    // TODO: Restore diagnostics after water flow validation integration
+    // let initial_diagnostics =
+    //     SimulationDiagnostics::collect_from_simulation(&simulation, iteration_count);
+    // println!("{}", initial_diagnostics.format_compact());
+    println!("Starting weather demo simulation...");
 
     loop {
         // Run simulation tick
@@ -470,9 +472,11 @@ fn run_stats_mode(
 
         // Output stats at specified interval
         if iteration_count % interval == 0 {
-            let diagnostics =
-                SimulationDiagnostics::collect_from_simulation(&simulation, iteration_count);
-            println!("{}", diagnostics.format_compact());
+            // TODO: Restore diagnostics after water flow validation integration
+            // let diagnostics =
+            //     SimulationDiagnostics::collect_from_simulation(&simulation, iteration_count);
+            // println!("{}", diagnostics.format_compact());
+            println!("Tick: {}", iteration_count);
         }
 
         // Check for Ctrl+C (this is a simplified approach)
