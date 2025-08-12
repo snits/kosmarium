@@ -226,16 +226,12 @@ impl CorrectedWaterFlowSystem {
 
     /// Apply velocity bounds for physical realism
     fn apply_velocity_bounds(&self, water: &mut WaterLayer) {
-        let dx = self.world_scale.meters_per_pixel() as f32;
-
         for y in 0..water.height() {
             for x in 0..water.width() {
                 let (u, v) = water.velocity.get(x, y);
 
-                // Convert to physical units (m/s)
-                let u_ms = u * dx;
-                let v_ms = v * dx;
-                let velocity_magnitude_ms = (u_ms * u_ms + v_ms * v_ms).sqrt();
+                // Velocity is already in physical units (m/s) after gradient correction
+                let velocity_magnitude_ms = (u * u + v * v).sqrt();
 
                 // Apply bounds
                 if velocity_magnitude_ms > self.absolute_max_velocity {

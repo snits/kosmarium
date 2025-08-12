@@ -49,14 +49,23 @@ fn test_water_flow_diagnostics(scale: &WorldScale) {
     // Create test water flow system
     let water_system = WaterFlowSystem::new_for_scale(scale);
 
-    // Create simple test terrain and water
+    // Create simple test terrain with a slope to generate realistic flow
     let width = scale.resolution.0 as usize;
     let height = scale.resolution.1 as usize;
 
-    let heightmap = HeightMap::new(width, height, 1.0);
+    // Create heightmap with a clear gradient for flow testing
+    let mut heightmap_data = vec![vec![0.0; width]; height];
+    for y in 0..height {
+        for x in 0..width {
+            // Create a slope from top-left (high) to bottom-right (low)
+            let elevation = 100.0 - (x + y) as f32 * 0.1;
+            heightmap_data[y][x] = elevation;
+        }
+    }
+    let heightmap = HeightMap::from_nested(heightmap_data);
     let mut water = WaterLayer::new(width, height);
 
-    // Add some test water with varying depths
+    // Add test water at various locations
     for y in 0..height {
         for x in 0..width {
             let depth = if x < width / 3 {
@@ -67,13 +76,11 @@ fn test_water_flow_diagnostics(scale: &WorldScale) {
                 2.0
             };
             water.add_water(x, y, depth);
-
-            // Add some test velocities
-            let vel_x = (x as f32 / width as f32 - 0.5) * 0.1;
-            let vel_y = (y as f32 / height as f32 - 0.5) * 0.1;
-            water.velocity.set(x, y, (vel_x, vel_y));
         }
     }
+
+    // CRITICAL: Actually calculate flow directions using the corrected physics
+    water_system.calculate_flow_directions(&heightmap, &mut water);
 
     // Create and run diagnostics
     let mut diagnostics = WaterFlowDiagnostics::new(scale.clone());
