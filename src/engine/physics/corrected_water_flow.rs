@@ -484,7 +484,7 @@ mod tests {
         water.add_water(25, 25, 1.0);
         water.velocity.set(25, 25, (100.0, 100.0)); // Very high velocity
 
-        corrected_system.apply_velocity_bounds(&water);
+        corrected_system.apply_velocity_bounds(&mut water);
 
         let (u, v) = water.velocity.get(25, 25);
         let velocity_mag = (u * u + v * v).sqrt();

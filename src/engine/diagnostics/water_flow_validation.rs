@@ -491,7 +491,7 @@ mod tests {
     #[test]
     fn test_cfl_stability_analysis() {
         let (scale, water_system, heightmap, mut water) = create_test_setup();
-        let diagnostics = WaterFlowDiagnostics::new(scale);
+        let mut diagnostics = WaterFlowDiagnostics::new(scale);
 
         // Set reasonable velocity and depth
         water.add_water(25, 25, 1.0);
@@ -507,7 +507,7 @@ mod tests {
     #[test]
     fn test_velocity_statistics() {
         let (scale, water_system, heightmap, mut water) = create_test_setup();
-        let diagnostics = WaterFlowDiagnostics::new(scale);
+        let mut diagnostics = WaterFlowDiagnostics::new(scale);
 
         // Set up various velocities
         for i in 0..10 {
@@ -532,7 +532,7 @@ mod tests {
     #[test]
     fn test_physics_quality_score() {
         let (scale, water_system, heightmap, water) = create_test_setup();
-        let diagnostics = WaterFlowDiagnostics::new(scale);
+        let mut diagnostics = WaterFlowDiagnostics::new(scale);
 
         let validation = diagnostics.validate_water_flow_physics(&water_system, &heightmap, &water);
 
@@ -544,7 +544,7 @@ mod tests {
     #[test]
     fn test_diagnostic_report_generation() {
         let (scale, water_system, heightmap, water) = create_test_setup();
-        let diagnostics = WaterFlowDiagnostics::new(scale);
+        let mut diagnostics = WaterFlowDiagnostics::new(scale);
 
         let validation = diagnostics.validate_water_flow_physics(&water_system, &heightmap, &water);
         let report = diagnostics.generate_diagnostic_report(&validation);
