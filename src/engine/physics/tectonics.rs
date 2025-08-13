@@ -16,7 +16,7 @@ pub enum BoundaryType {
     Transform,  // Plates sliding past - faults
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct Vec2 {
     pub x: f32,
     pub y: f32,
@@ -104,6 +104,143 @@ pub struct TectonicSystem {
 }
 
 impl TectonicSystem {
+    /// Calculate plate mass based on density, thickness, and area
+    /// METIS CORRECTION: Proper mass calculation for momentum conservation
+    fn calculate_plate_mass(&self, plate: &TectonicPlate) -> f32 {
+        // Physical plate densities (g/cm³ → simulation units)
+        let density = match plate.plate_type {
+            PlateType::Continental => 2.7, // Continental crust density
+            PlateType::Oceanic => 3.0,     // Oceanic crust density
+        };
+
+        // Approximate plate area (will be refined with actual Voronoi areas)
+        let approx_area = (self.width * self.height) as f32 / self.plates.len() as f32;
+
+        // Mass = density × thickness × area
+        // Convert to simulation units (thickness in km, area in grid units)
+        density * plate.crustal_thickness * approx_area
+    }
+
+    /// METIS CORRECTION: Apply momentum conservation during plate interactions
+    /// Implements Newton's Third Law: F₁₂ = -F₂₁ and conservation: Σmᵢvᵢ = constant
+    pub fn apply_momentum_conservation_to_plates(&mut self, dt: f32) {
+        // Store initial momentum for verification
+        let initial_momentum = self.calculate_total_momentum();
+
+        // Apply pairwise momentum exchanges between interacting plates
+        let num_plates = self.plates.len();
+        for i in 0..num_plates {
+            for j in (i + 1)..num_plates {
+                let distance = self.calculate_plate_separation(i, j);
+
+                // Only apply momentum exchange if plates are close enough to interact
+                const INTERACTION_THRESHOLD: f32 = 50.0; // Grid units
+                if distance < INTERACTION_THRESHOLD {
+                    self.apply_pairwise_momentum_exchange(i, j, distance, dt);
+                }
+            }
+        }
+
+        // Verify momentum conservation (debug check)
+        let final_momentum = self.calculate_total_momentum();
+        let momentum_error = ((final_momentum.x - initial_momentum.x).abs()
+            + (final_momentum.y - initial_momentum.y).abs())
+            / (initial_momentum.x.abs() + initial_momentum.y.abs() + 1e-10);
+
+        if momentum_error > 0.01 {
+            eprintln!(
+                "Warning: Momentum conservation violation: {:.4}%",
+                momentum_error * 100.0
+            );
+        }
+    }
+
+    /// Calculate total system momentum for conservation verification
+    pub fn calculate_total_momentum(&self) -> Vec2 {
+        let mut total_momentum = Vec2::new(0.0, 0.0);
+
+        for plate in &self.plates {
+            let mass = self.calculate_plate_mass(plate);
+            total_momentum.x += mass * plate.velocity.x;
+            total_momentum.y += mass * plate.velocity.y;
+        }
+
+        total_momentum
+    }
+
+    /// Calculate separation distance between two plates
+    fn calculate_plate_separation(&self, plate_i: usize, plate_j: usize) -> f32 {
+        let plate1 = &self.plates[plate_i];
+        let plate2 = &self.plates[plate_j];
+
+        let dx = plate1.center.x - plate2.center.x;
+        let dy = plate1.center.y - plate2.center.y;
+        (dx * dx + dy * dy).sqrt()
+    }
+
+    /// Apply momentum exchange between two interacting plates
+    fn apply_pairwise_momentum_exchange(&mut self, i: usize, j: usize, distance: f32, dt: f32) {
+        // Get plate properties (need to extract to avoid borrow conflicts)
+        let (mass1, velocity1, center1) = {
+            let plate = &self.plates[i];
+            (
+                self.calculate_plate_mass(plate),
+                plate.velocity,
+                plate.center,
+            )
+        };
+
+        let (mass2, velocity2, center2) = {
+            let plate = &self.plates[j];
+            (
+                self.calculate_plate_mass(plate),
+                plate.velocity,
+                plate.center,
+            )
+        };
+
+        // Calculate relative position and velocity
+        let relative_pos = Vec2::new(center2.x - center1.x, center2.y - center1.y);
+        let relative_velocity = Vec2::new(velocity1.x - velocity2.x, velocity1.y - velocity2.y);
+
+        // Check if plates are approaching (dot product < 0)
+        let approach_rate = relative_pos.dot(&relative_velocity) / distance;
+
+        if approach_rate < 0.0 {
+            // Plates are approaching - apply momentum exchange
+            let unit_normal = relative_pos.normalize();
+
+            // Conservation of momentum in elastic collision (simplified)
+            // v₁' = v₁ - 2m₂/(m₁+m₂) * (v₁-v₂)·n̂ * n̂
+            // v₂' = v₂ - 2m₁/(m₁+m₂) * (v₂-v₁)·n̂ * n̂
+
+            let total_mass = mass1 + mass2;
+            let normal_velocity = relative_velocity.dot(&unit_normal);
+
+            // Energy dissipation factor (perfectly elastic = 1.0, perfectly inelastic = 0.0)
+            let restitution = 0.3; // Geological collisions are quite inelastic
+
+            let impulse_magnitude = 2.0 * restitution * normal_velocity / total_mass;
+            let impulse = Vec2::new(
+                impulse_magnitude * unit_normal.x,
+                impulse_magnitude * unit_normal.y,
+            );
+
+            // Apply momentum changes (Newton's Third Law: equal and opposite)
+            let plate1_velocity_change = Vec2::new(-mass2 * impulse.x, -mass2 * impulse.y);
+            let plate2_velocity_change = Vec2::new(mass1 * impulse.x, mass1 * impulse.y);
+
+            // Scale by time step and interaction strength
+            let interaction_strength = (1.0 / (distance + 1.0)) * dt;
+
+            // Update plate velocities
+            self.plates[i].velocity.x += plate1_velocity_change.x * interaction_strength;
+            self.plates[i].velocity.y += plate1_velocity_change.y * interaction_strength;
+            self.plates[j].velocity.x += plate2_velocity_change.x * interaction_strength;
+            self.plates[j].velocity.y += plate2_velocity_change.y * interaction_strength;
+        }
+    }
+
     pub fn new(width: usize, height: usize, num_plates: usize, seed: u64) -> Self {
         let mut rng = StdRng::seed_from_u64(seed);
         let mut plates = Vec::new();
@@ -271,9 +408,26 @@ impl TectonicSystem {
             // Start with base plate elevation
             let mut elevation = plate.base_elevation;
 
-            // Add isostatic adjustment based on crustal thickness
-            // Thicker crust "floats" higher due to isostatic equilibrium
-            let isostatic_adjustment = (plate.crustal_thickness - 20.0) * 0.02; // 20km reference thickness
+            // METIS CORRECTION: Proper isostatic equilibrium using Archimedes' principle
+            // h_elevation = h_crust × (1 - ρ_crust/ρ_mantle)
+
+            const MANTLE_DENSITY: f32 = 3.3; // g/cm³
+
+            let (crust_density, reference_elevation) = match plate.plate_type {
+                PlateType::Continental => (2.7, 0.5), // Continental crust density + base elevation
+                PlateType::Oceanic => (3.0, -0.5),    // Oceanic crust density + base elevation
+            };
+
+            // Archimedes' buoyancy: elevation proportional to density contrast
+            let density_ratio = 1.0 - (crust_density / MANTLE_DENSITY);
+            let isostatic_coefficient = match plate.plate_type {
+                PlateType::Continental => 0.18, // (1 - 2.7/3.3) = 0.18
+                PlateType::Oceanic => 0.09,     // (1 - 3.0/3.3) = 0.09
+            };
+
+            // Physics-correct isostatic adjustment
+            let thickness_above_reference = (plate.crustal_thickness - 30.0).max(0.0); // 30km reference
+            let isostatic_adjustment = thickness_above_reference * isostatic_coefficient;
             elevation += isostatic_adjustment;
 
             // Add age-related subsidence for oceanic plates
@@ -351,7 +505,10 @@ impl TectonicSystem {
         plate2: &TectonicPlate,
         distance: f32,
     ) -> f32 {
-        // Calculate relative velocity between plates
+        // METIS CORRECTION: Energy-conserving plate interaction calculation
+        // W_total = ρ·g·h·ΔV + ∫(σ·ε)dV + Q_friction
+
+        // Calculate relative velocity between plates (MOMENTUM CONSERVATION CORRECTION)
         let relative_velocity = Vec2::new(
             plate1.velocity.x - plate2.velocity.x,
             plate1.velocity.y - plate2.velocity.y,
@@ -361,50 +518,138 @@ impl TectonicSystem {
         let speed = relative_velocity.magnitude();
         let boundary_type = self.determine_boundary_type(plate1, plate2, &relative_velocity);
 
-        // Improved distance falloff - effects extend much further from boundaries
+        // ENERGY CONSERVATION: Calculate available kinetic energy for geological work
+        let plate1_mass = self.calculate_plate_mass(plate1);
+        let plate2_mass = self.calculate_plate_mass(plate2);
+        let total_mass = plate1_mass + plate2_mass;
+
+        // Kinetic energy available for interaction (per unit area)
+        let kinetic_energy_density =
+            0.5 * (plate1_mass * speed * speed) / (self.width * self.height) as f32;
+
+        // Energy efficiency for different geological processes
+        let energy_efficiency = match boundary_type {
+            BoundaryType::Convergent => 0.15, // 15% kinetic energy → gravitational potential energy
+            BoundaryType::Divergent => 0.05,  // 5% energy → rift formation
+            BoundaryType::Transform => 0.02,  // 2% energy → fault systems
+        };
+
+        // Available energy for elevation change
+        let available_energy = kinetic_energy_density * energy_efficiency;
+
+        // Physics-based distance falloff using elastic stress propagation
         let max_effect_distance = 20.0; // Effects extend 20 pixels from boundary
         let distance_factor = if distance < max_effect_distance {
-            // Exponential falloff for more realistic mountain building
-            (-distance / (max_effect_distance * 0.3)).exp()
+            // Physical stress propagation: σ(r) ∝ (a/r)^n
+            let stress_falloff_exponent = 0.5; // Square root falloff for 2D stress concentration
+            (max_effect_distance / (distance + 1.0)).powf(stress_falloff_exponent)
         } else {
             0.0
         };
 
-        // Convergence strength based on relative velocity and crustal properties
-        let convergence_strength = speed * 100.0; // Amplify the effect significantly
+        // ENERGY-LIMITED convergence strength (not arbitrary amplification)
+        let energy_limited_strength = (available_energy / 1000.0).min(1.0); // Clamp to realistic values
+
+        // Physical constants for energy calculations
+        const GRAVITY: f32 = 9.81; // m/s²
+        const ROCK_DENSITY: f32 = 2700.0; // kg/m³ for crustal rock
 
         match boundary_type {
             BoundaryType::Convergent => {
-                // Mountain building - elevation depends on crust types and convergence rate
-                let mountain_height = match (plate1.plate_type, plate2.plate_type) {
-                    (PlateType::Continental, PlateType::Continental) => {
-                        // Continental collision: Himalayas-style - highest mountains
-                        1.5 + (plate1.crustal_thickness + plate2.crustal_thickness) * 0.02
-                    }
-                    (PlateType::Continental, PlateType::Oceanic)
-                    | (PlateType::Oceanic, PlateType::Continental) => {
-                        // Subduction zone: Andes-style - high coastal mountains
-                        1.0 + plate1.crustal_thickness.max(plate2.crustal_thickness) * 0.015
-                    }
-                    (PlateType::Oceanic, PlateType::Oceanic) => {
-                        // Ocean-ocean convergence: Island arcs
-                        0.6 + (plate1.age + plate2.age) * 0.002 // Older plates create higher islands
-                    }
-                };
-                mountain_height * distance_factor * convergence_strength
+                // METIS CORRECTION: Energy-conserving mountain building
+                // Calculate maximum elevation from available energy: E = mgh → h = E/(mg)
+
+                // Maximum elevation from gravitational potential energy conservation
+                let max_elevation_from_energy = available_energy / (ROCK_DENSITY * GRAVITY);
+
+                // Geological efficiency factors based on crustal interaction type
+                let (base_elevation, efficiency_factor) =
+                    match (plate1.plate_type, plate2.plate_type) {
+                        (PlateType::Continental, PlateType::Continental) => {
+                            // Continental collision: Most efficient mountain building
+                            let combined_thickness =
+                                plate1.crustal_thickness + plate2.crustal_thickness;
+                            (combined_thickness * 0.08, 0.8) // 8% thickness uplift, 80% efficiency
+                        }
+                        (PlateType::Continental, PlateType::Oceanic)
+                        | (PlateType::Oceanic, PlateType::Continental) => {
+                            // Subduction zone: Moderate efficiency due to partial recycling
+                            let max_thickness =
+                                plate1.crustal_thickness.max(plate2.crustal_thickness);
+                            (max_thickness * 0.06, 0.6) // 6% thickness uplift, 60% efficiency
+                        }
+                        (PlateType::Oceanic, PlateType::Oceanic) => {
+                            // Ocean-ocean convergence: Volcanic island arcs, lower efficiency
+                            let avg_age = (plate1.age + plate2.age) * 0.5;
+                            (0.3 + avg_age * 0.001, 0.4) // Age-dependent volcanic buildup, 40% efficiency
+                        }
+                    };
+
+                // Combine geological potential with energy constraints
+                let energy_limited_elevation = max_elevation_from_energy * efficiency_factor;
+                let geological_potential = base_elevation;
+
+                // Take minimum to respect energy conservation
+                let final_elevation = energy_limited_elevation.min(geological_potential);
+
+                // Apply distance falloff and energy-limited strength
+                final_elevation * distance_factor * energy_limited_strength
             }
             BoundaryType::Divergent => {
-                // Rift valleys and mid-ocean ridges
-                let rift_depth = match (plate1.plate_type, plate2.plate_type) {
-                    (PlateType::Continental, PlateType::Continental) => -0.3, // Continental rifts
-                    _ => -0.1, // Mid-ocean ridges (less deep due to volcanic activity)
-                };
-                rift_depth * distance_factor * convergence_strength
+                // METIS CORRECTION: Energy-conserving rift formation
+                // Rifting creates depressions through extensional forces
+
+                // Energy available for rift formation (much less than mountain building)
+                let rift_energy_efficiency = 0.1; // 10% of available energy
+                let rift_formation_energy = available_energy * rift_energy_efficiency;
+
+                // Calculate rift depth from energy: deeper rifts require more energy
+                let max_rift_depth = rift_formation_energy / (ROCK_DENSITY * GRAVITY);
+
+                let (base_rift_depth, rift_efficiency) =
+                    match (plate1.plate_type, plate2.plate_type) {
+                        (PlateType::Continental, PlateType::Continental) => {
+                            // Continental rifts: East African Rift style
+                            (-1.0, 0.7) // Up to 1km depth, 70% efficiency
+                        }
+                        _ => {
+                            // Mid-ocean ridges: Shallower due to volcanic infill
+                            (-0.4, 0.5) // Up to 400m depth, 50% efficiency  
+                        }
+                    };
+
+                // Energy-limited rift depth
+                let energy_limited_depth = -(max_rift_depth * rift_efficiency);
+                let final_rift_depth = energy_limited_depth.max(base_rift_depth);
+
+                final_rift_depth * distance_factor * energy_limited_strength
             }
             BoundaryType::Transform => {
-                // Transform faults - create linear valleys and ridges
-                let fault_effect = 0.2 * (1.0 - 2.0 * (distance % 2.0)); // Alternating ridges/valleys
-                fault_effect * distance_factor * convergence_strength * 0.5
+                // METIS CORRECTION: Physics-based transform fault topography
+                // Transform faults create offset topography through shear stress
+
+                // Shear stress accumulation: τ = μ × (convergence_rate)
+                let shear_modulus = 30e9; // Pa (typical crustal shear modulus)
+                let convergence_rate = speed; // Plate convergence rate
+
+                // Fault displacement energy from shear work
+                let shear_energy = available_energy * 0.05; // 5% efficiency for transform motion
+
+                // Maximum fault offset from energy conservation
+                let max_fault_offset = (shear_energy / shear_modulus).sqrt() * 1000.0; // Convert to elevation units
+
+                // Realistic transform fault topography (not modulo artifacts)
+                let base_fault_amplitude = 0.15; // Base topographic variation
+                let fault_efficiency = 0.3; // 30% of shear creates topography
+
+                let energy_limited_offset =
+                    (max_fault_offset * fault_efficiency).min(base_fault_amplitude);
+
+                // Create realistic fault valley/ridge pattern
+                let fault_phase = (distance * 0.5).sin(); // Smooth sinusoidal variation
+                let fault_topography = energy_limited_offset * fault_phase;
+
+                fault_topography * distance_factor * energy_limited_strength
             }
         }
     }
