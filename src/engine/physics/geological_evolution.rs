@@ -113,7 +113,7 @@ impl GeologicalEvolution {
         let world_scale =
             WorldScale::new(10.0, (width as u32, height as u32), DetailLevel::Standard);
 
-        // Initialize unified flow engine with geological parameters  
+        // Initialize unified flow engine with geological parameters
         let mut flow_engine = FlowEngine::for_geology(width, height, &world_scale);
         // Apply custom geological parameters if configured
         flow_engine.parameters = self.config.geological_flow_params.clone();
