@@ -121,7 +121,7 @@ impl GeologicalEvolution {
             WorldScale::new(10.0, (width as u32, height as u32), DetailLevel::Standard);
 
         // Initialize water flow system with geological parameters
-        let water_system = WaterFlowSystem::from_parameters(
+        let mut water_system = WaterFlowSystem::from_parameters(
             self.config.geological_water_params.clone(),
             &world_scale,
         );
