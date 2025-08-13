@@ -141,6 +141,7 @@ pub fn test_continuous_flow_updates() {
                 &mut sim.temperature_layer,
                 &sim.climate_system,
                 &sim.drainage_network,
+                &sim._world_scale,
             );
 
         // Also advance climate (this is what tick() does)
@@ -233,6 +234,7 @@ pub fn analyze_tick_details() {
                     &mut sim.temperature_layer,
                     &sim.climate_system,
                     &sim.drainage_network,
+                    &sim._world_scale,
                 );
             let after_water_flow = sim.water.get_total_water();
             println!(
