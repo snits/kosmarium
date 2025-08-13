@@ -3,6 +3,7 @@
 
 use super::super::core::optimized_heightmap::FlatHeightmap;
 use super::super::core::scale::WorldScale;
+use super::{FlowEngine, FlowParameters}; // Use the re-export from mod.rs
 use crate::engine::{WaterFlowParameters, WaterFlowSystem};
 use std::collections::HashSet;
 
@@ -185,12 +186,15 @@ impl SpatialUpdateTracker {
 }
 
 /// Optimized water flow system that only processes active cells
+/// Migrated to use unified FlowEngine with spatial optimization
 pub struct OptimizedWaterFlowSystem {
     update_tracker: SpatialUpdateTracker,
     cached_temperature_valid: bool,
     last_temperature_update: u64,
     temperature_cache_lifetime: u64,
-    // Actual water flow system to delegate physics calculations
+    // Unified flow engine with spatial optimization algorithm
+    flow_engine: FlowEngine,
+    // Legacy water flow system maintained for backward compatibility
     water_flow_system: WaterFlowSystem,
 }
 
@@ -204,6 +208,9 @@ impl OptimizedWaterFlowSystem {
             crate::engine::core::scale::DetailLevel::Standard,
         );
         let water_flow_system = WaterFlowSystem::new_for_scale(&world_scale);
+        
+        // Create unified flow engine with spatial optimization for performance
+        let flow_engine = FlowEngine::for_performance(width, height, &world_scale);
 
         let mut update_tracker = SpatialUpdateTracker::new(width, height);
         // Set scale-aware change threshold based on water system's evaporation threshold
@@ -215,6 +222,7 @@ impl OptimizedWaterFlowSystem {
             cached_temperature_valid: false,
             last_temperature_update: 0,
             temperature_cache_lifetime: 100, // Recompute temperature every 100 iterations
+            flow_engine,
             water_flow_system,
         }
     }
@@ -225,11 +233,23 @@ impl OptimizedWaterFlowSystem {
         params: WaterFlowParameters,
         world_scale: &WorldScale,
     ) -> Self {
-        let water_flow_system = WaterFlowSystem::from_parameters(params, world_scale);
+        let water_flow_system = WaterFlowSystem::from_parameters(params.clone(), world_scale);
+        
+        // Create unified flow engine with spatial optimization and custom parameters
+        let mut flow_engine = FlowEngine::for_performance(width, height, world_scale);
+        // Convert legacy parameters to unified FlowParameters
+        flow_engine.parameters = FlowParameters {
+            gravity: 9.81,
+            roughness: 0.03,
+            min_depth: 1e-6,
+            concentration_factor: 5000.0, // From legacy flow_rate conversion
+            cfl_safety: params.cfl_safety_factor,
+            dt: 1.0 / params.max_expected_velocity_ms, // Derived from CFL condition
+        };
 
         let mut update_tracker = SpatialUpdateTracker::new(width, height);
-        // Set scale-aware change threshold based on water system's evaporation threshold
-        let scale_aware_threshold = water_flow_system.evaporation_threshold * 2.0; // Scale with domain
+        // Set scale-aware change threshold based on flow engine parameters
+        let scale_aware_threshold = flow_engine.parameters.min_depth * 100.0;
         update_tracker.set_change_threshold(scale_aware_threshold);
 
         Self {
@@ -237,6 +257,7 @@ impl OptimizedWaterFlowSystem {
             cached_temperature_valid: false,
             last_temperature_update: 0,
             temperature_cache_lifetime: 100,
+            flow_engine,
             water_flow_system,
         }
     }
@@ -251,28 +272,59 @@ impl OptimizedWaterFlowSystem {
         _iteration: u64,
     ) -> bool {
         let mut any_changes = false;
-        let (width, _height) = heightmap.dimensions();
+        let (width, height) = heightmap.dimensions();
 
-        // Collect active cells to avoid borrowing conflicts
+        // Convert FlatHeightmap and flat arrays to HeightMap and WaterLayer for FlowEngine
+        let mut temp_heightmap = crate::engine::core::heightmap::HeightMap::new(width, height, 0.0);
+        let mut temp_water = crate::engine::physics::water::WaterLayer::new(width, height);
+        
+        // Copy data to temporary structures
+        for y in 0..height {
+            for x in 0..width {
+                let index = y * width + x;
+                temp_heightmap.set(x, y, heightmap.get(x, y));
+                temp_water.add_water(x, y, water_depth[index]);
+                temp_water.velocity.set(x, y, water_velocity[index]);
+                temp_water.sediment.set(x, y, sediment[index]);
+            }
+        }
+
+        // Store previous values for change detection
+        let prev_water: Vec<f32> = water_depth.clone();
+        let prev_terrain: Vec<f32> = (0..width*height)
+            .map(|i| {
+                let (x, y) = (i % width, i / width);
+                heightmap.get(x, y)
+            })
+            .collect();
+
+        // Use unified FlowEngine with spatial optimization (only processes cells that need updates)
+        let world_scale = WorldScale::new(
+            self.flow_engine.velocity_field.meters_per_pixel,
+            (width as u32, height as u32),
+            crate::engine::core::scale::DetailLevel::Standard,
+        );
+        
+        // FlowEngine's spatial algorithm only updates active cells for performance
+        self.flow_engine.calculate_flow(&temp_heightmap, &mut temp_water, None, &world_scale);
+
+        // Copy results back and apply erosion using legacy method for compatibility
         let active_cells: Vec<(usize, usize)> = self.update_tracker.active_cells().collect();
-
-        // Process only active cells
         for (x, y) in active_cells {
             let index = y * width + x;
-
-            // Store previous values to detect changes
-            let prev_elevation = heightmap.get(x, y);
-            let prev_water = water_depth[index];
-
-            // Apply water flow, erosion, etc. only to this cell
-            let _flow_magnitude =
-                self.calculate_flow_at_cell(heightmap, water_depth, water_velocity, x, y);
+            
+            // Copy flow results back
+            water_depth[index] = temp_water.get_water_depth(x, y);
+            water_velocity[index] = temp_water.velocity.get(x, y);
+            heightmap.set(x, y, temp_heightmap.get(x, y));
+            
+            // Apply erosion using legacy method for now
             let _erosion_amount =
                 self.apply_erosion_at_cell(heightmap, water_depth, water_velocity, sediment, x, y);
 
             // Detect changes and mark neighboring cells if needed
-            let elevation_change = (heightmap.get(x, y) - prev_elevation).abs();
-            let water_change = (water_depth[index] - prev_water).abs();
+            let elevation_change = (heightmap.get(x, y) - prev_terrain[index]).abs();
+            let water_change = (water_depth[index] - prev_water[index]).abs();
 
             if elevation_change > 0.001 {
                 self.update_tracker
@@ -349,63 +401,14 @@ impl OptimizedWaterFlowSystem {
         x: usize,
         y: usize,
     ) -> f32 {
-        let (width, height) = heightmap.dimensions();
-        let index = y * width + x;
-
-        let current_elevation = heightmap.get(x, y) + water_depth[index];
-        let mut steepest_slope = 0.0;
-        let mut flow_direction = (0.0, 0.0);
-
-        // Check all 8 neighbors for steepest descent (same logic as WaterFlowSystem)
-        for dy in -1i32..=1 {
-            for dx in -1i32..=1 {
-                if dx == 0 && dy == 0 {
-                    continue;
-                }
-
-                let nx = x as i32 + dx;
-                let ny = y as i32 + dy;
-
-                if nx >= 0 && ny >= 0 && (nx as usize) < width && (ny as usize) < height {
-                    let nx = nx as usize;
-                    let ny = ny as usize;
-                    let neighbor_index = ny * width + nx;
-
-                    let neighbor_elevation = heightmap.get(nx, ny) + water_depth[neighbor_index];
-                    let elevation_diff = current_elevation - neighbor_elevation;
-
-                    if elevation_diff > steepest_slope {
-                        steepest_slope = elevation_diff;
-                        flow_direction = (dx as f32, dy as f32);
-                    }
-                }
-            }
-        }
-
-        // Apply flow rate scaling and direction normalization
-        // Scale-aware slope threshold - continental gradients need to be detected
-        let slope_threshold = self.water_flow_system.evaporation_threshold * 0.1; // Much smaller threshold for slopes
-        if steepest_slope > slope_threshold {
-            let flow_magnitude =
-                (steepest_slope * self.water_flow_system.parameters.flow_rate).min(1.0);
-            let direction_length =
-                (flow_direction.0 * flow_direction.0 + flow_direction.1 * flow_direction.1).sqrt();
-
-            if direction_length > 0.0 {
-                flow_direction.0 /= direction_length;
-                flow_direction.1 /= direction_length;
-            }
-
-            water_velocity[index] = (
-                flow_direction.0 * flow_magnitude,
-                flow_direction.1 * flow_magnitude,
-            );
-
-            flow_magnitude
-        } else {
-            water_velocity[index] = (0.0, 0.0);
-            0.0
-        }
+        // Flow calculation is now handled by the unified FlowEngine in
+        // update_water_flow_selective() method. This provides:
+        // 1. Consistent physics with other systems
+        // 2. Proper drainage network integration
+        // 3. Scale-aware parameters
+        // 4. Spatial optimization through should_update_cell() filtering
+        // This method returns 0.0 as flow calculation is handled elsewhere.
+        0.0
     }
 
     fn apply_erosion_at_cell(

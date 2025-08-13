@@ -37,7 +37,7 @@ impl CorrectedWaterFlowSystem {
         let width = 100;
         let height = 100;
         let mut flow_engine = FlowEngine::for_climate(width, height, &world_scale);
-        
+
         // Apply corrected physics parameters from safety analysis
         flow_engine.parameters = FlowParameters {
             gravity: safety_parameters::GRAVITY_ACCELERATION,
@@ -45,7 +45,7 @@ impl CorrectedWaterFlowSystem {
             cfl_safety: safety_parameters::CFL_SAFETY_FACTOR,
             ..flow_engine.parameters
         };
-        
+
         Self {
             flow_engine,
             base_system,
@@ -64,7 +64,7 @@ impl CorrectedWaterFlowSystem {
         // in its conservation-based algorithm with gravity wave speed
         let max_velocity = self.flow_engine.velocity_field.max_velocity_magnitude();
         let dx = self.flow_engine.velocity_field.meters_per_pixel as f32;
-        
+
         if max_velocity > 0.0 {
             self.flow_engine.parameters.cfl_safety * dx / max_velocity
         } else {
@@ -89,7 +89,8 @@ impl CorrectedWaterFlowSystem {
             (water.width() as u32, water.height() as u32),
             crate::engine::core::scale::DetailLevel::Standard,
         );
-        self.flow_engine.calculate_flow(heightmap, water, drainage_network, world_scale);
+        self.flow_engine
+            .calculate_flow(heightmap, water, drainage_network, world_scale);
 
         // 3. Apply velocity bounds for physical realism
         self.apply_velocity_bounds(water);
