@@ -17,6 +17,7 @@ pub mod optimized_geological_evolution;
 pub mod spatial_partitioning;
 pub mod tectonics;
 pub mod water;
+pub mod wind_erosion_coupling;
 pub mod worldgen;
 
 // Re-export key terrain generation types
@@ -39,3 +40,6 @@ pub use maritime_climate_coupling::{CoastalThermalEffects, MaritimAwareAtmospher
 
 // Re-export atmospheric-pressure coupling
 pub use atmospheric_pressure_coupling::{AtmosphericPressureEffects, PressureAwareWaterFlowSystem};
+
+// Re-export wind-erosion coupling
+pub use wind_erosion_coupling::{WindAwareGeologicalSystem, WindErosionEffects};

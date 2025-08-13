@@ -81,22 +81,14 @@ impl WindErosionEffects {
                 let temperature = temperature_layer.get_current_temperature(x, y, time_of_day);
 
                 // 1. Calculate surface wind velocity with terrain effects
-                let base_wind_speed = Self::calculate_base_wind_speed(
-                    elevation,
-                    temperature,
-                    time_of_day,
-                );
-                
+                let base_wind_speed =
+                    Self::calculate_base_wind_speed(elevation, temperature, time_of_day);
+
                 // Terrain modification: wind acceleration over ridges, deceleration in valleys
-                let terrain_factor = Self::calculate_terrain_wind_factor(
-                    heightmap,
-                    x,
-                    y,
-                    scale,
-                );
-                
+                let terrain_factor = Self::calculate_terrain_wind_factor(heightmap, x, y, scale);
+
                 let surface_wind_speed = base_wind_speed * terrain_factor;
-                
+
                 // Simplified wind direction (eastward with terrain deflection)
                 let wind_direction = Self::calculate_wind_direction(heightmap, x, y);
                 let wind_velocity = Vec2::new(
@@ -115,7 +107,8 @@ impl WindErosionEffects {
                 let erosion_potential_rate = if shear_stress > critical_shear_stress {
                     // Erosion rate proportional to excess shear stress
                     let excess_stress = shear_stress - critical_shear_stress;
-                    let base_erodibility = Self::calculate_surface_erodibility(elevation, temperature);
+                    let base_erodibility =
+                        Self::calculate_surface_erodibility(elevation, temperature);
                     excess_stress * base_erodibility * 0.001 // Convert to kg/(m²·s)
                 } else {
                     0.0
@@ -123,7 +116,8 @@ impl WindErosionEffects {
                 erosion_potential[x][y] = erosion_potential_rate;
 
                 // 4. Calculate transport capacity using Bagnold equation: Q ∝ u³
-                let transport_capacity_rate = if surface_wind_speed > 3.0 { // Minimum wind for transport
+                let transport_capacity_rate = if surface_wind_speed > 3.0 {
+                    // Minimum wind for transport
                     let wind_speed_cubed = surface_wind_speed.powi(3);
                     let air_density_factor = air_density / 1.225; // Adjust for altitude
                     wind_speed_cubed * air_density_factor * 0.0001 // Scaling factor
@@ -133,11 +127,8 @@ impl WindErosionEffects {
                 transport_capacity[x][y] = transport_capacity_rate;
 
                 // 5. Calculate deposition rate (where transport capacity is reduced)
-                let deposition_rate_value = Self::calculate_deposition_rate(
-                    surface_wind_speed,
-                    elevation,
-                    terrain_factor,
-                );
+                let deposition_rate_value =
+                    Self::calculate_deposition_rate(surface_wind_speed, elevation, terrain_factor);
                 deposition_rate[x][y] = deposition_rate_value;
             }
         }
@@ -159,11 +150,7 @@ impl WindErosionEffects {
     /// - Elevation: Generally increases with altitude due to reduced friction
     /// - Temperature: Thermal gradients drive convective circulation
     /// - Diurnal cycle: Daytime heating creates stronger thermal winds
-    fn calculate_base_wind_speed(
-        elevation: f32,
-        temperature: f32,
-        time_of_day: f32,
-    ) -> f32 {
+    fn calculate_base_wind_speed(elevation: f32, temperature: f32, time_of_day: f32) -> f32 {
         // Base wind speed increases with elevation (reduced surface friction)
         let elevation_wind = 2.0 + elevation * 5.0; // 2-7 m/s range
 
@@ -277,11 +264,7 @@ impl WindErosionEffects {
     }
 
     /// Calculate deposition rate where sediment settles
-    fn calculate_deposition_rate(
-        wind_speed: f32,
-        elevation: f32,
-        terrain_factor: f32,
-    ) -> f32 {
+    fn calculate_deposition_rate(wind_speed: f32, elevation: f32, terrain_factor: f32) -> f32 {
         // Deposition occurs where wind speed decreases (transport capacity drops)
         let speed_deposition = if wind_speed < 2.0 {
             0.001 * (2.0 - wind_speed) // Higher deposition in calm areas
@@ -411,23 +394,23 @@ impl WindAwareGeologicalSystem {
             for y in 0..wind_effects.height {
                 // Get current elevation
                 let current_elevation = heightmap.get(x, y);
-                
+
                 // Calculate net elevation change from wind processes
                 let erosion_rate = wind_effects.get_erosion_potential(x, y); // kg/(m²·s)
                 let deposition_rate = wind_effects.get_deposition_rate(x, y); // kg/(m²·s)
-                
+
                 // Convert mass rates to elevation change (assuming 2000 kg/m³ rock density)
                 let rock_density = 2000.0; // kg/m³
                 let erosion_depth = erosion_rate * dt / rock_density; // meters
                 let deposition_depth = deposition_rate * dt / rock_density; // meters
-                
+
                 // Net elevation change
                 let net_change = (deposition_depth - erosion_depth) * self.wind_influence;
-                
+
                 // Apply change with stability limits
                 let max_change = 0.001 * dt; // Maximum 1mm per second
                 let limited_change = net_change.clamp(-max_change, max_change);
-                
+
                 let new_elevation = (current_elevation + limited_change).max(0.0);
                 heightmap.set(x, y, new_elevation);
             }
@@ -446,10 +429,10 @@ mod tests {
     fn test_wind_erosion_effects_calculation() {
         // Create test terrain with varied elevation
         let heightmap = HeightMap::from_nested(vec![
-            vec![1.0, 0.9, 0.8, 0.7],  // Ridge line
-            vec![0.8, 0.6, 0.4, 0.5],  // Valley
-            vec![0.6, 0.4, 0.2, 0.3],  // Lower terrain
-            vec![0.4, 0.2, 0.0, 0.1],  // Sea level
+            vec![1.0, 0.9, 0.8, 0.7], // Ridge line
+            vec![0.8, 0.6, 0.4, 0.5], // Valley
+            vec![0.6, 0.4, 0.2, 0.3], // Lower terrain
+            vec![0.4, 0.2, 0.0, 0.1], // Sea level
         ]);
 
         let scale = WorldScale::new(5.0, (4, 4), DetailLevel::Standard);
@@ -556,11 +539,7 @@ mod tests {
         // Store initial terrain state for comparison
         let initial_heightmap = heightmap.clone();
         let initial_total_elevation: f32 = (0..5)
-            .map(|x| {
-                (0..3)
-                    .map(|y| initial_heightmap.get(x, y))
-                    .sum::<f32>()
-            })
+            .map(|x| (0..3).map(|y| initial_heightmap.get(x, y)).sum::<f32>())
             .sum();
 
         // Test with no wind influence
@@ -593,18 +572,10 @@ mod tests {
 
         // Calculate total elevation after wind erosion
         let no_wind_total: f32 = (0..5)
-            .map(|x| {
-                (0..3)
-                    .map(|y| heightmap_no_wind.get(x, y))
-                    .sum::<f32>()
-            })
+            .map(|x| (0..3).map(|y| heightmap_no_wind.get(x, y)).sum::<f32>())
             .sum();
         let full_wind_total: f32 = (0..5)
-            .map(|x| {
-                (0..3)
-                    .map(|y| heightmap_full_wind.get(x, y))
-                    .sum::<f32>()
-            })
+            .map(|x| (0..3).map(|y| heightmap_full_wind.get(x, y)).sum::<f32>())
             .sum();
 
         // Wind erosion should modify terrain (though changes may be small over 1 hour)
@@ -636,7 +607,13 @@ mod tests {
         println!("  Full wind influence: {:.6}", full_wind_total);
         println!("  No wind change: {:.6}", no_wind_change);
         println!("  Full wind change: {:.6}", full_wind_change);
-        println!("  Exposed wind speed: {:.3} m/s", exposed_wind_velocity.magnitude());
-        println!("  Sheltered wind speed: {:.3} m/s", sheltered_wind_velocity.magnitude());
+        println!(
+            "  Exposed wind speed: {:.3} m/s",
+            exposed_wind_velocity.magnitude()
+        );
+        println!(
+            "  Sheltered wind speed: {:.3} m/s",
+            sheltered_wind_velocity.magnitude()
+        );
     }
 }
