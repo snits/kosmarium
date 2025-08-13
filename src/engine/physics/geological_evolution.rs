@@ -4,9 +4,9 @@
 use super::super::core::heightmap::HeightMap;
 use super::super::core::scale::{DetailLevel, WorldScale};
 use super::climate::{ClimateSystem, TemperatureLayer};
+use super::flow_engine::{FlowEngine, FlowParameters};
 use super::tectonics::TectonicSystem;
 use super::water::WaterLayer;
-use crate::engine::{WaterFlowParameters, WaterFlowSystem};
 
 /// Configuration for geological time scale evolution
 #[derive(Clone, Debug)]
@@ -15,7 +15,7 @@ pub struct GeologicalEvolutionConfig {
     pub evolution_iterations: usize,
 
     /// Accelerated water flow parameters for geological timescales
-    pub geological_water_params: WaterFlowParameters,
+    pub geological_flow_params: FlowParameters,
 
     /// Climate evolution settings
     pub enable_climate_cycles: bool,
@@ -35,7 +35,7 @@ impl Default for GeologicalEvolutionConfig {
     fn default() -> Self {
         Self {
             evolution_iterations: 10000, // 10K iterations for initial testing
-            geological_water_params: Self::geological_water_params(),
+            geological_flow_params: FlowParameters::for_geological(),
             enable_climate_cycles: true,
             temperature_variation: 10.0, // ±10°C variation over geological time
             erosion_acceleration: 2.0,   // 2x acceleration - Metis validated for geological realism
@@ -46,21 +46,14 @@ impl Default for GeologicalEvolutionConfig {
 }
 
 impl GeologicalEvolutionConfig {
-    /// Create water flow parameters optimized for geological time scale evolution
-    fn geological_water_params() -> WaterFlowParameters {
-        let mut params = WaterFlowParameters::default();
-
-        // Accelerated geological processes
-        params.flow_rate = 0.2; // Faster water flow
-        params.evaporation_rate = 0.01; // Higher evaporation for balance
-        params.erosion_strength = 0.0; // CORRECTION #3: Disable double erosion - geological system handles erosion exclusively
-        params.deposition_rate = 0.1; // Faster sediment settling
-        params.base_rainfall_rate = 0.02; // CORRECTION #4: Higher rainfall for geological activity
-
-        // Use mass-conserving scaling for realistic water budgets
-        params.rainfall_scaling = crate::engine::RainfallScaling::MassConserving;
-
-        params
+    /// Create customized flow parameters for geological evolution if needed
+    /// Currently using FlowParameters::for_geological() which provides optimized settings
+    pub fn customize_geological_flow_params(&mut self) {
+        // Additional customization can be applied here if needed
+        // The unified flow engine already provides geological optimization
+        self.geological_flow_params.dt = 100.0; // Longer geological timesteps
+        self.geological_flow_params.concentration_factor = 10000.0; // High concentration for erosion
+        self.geological_flow_params.roughness = 0.05; // Higher roughness for geological surfaces
     }
 }
 
@@ -120,11 +113,10 @@ impl GeologicalEvolution {
         let world_scale =
             WorldScale::new(10.0, (width as u32, height as u32), DetailLevel::Standard);
 
-        // Initialize water flow system with geological parameters
-        let mut water_system = WaterFlowSystem::from_parameters(
-            self.config.geological_water_params.clone(),
-            &world_scale,
-        );
+        // Initialize unified flow engine with geological parameters  
+        let mut flow_engine = FlowEngine::for_geology(width, height, &world_scale);
+        // Apply custom geological parameters if configured
+        flow_engine.parameters = self.config.geological_flow_params.clone();
 
         // Initialize water layer
         let mut water_layer = WaterLayer::new(width, height);
@@ -152,17 +144,17 @@ impl GeologicalEvolution {
             let pre_erosion_elevation: f32 =
                 evolved_heightmap.iter().flat_map(|row| row.iter()).sum();
 
-            // Run one step of accelerated water flow and erosion
-            // Convert to HeightMap for the water system
-            let mut heightmap_for_water = HeightMap::from_nested(evolved_heightmap.clone());
-            water_system.update_water_flow_with_climate(
-                &mut heightmap_for_water,
+            // Run one step of accelerated water flow and erosion using unified flow engine
+            // Convert to HeightMap for the flow engine
+            let mut heightmap_for_flow = HeightMap::from_nested(evolved_heightmap.clone());
+            flow_engine.calculate_flow(
+                &heightmap_for_flow,
                 &mut water_layer,
-                &mut temperature_layer,
-                &climate_system,
+                None, // No drainage network needed for geological flow
+                &world_scale,
             );
             // Convert back to nested format
-            evolved_heightmap = heightmap_for_water.to_nested();
+            evolved_heightmap = heightmap_for_flow.to_nested();
 
             // Apply erosion acceleration factor
             if self.config.erosion_acceleration > 1.0 {
