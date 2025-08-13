@@ -14,6 +14,7 @@ pub mod geological_evolution;
 pub mod hydro_biome_coupling;
 pub mod maritime_climate_coupling;
 pub mod optimized_geological_evolution;
+pub mod orographic_precipitation;
 pub mod spatial_partitioning;
 pub mod tectonics;
 pub mod water;
@@ -43,3 +44,8 @@ pub use atmospheric_pressure_coupling::{AtmosphericPressureEffects, PressureAwar
 
 // Re-export wind-erosion coupling
 pub use wind_erosion_coupling::{WindAwareGeologicalSystem, WindErosionEffects};
+
+// Re-export orographic-precipitation coupling
+pub use orographic_precipitation::{
+    OrographicEffects, OrographicParameters, OrographicPrecipitationSystem,
+};

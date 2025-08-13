@@ -1178,10 +1178,11 @@ impl Simulation {
             }
             #[cfg(not(feature = "simd"))]
             {
+                let heightmap_nested = self.heightmap.to_nested();
                 self.climate_system.evolve_pressure_layer(
                     &mut self.pressure_layer,
                     &self.temperature_layer,
-                    &self.heightmap_nested,
+                    &heightmap_nested,
                     &self._world_scale,
                     evolution_rate,
                 );
