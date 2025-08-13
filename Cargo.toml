@@ -49,6 +49,14 @@ path = "debug_binaries_tmp/validate_opengl_data.rs"
 name = "debug_boundary_runtime"
 path = "debug_binaries_tmp/debug_boundary_runtime.rs"
 
+[[bin]]
+name = "debug_concentration_factor"
+path = "debug_binaries_tmp/debug_concentration_factor.rs"
+
+[[bin]]
+name = "test_concentration_factor_fix"
+path = "debug_binaries_tmp/test_concentration_factor_fix.rs"
+
 
 
 [dependencies]

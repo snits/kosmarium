@@ -132,7 +132,8 @@ impl CorrectedWaterFlowSystem {
                 let (u_old, v_old) = water.velocity.get(x, y);
 
                 // Calculate pressure gradient: -g * ∇h (now drainage-aware)
-                let (dh_dx, dh_dy) = self.calculate_surface_gradient(heightmap, water, x, y, drainage_network);
+                let (dh_dx, dh_dy) =
+                    self.calculate_surface_gradient(heightmap, water, x, y, drainage_network);
                 let pressure_force_x = -self.gravity * dh_dx;
                 let pressure_force_y = -self.gravity * dh_dy;
 
@@ -197,7 +198,7 @@ impl CorrectedWaterFlowSystem {
         let get_surface_elevation = |x: usize, y: usize| -> f32 {
             let terrain_elevation = heightmap.get(x, y);
             let water_depth = water.get_water_depth(x, y);
-            
+
             // Include channel depth from drainage network flow accumulation
             let channel_depth = if let Some(drainage) = drainage_network {
                 let flow_accumulation = drainage.get_flow_accumulation(x, y);
@@ -209,7 +210,7 @@ impl CorrectedWaterFlowSystem {
             } else {
                 0.0 // No drainage network provided, no channel modification
             };
-            
+
             terrain_elevation + water_depth - channel_depth
         };
 
