@@ -6,32 +6,140 @@ use super::super::core::scale::{ScaleAware, WorldScale};
 use super::climate::{ClimateSystem, TemperatureLayer};
 use super::water::WaterLayer;
 
+/// METIS CORRECTION: Physics-compliant surface energy balance calculation
+/// Implements energy conservation for evaporation processes
+#[derive(Clone, Debug)]
+pub struct SurfaceEnergyBalance {
+    /// Net radiation flux (W/m²)
+    pub net_radiation: f32,
+    /// Sensible heat flux (W/m²)
+    pub sensible_heat: f32,
+    /// Latent heat flux from evaporation (W/m²)
+    pub latent_heat: f32,
+    /// Ground heat storage flux (W/m²)
+    pub ground_heat: f32,
+}
+
+impl SurfaceEnergyBalance {
+    /// Calculate maximum physically possible evaporation rate
+    /// ENERGY CONSERVATION: E_available = R_net - H - G
+    pub fn calculate_max_evaporation_rate(&self) -> f32 {
+        let available_energy = self.net_radiation - self.sensible_heat - self.ground_heat;
+        if available_energy > 0.0 {
+            // Convert energy flux to evaporation rate: kg/(m²·s)
+            available_energy / LATENT_HEAT_VAPORIZATION
+        } else {
+            0.0 // No evaporation when energy is insufficient
+        }
+    }
+
+    /// Calculate surface energy balance from environmental conditions
+    pub fn from_conditions(
+        solar_radiation: f32,     // W/m²
+        albedo: f32,              // 0.0-1.0
+        temperature_surface: f32, // K
+        temperature_air: f32,     // K
+        wind_speed: f32,          // m/s
+        energy_params: &SurfaceEnergyParameters,
+    ) -> Self {
+        // Net radiation balance (simplified)
+        let absorbed_solar =
+            solar_radiation * (1.0 - albedo) * energy_params.solar_absorption_efficiency;
+        let longwave_cooling = 5.67e-8 * temperature_surface.powi(4) * 0.9; // Stefan-Boltzmann
+        let net_radiation = absorbed_solar - longwave_cooling;
+
+        // Sensible heat flux: H = ρ × c_p × C_H × u × (T_s - T_a)
+        let sensible_heat = AIR_DENSITY
+            * SPECIFIC_HEAT_AIR
+            * energy_params.sensible_heat_coefficient
+            * wind_speed
+            * energy_params.wind_speed_factor
+            * (temperature_surface - temperature_air)
+            / 1000.0; // Convert to W/m²
+
+        // Ground heat flux as fraction of net radiation
+        let ground_heat = net_radiation * energy_params.ground_heat_fraction;
+
+        Self {
+            net_radiation,
+            sensible_heat,
+            latent_heat: 0.0, // Will be calculated from actual evaporation
+            ground_heat,
+        }
+    }
+}
+
+/// METIS CORRECTION: Clausius-Clapeyron saturation vapor pressure calculation
+/// Replaces arbitrary temperature dependence with fundamental thermodynamics
+pub fn clausius_clapeyron_saturation_pressure(temperature: f32) -> f32 {
+    // Clausius-Clapeyron equation: e_sat(T) = e_ref × exp(L_v/R_v × (1/T_ref - 1/T))
+    let temperature_term =
+        CLAUSIUS_CLAPEYRON_FACTOR * (1.0 / REFERENCE_TEMPERATURE - 1.0 / temperature);
+    REFERENCE_VAPOR_PRESSURE * temperature_term.exp()
+}
+
+/// Convert saturation vapor pressure to saturation humidity (kg/m³)
+pub fn saturation_pressure_to_humidity(pressure: f32, temperature: f32) -> f32 {
+    // Ideal gas law: ρ = p / (R_v × T)
+    pressure / (SPECIFIC_GAS_CONSTANT_WATER_VAPOR * temperature)
+}
+
+/// METIS CORRECTION: Physics-compliant saturation humidity calculation
+pub fn calculate_saturation_humidity(temperature: f32) -> f32 {
+    let saturation_pressure = clausius_clapeyron_saturation_pressure(temperature);
+    saturation_pressure_to_humidity(saturation_pressure, temperature)
+}
+
+/// Physical constants for atmospheric moisture physics
+const LATENT_HEAT_VAPORIZATION: f32 = 2.26e6; // J/kg - energy required for evaporation
+const SPECIFIC_GAS_CONSTANT_WATER_VAPOR: f32 = 461.5; // J/(kg·K)
+const REFERENCE_TEMPERATURE: f32 = 273.15; // K (0°C)
+const REFERENCE_VAPOR_PRESSURE: f32 = 611.0; // Pa (saturation pressure at 0°C)
+const AIR_DENSITY: f32 = 1.225; // kg/m³ at standard conditions
+const SPECIFIC_HEAT_AIR: f32 = 1004.0; // J/(kg·K)
+const CLAUSIUS_CLAPEYRON_FACTOR: f32 = 5423.0; // L_v/R_v in K (adjusted for better accuracy)
+
+/// METIS CORRECTION: Physics-compliant surface energy balance parameters
+#[derive(Clone, Debug)]
+pub struct SurfaceEnergyParameters {
+    /// Solar radiation absorption efficiency (dimensionless)
+    pub solar_absorption_efficiency: f32,
+    /// Sensible heat transfer coefficient (W/(m²·K))
+    pub sensible_heat_coefficient: f32,
+    /// Ground heat flux fraction of net radiation
+    pub ground_heat_fraction: f32,
+    /// Wind speed factor for heat transfer enhancement
+    pub wind_speed_factor: f32,
+}
+
+impl Default for SurfaceEnergyParameters {
+    fn default() -> Self {
+        Self {
+            solar_absorption_efficiency: 0.7, // 70% solar absorption
+            sensible_heat_coefficient: 10.0,  // W/(m²·K) typical value
+            ground_heat_fraction: 0.1,        // 10% of net radiation
+            wind_speed_factor: 0.5,           // Enhancement factor
+        }
+    }
+}
+
 /// Surface moisture parameters for atmospheric coupling
 #[derive(Clone, Debug)]
 pub struct SurfaceMoistureParameters {
-    /// Base evaporation rate from surface moisture (m/h)
-    pub surface_evaporation_rate: f32,
     /// Maximum surface moisture capacity (m equivalent depth)
     pub surface_moisture_capacity: f32,
-    /// Temperature dependency factor for evaporation (K⁻¹)
-    pub temperature_evaporation_factor: f32,
-    /// Condensation rate from atmospheric humidity (fraction/h)
-    pub condensation_rate: f32,
     /// Surface roughness factor affecting moisture retention
     pub surface_roughness: f32,
-    /// Albedo effect on moisture evaporation (0.0-1.0)
-    pub albedo_factor: f32,
+    /// METIS CORRECTION: Physics-compliant energy balance parameters
+    pub energy_parameters: SurfaceEnergyParameters,
 }
 
 impl Default for SurfaceMoistureParameters {
     fn default() -> Self {
         Self {
-            surface_evaporation_rate: 0.05,       // 0.05 m/h moderate evaporation
-            surface_moisture_capacity: 0.01,      // 1cm maximum moisture holding
-            temperature_evaporation_factor: 0.07, // Doubles every ~10°C
-            condensation_rate: 0.02,              // 2% humidity conversion per hour
-            surface_roughness: 1.0,               // Baseline surface
-            albedo_factor: 0.8,                   // Reduced evaporation for high albedo
+            surface_moisture_capacity: 0.01, // 1cm maximum moisture holding
+            surface_roughness: 1.0,          // Baseline surface
+            energy_parameters: SurfaceEnergyParameters::default(),
         }
     }
 }
@@ -45,14 +153,19 @@ impl ScaleAware for SurfaceMoistureParameters {
         let resolution_scale = (scale.meters_per_pixel() as f32 / 1000.0).sqrt().min(2.0);
 
         Self {
-            surface_evaporation_rate: self.surface_evaporation_rate * resolution_scale,
             surface_moisture_capacity: self.surface_moisture_capacity * resolution_scale,
-            temperature_evaporation_factor: self.temperature_evaporation_factor,
-            condensation_rate: self.condensation_rate,
 
             // Surface properties scale with physical realism
             surface_roughness: self.surface_roughness * (1.0 + physical_extent_km / 1000.0 * 0.1),
-            albedo_factor: self.albedo_factor, // Albedo is a ratio - doesn't scale
+
+            // Energy parameters scale with resolution and physical extent
+            energy_parameters: SurfaceEnergyParameters {
+                solar_absorption_efficiency: self.energy_parameters.solar_absorption_efficiency,
+                sensible_heat_coefficient: self.energy_parameters.sensible_heat_coefficient
+                    * resolution_scale,
+                ground_heat_fraction: self.energy_parameters.ground_heat_fraction,
+                wind_speed_factor: self.energy_parameters.wind_speed_factor,
+            },
         }
     }
 }
@@ -192,60 +305,102 @@ impl SurfaceMoistureLayer {
         }
     }
 
-    /// Update surface moisture and atmospheric humidity through evaporation/condensation
+    /// METIS CORRECTION: Energy-conserving moisture exchange with physics-compliant thermodynamics
     pub fn update_moisture_exchange(
         &mut self,
         temperature_layer: &TemperatureLayer,
         climate: &ClimateSystem,
         parameters: &SurfaceMoistureParameters,
-        dt: f32, // Time step in hours
+        solar_radiation: f32, // W/m² - required for energy balance
+        wind_speed: f32,      // m/s - affects heat transfer
+        dt: f32,              // Time step in hours
     ) {
         for y in 0..self.height {
             for x in 0..self.width {
-                let temperature =
+                let temperature_celsius =
                     temperature_layer.get_current_temperature(x, y, climate.current_season);
+                let temperature_kelvin = temperature_celsius + 273.15; // Convert to Kelvin for physics
                 let current_moisture = self.get_moisture(x, y);
                 let current_humidity = self.get_humidity(x, y);
                 let surface_type = self.surface_type.get(x, y);
 
-                // Calculate temperature-dependent evaporation rate
-                let temp_factor =
-                    (parameters.temperature_evaporation_factor * (temperature - 20.0)).exp();
-                let surface_factor = surface_type * parameters.surface_roughness;
-                let evap_rate = parameters.surface_evaporation_rate * temp_factor * surface_factor;
+                // METIS CORRECTION: Calculate energy-limited evaporation
+                let albedo = if surface_type > 1.5 {
+                    0.1
+                } else if surface_type < 0.7 {
+                    0.3
+                } else {
+                    0.2
+                };
+                let energy_balance = SurfaceEnergyBalance::from_conditions(
+                    solar_radiation,
+                    albedo,
+                    temperature_kelvin,
+                    temperature_kelvin - 2.0, // Assume 2K temperature difference
+                    wind_speed,
+                    &parameters.energy_parameters,
+                );
 
-                // Apply evaporation from surface moisture to atmospheric humidity
-                let max_evaporation = current_moisture.min(evap_rate * dt);
-                let actual_evaporation = max_evaporation * parameters.albedo_factor;
+                // Maximum evaporation rate limited by available energy (kg/(m²·s))
+                let max_evaporation_rate = energy_balance.calculate_max_evaporation_rate();
+                let dt_seconds = dt * 3600.0; // Convert hours to seconds
+                let max_evaporation_depth = max_evaporation_rate * dt_seconds / 1000.0; // Convert to meters
+
+                // Surface moisture availability factor
+                let moisture_availability = if parameters.surface_moisture_capacity > 0.0 {
+                    (current_moisture / parameters.surface_moisture_capacity).min(1.0)
+                } else {
+                    0.0
+                };
+
+                // Actual evaporation: limited by both energy and moisture availability
+                let surface_factor = surface_type * parameters.surface_roughness;
+                let demand_evaporation = current_moisture
+                    .min(max_evaporation_depth * surface_factor * moisture_availability);
+                let actual_evaporation = demand_evaporation;
 
                 // Update surface moisture (decrease)
                 let new_surface_moisture = current_moisture - actual_evaporation;
                 self.set_moisture(x, y, new_surface_moisture);
 
-                // Update atmospheric humidity (increase)
-                let new_humidity = current_humidity + actual_evaporation;
+                // Convert evaporated water to atmospheric humidity (kg/m³)
+                let evaporated_mass_per_area = actual_evaporation * 1000.0; // kg/m²
+                let atmospheric_height = 1000.0; // Assume 1km mixing height
+                let humidity_increase = evaporated_mass_per_area / atmospheric_height;
+                let new_humidity = current_humidity + humidity_increase;
                 self.set_humidity(x, y, new_humidity);
 
-                // Store evaporation rate for analysis
+                // Store evaporation rate for analysis (m/h)
                 self.evaporation_rate.set(x, y, actual_evaporation / dt);
 
-                // Calculate condensation from atmospheric humidity back to surface
-                let condensation_amount = current_humidity * parameters.condensation_rate * dt;
-                if condensation_amount > 0.0 {
-                    // Apply condensation
-                    let new_humidity_after_condensation =
-                        (current_humidity - condensation_amount).max(0.0);
-                    self.set_humidity(x, y, new_humidity_after_condensation);
+                // METIS CORRECTION: Physics-compliant condensation using Clausius-Clapeyron
+                let saturation_humidity = calculate_saturation_humidity(temperature_kelvin);
+                let supersaturation = new_humidity - saturation_humidity;
+
+                if supersaturation > 0.0 {
+                    // Immediate condensation of excess humidity (physics: condensation is very rapid above saturation)
+                    let condensation_amount = supersaturation; // All excess condenses immediately
+
+                    // Apply condensation: humidity clamped to saturation limit
+                    self.set_humidity(x, y, saturation_humidity);
+
+                    // Convert condensed humidity back to surface moisture
+                    let condensed_depth = condensation_amount * atmospheric_height / 1000.0; // Convert to meters
 
                     // Add condensed moisture to surface (respecting capacity)
                     let capacity_remaining =
                         (parameters.surface_moisture_capacity - new_surface_moisture).max(0.0);
-                    let actual_condensation = condensation_amount.min(capacity_remaining);
-                    let final_surface_moisture = new_surface_moisture + actual_condensation;
+                    let actual_condensation_to_surface = condensed_depth.min(capacity_remaining);
+                    let final_surface_moisture =
+                        new_surface_moisture + actual_condensation_to_surface;
                     self.set_moisture(x, y, final_surface_moisture);
 
-                    // Store condensation rate
-                    self.condensation_rate.set(x, y, actual_condensation / dt);
+                    // Store condensation rate (m/h)
+                    self.condensation_rate
+                        .set(x, y, actual_condensation_to_surface / dt);
+                } else {
+                    // No condensation - clear condensation rate
+                    self.condensation_rate.set(x, y, 0.0);
                 }
             }
         }
@@ -402,21 +557,50 @@ impl AtmosphericMoistureSystem {
             .initialize_from_terrain(heightmap, water_layer, &self.parameters);
     }
 
-    /// Update atmospheric moisture system for one time step
+    /// METIS CORRECTION: Update atmospheric moisture system with energy conservation
     pub fn update(
         &mut self,
         temperature_layer: &TemperatureLayer,
         climate: &ClimateSystem,
         wind_u: Option<&HeightMap>,
         wind_v: Option<&HeightMap>,
-        dt: f32, // Time step in hours
+        solar_radiation: f32, // W/m² - required for energy balance
+        dt: f32,              // Time step in hours
         scale: &WorldScale,
     ) {
-        // Update evaporation and condensation
+        // Estimate wind speed for energy calculations (use magnitude of wind vector or default)
+        let wind_speed = if let (Some(u_wind), Some(v_wind)) = (wind_u, wind_v) {
+            // Calculate approximate wind speed from wind components
+            let mut total_u = 0.0;
+            let mut total_v = 0.0;
+            let mut count = 0;
+
+            for y in 0..self.surface_moisture.height {
+                for x in 0..self.surface_moisture.width {
+                    total_u += u_wind.get(x, y);
+                    total_v += v_wind.get(x, y);
+                    count += 1;
+                }
+            }
+
+            if count > 0 {
+                let avg_u = total_u / count as f32;
+                let avg_v = total_v / count as f32;
+                (avg_u * avg_u + avg_v * avg_v).sqrt()
+            } else {
+                2.0 // Default wind speed
+            }
+        } else {
+            2.0 // Default wind speed (m/s)
+        };
+
+        // Update evaporation and condensation with energy conservation
         self.surface_moisture.update_moisture_exchange(
             temperature_layer,
             climate,
             &self.parameters,
+            solar_radiation,
+            wind_speed,
             dt,
         );
 
@@ -437,6 +621,22 @@ impl AtmosphericMoistureSystem {
     pub fn get_total_moisture(&self) -> f32 {
         self.surface_moisture.get_total_surface_moisture()
             + self.surface_moisture.get_total_atmospheric_moisture()
+    }
+
+    /// METIS VALIDATION: Check mass conservation during transport
+    pub fn validate_mass_conservation(&self, initial_moisture: f32) -> (f32, bool) {
+        let current_moisture = self.get_total_moisture();
+        let mass_error = (current_moisture - initial_moisture).abs();
+        let mass_error_percent = if initial_moisture > 0.0 {
+            (mass_error / initial_moisture) * 100.0
+        } else {
+            0.0
+        };
+
+        // Physics tolerance: <1% mass loss is acceptable for numerical schemes
+        let conservation_valid = mass_error_percent < 1.0;
+
+        (mass_error_percent, conservation_valid)
     }
 
     /// Get moisture for precipitation calculations (from atmospheric humidity)
@@ -534,7 +734,7 @@ mod tests {
         layer.set_moisture(1, 1, 0.008); // Most of capacity
 
         // Run moisture exchange for short time
-        layer.update_moisture_exchange(&temperature_layer, &climate, &params, 0.1);
+        layer.update_moisture_exchange(&temperature_layer, &climate, &params, 300.0, 2.0, 0.1); // 300 W/m² solar, 2 m/s wind
 
         // Should have some evaporation (surface moisture decrease, humidity increase)
         assert!(layer.get_moisture(1, 1) < 0.008);
@@ -575,8 +775,27 @@ mod tests {
         let mut wind_u = HeightMap::new(10, 10, 2.0); // 2 m/s eastward
         let wind_v = HeightMap::new(10, 10, 0.0); // No north-south wind
 
+        // Record initial total mass for conservation check
+        let initial_total_humidity = layer.get_total_atmospheric_moisture();
+
         // Transport humidity
         layer.transport_humidity_with_wind(&wind_u, &wind_v, 0.1, &scale); // 0.1 hour
+
+        // Check mass conservation
+        let final_total_humidity = layer.get_total_atmospheric_moisture();
+        let mass_error = (final_total_humidity - initial_total_humidity).abs();
+        let mass_error_percent = if initial_total_humidity > 0.0 {
+            (mass_error / initial_total_humidity) * 100.0
+        } else {
+            0.0
+        };
+
+        // Mass conservation should be within 1% for numerical transport
+        assert!(
+            mass_error_percent < 1.0,
+            "Mass conservation violated: {:.4}% error",
+            mass_error_percent
+        );
 
         // Humidity should have been transported (simple test - exact values depend on implementation)
         let original_humidity = layer.get_humidity(3, 3);
