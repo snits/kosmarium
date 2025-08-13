@@ -208,7 +208,7 @@ impl OptimizedWaterFlowSystem {
             crate::engine::core::scale::DetailLevel::Standard,
         );
         let water_flow_system = WaterFlowSystem::new_for_scale(&world_scale);
-        
+
         // Create unified flow engine with spatial optimization for performance
         let flow_engine = FlowEngine::for_performance(width, height, &world_scale);
 
@@ -234,7 +234,7 @@ impl OptimizedWaterFlowSystem {
         world_scale: &WorldScale,
     ) -> Self {
         let water_flow_system = WaterFlowSystem::from_parameters(params.clone(), world_scale);
-        
+
         // Create unified flow engine with spatial optimization and custom parameters
         let mut flow_engine = FlowEngine::for_performance(width, height, world_scale);
         // Convert legacy parameters to unified FlowParameters
@@ -277,7 +277,7 @@ impl OptimizedWaterFlowSystem {
         // Convert FlatHeightmap and flat arrays to HeightMap and WaterLayer for FlowEngine
         let mut temp_heightmap = crate::engine::core::heightmap::HeightMap::new(width, height, 0.0);
         let mut temp_water = crate::engine::physics::water::WaterLayer::new(width, height);
-        
+
         // Copy data to temporary structures
         for y in 0..height {
             for x in 0..width {
@@ -291,7 +291,7 @@ impl OptimizedWaterFlowSystem {
 
         // Store previous values for change detection
         let prev_water: Vec<f32> = water_depth.clone();
-        let prev_terrain: Vec<f32> = (0..width*height)
+        let prev_terrain: Vec<f32> = (0..width * height)
             .map(|i| {
                 let (x, y) = (i % width, i / width);
                 heightmap.get(x, y)
@@ -304,20 +304,21 @@ impl OptimizedWaterFlowSystem {
             (width as u32, height as u32),
             crate::engine::core::scale::DetailLevel::Standard,
         );
-        
+
         // FlowEngine's spatial algorithm only updates active cells for performance
-        self.flow_engine.calculate_flow(&temp_heightmap, &mut temp_water, None, &world_scale);
+        self.flow_engine
+            .calculate_flow(&temp_heightmap, &mut temp_water, None, &world_scale);
 
         // Copy results back and apply erosion using legacy method for compatibility
         let active_cells: Vec<(usize, usize)> = self.update_tracker.active_cells().collect();
         for (x, y) in active_cells {
             let index = y * width + x;
-            
+
             // Copy flow results back
             water_depth[index] = temp_water.get_water_depth(x, y);
             water_velocity[index] = temp_water.velocity.get(x, y);
             heightmap.set(x, y, temp_heightmap.get(x, y));
-            
+
             // Apply erosion using legacy method for now
             let _erosion_amount =
                 self.apply_erosion_at_cell(heightmap, water_depth, water_velocity, sediment, x, y);

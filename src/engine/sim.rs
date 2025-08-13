@@ -10,6 +10,7 @@ use super::core::scale::{REFERENCE_SCALE, ScaleAware, WorldScale};
 use super::physics::atmosphere::{AtmosphericSystem, WeatherAnalysis, WindLayer};
 use super::physics::climate::{AtmosphericPressureLayer, ClimateSystem, TemperatureLayer};
 use super::physics::drainage::{DrainageNetwork, DrainageNetworkStatistics};
+use super::physics::flow_engine::{FlowEngine, FlowParameters};
 use super::physics::water::{Vec2, WaterLayer};
 
 /// Simulation time information for display
@@ -37,12 +38,16 @@ pub struct WaterFlowParameters {
 }
 
 /// Scale-derived water flow system with effective parameters
+/// Migrated to use unified FlowEngine with gradient-based algorithm
 pub struct WaterFlowSystem {
     pub parameters: WaterFlowParameters,
     pub effective_rainfall_rate: f32, // Computed rainfall rate for current scale
     pub _stable_timestep_seconds: f32, // CFL-derived timestep for numerical stability
     pub evaporation_threshold: f32,   // Scale-aware threshold for clearing tiny water amounts
     pub drainage_metrics: DrainageMetrics, // Boundary drainage monitoring and instrumentation
+
+    /// Unified flow engine with gradient-based algorithm for interactive simulation
+    flow_engine: Option<FlowEngine>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -122,6 +127,7 @@ impl WaterFlowSystem {
             _stable_timestep_seconds: stable_timestep_seconds,
             evaporation_threshold,
             drainage_metrics: DrainageMetrics::new(),
+            flow_engine: None, // Initialized lazily when needed
         }
     }
 
@@ -212,6 +218,34 @@ impl WaterFlowSystem {
     /// Get the CFL-stable timestep for this system
     pub fn _get_stable_timestep_seconds(&self) -> f32 {
         self._stable_timestep_seconds
+    }
+
+    /// Get or initialize the unified flow engine for this water system
+    /// Uses gradient-based algorithm optimized for interactive simulation
+    fn get_flow_engine(&mut self, water: &WaterLayer, scale: &WorldScale) -> &mut FlowEngine {
+        if self.flow_engine.is_none() {
+            // Create flow engine with gradient-based algorithm for interactive simulation
+            let mut engine = FlowEngine::new(
+                super::physics::flow_engine::FlowAlgorithm::Gradient,
+                water.width(),
+                water.height(),
+                scale,
+            );
+
+            // Convert legacy parameters to unified FlowParameters
+            engine.parameters = FlowParameters {
+                gravity: 9.81,
+                roughness: 0.03,
+                min_depth: self.evaporation_threshold * 0.01, // Use system's evaporation threshold
+                concentration_factor: 1000.0, // Conservative for interactive simulation
+                cfl_safety: self.parameters.cfl_safety_factor,
+                dt: self._stable_timestep_seconds, // Use system's calculated timestep
+            };
+
+            self.flow_engine = Some(engine);
+        }
+
+        self.flow_engine.as_mut().unwrap()
     }
 
     /// Create dimensional parameters for proper physical analysis
@@ -313,7 +347,7 @@ impl WaterFlowSystem {
 
     /// Calculate flow direction for each cell based on elevation gradients
     /// Enhanced with drainage-aware flow for gradual water concentration
-    pub fn calculate_flow_directions(&self, heightmap: &HeightMap, water: &mut WaterLayer) {
+    pub fn calculate_flow_directions(&mut self, heightmap: &HeightMap, water: &mut WaterLayer) {
         // For now, estimate grid spacing based on default scaling
         // This is a temporary fix until we can properly pass WorldScale context
         let grid_spacing_m = self.estimate_grid_spacing_from_context(heightmap);
@@ -323,7 +357,7 @@ impl WaterFlowSystem {
     /// Calculate flow directions using explicit WorldScale (preferred method)
     /// This method uses the correct grid spacing from WorldScale instead of heuristics
     pub fn calculate_flow_directions_with_scale(
-        &self,
+        &mut self,
         heightmap: &HeightMap,
         water: &mut WaterLayer,
         scale: &WorldScale,
@@ -333,78 +367,25 @@ impl WaterFlowSystem {
     }
 
     fn calculate_flow_directions_with_spacing(
-        &self,
+        &mut self,
         heightmap: &HeightMap,
         water: &mut WaterLayer,
         grid_spacing_m: f32,
     ) {
-        let height = heightmap.height();
-        let width = heightmap.width();
-        if height == 0 || width == 0 {
-            return;
-        }
+        // Create WorldScale from grid spacing for unified FlowEngine
+        let scale = WorldScale::new(
+            grid_spacing_m as f64,
+            (heightmap.width() as u32, heightmap.height() as u32),
+            super::core::scale::DetailLevel::Standard,
+        );
 
-        for y in 0..height {
-            for x in 0..width {
-                let current_elevation = heightmap.get(x, y) + water.depth.get(x, y);
-                let mut steepest_slope = 0.0;
-                let mut flow_direction = Vec2::zero();
+        // Get or initialize the unified flow engine
+        let flow_engine = self.get_flow_engine(water, &scale);
 
-                // Check all 8 neighbors for steepest descent
-                for dy in -1i32..=1 {
-                    for dx in -1i32..=1 {
-                        if dx == 0 && dy == 0 {
-                            continue;
-                        }
-
-                        let nx = x as i32 + dx;
-                        let ny = y as i32 + dy;
-
-                        if nx >= 0 && nx < width as i32 && ny >= 0 && ny < height as i32 {
-                            let nx = nx as usize;
-                            let ny = ny as usize;
-
-                            let neighbor_elevation =
-                                heightmap.get(nx, ny) + water.depth.get(nx, ny);
-                            let slope = current_elevation - neighbor_elevation;
-
-                            if slope > steepest_slope {
-                                steepest_slope = slope;
-                                flow_direction = Vec2::new(dx as f32, dy as f32);
-                            }
-                        }
-                    }
-                }
-
-                // Normalize flow direction and scale by flow rate
-                // CRITICAL CORRECTION: Convert steepest_slope to proper gradient by dividing by distance
-                if flow_direction.magnitude() > 0.0 {
-                    let magnitude = flow_direction.magnitude();
-                    let grid_spacing = grid_spacing_m;
-
-                    // Calculate distance to neighbor (diagonal neighbors have √2 distance)
-                    let distance = if magnitude > 1.4 {
-                        // diagonal
-                        grid_spacing * 1.414213562
-                    } else {
-                        // orthogonal
-                        grid_spacing
-                    };
-
-                    // Convert height difference to gradient: gradient = slope / distance
-                    let gradient = steepest_slope / distance;
-
-                    flow_direction.x =
-                        (flow_direction.x / magnitude) * gradient * self.parameters.flow_rate;
-                    flow_direction.y =
-                        (flow_direction.y / magnitude) * gradient * self.parameters.flow_rate;
-                }
-
-                water
-                    .velocity
-                    .set(x, y, (flow_direction.x, flow_direction.y));
-            }
-        }
+        // Delegate to unified FlowEngine with gradient-based algorithm
+        // This replaces the manual 8-neighbor steepest descent calculation
+        // with the consolidated gradient flow implementation
+        flow_engine.calculate_flow(heightmap, water, None, &scale);
     }
 
     /// Simulate one tick of water flow with drainage-aware flow enhancement
@@ -747,97 +728,33 @@ impl WaterFlowSystem {
 
     /// Calculate flow directions enhanced by drainage network for gradual water concentration
     fn calculate_flow_directions_with_drainage(
-        &self,
+        &mut self,
         heightmap: &HeightMap,
         water: &mut WaterLayer,
         drainage_network: &DrainageNetwork,
         grid_spacing_m: f32,
     ) {
-        let height = heightmap.height();
-        let width = heightmap.width();
-        if height == 0 || width == 0 {
-            return;
-        }
+        // Create WorldScale from grid spacing for unified FlowEngine
+        let scale = WorldScale::new(
+            grid_spacing_m as f64,
+            (heightmap.width() as u32, heightmap.height() as u32),
+            super::core::scale::DetailLevel::Standard,
+        );
 
-        // Cache drainage statistics once per call instead of per cell
-        let stats = drainage_network.get_statistics();
-        let max_accumulation = stats.max_accumulation;
+        // Get or initialize the unified flow engine
+        let flow_engine = self.get_flow_engine(water, &scale);
 
-        for y in 0..height {
-            for x in 0..width {
-                let current_elevation = heightmap.get(x, y) + water.depth.get(x, y);
-                let mut steepest_slope = 0.0;
-                let mut flow_direction = Vec2::zero();
+        // Temporarily switch to drainage-based algorithm for drainage network integration
+        let original_algorithm = flow_engine.algorithm;
+        flow_engine.algorithm = super::physics::flow_engine::FlowAlgorithm::Drainage;
 
-                // Check all 8 neighbors for steepest descent
-                for dy in -1i32..=1 {
-                    for dx in -1i32..=1 {
-                        if dx == 0 && dy == 0 {
-                            continue;
-                        }
+        // Delegate to unified FlowEngine with drainage-based algorithm
+        // This replaces the manual drainage enhancement calculation
+        // with the consolidated drainage flow implementation
+        flow_engine.calculate_flow(heightmap, water, Some(drainage_network), &scale);
 
-                        let nx = x as i32 + dx;
-                        let ny = y as i32 + dy;
-
-                        if nx >= 0 && nx < width as i32 && ny >= 0 && ny < height as i32 {
-                            let nx = nx as usize;
-                            let ny = ny as usize;
-
-                            let neighbor_elevation =
-                                heightmap.get(nx, ny) + water.depth.get(nx, ny);
-                            let slope = current_elevation - neighbor_elevation;
-
-                            if slope > steepest_slope {
-                                steepest_slope = slope;
-                                flow_direction = Vec2::new(dx as f32, dy as f32);
-                            }
-                        }
-                    }
-                }
-
-                // Enhance flow rate based on drainage network accumulation
-                if flow_direction.magnitude() > 0.0 {
-                    let magnitude = flow_direction.magnitude();
-
-                    // Get drainage accumulation for this cell
-                    let accumulation = drainage_network.get_flow_accumulation(x, y);
-
-                    // Calculate drainage enhancement factor (1.0 to 3.0 multiplier)
-                    // Higher accumulation areas get enhanced flow for gradual concentration
-                    let accumulation_ratio = if max_accumulation > 0.0 {
-                        accumulation / max_accumulation
-                    } else {
-                        0.0
-                    };
-                    let drainage_enhancement = 1.0 + 2.0 * accumulation_ratio; // 1x to 3x flow rate
-
-                    // Apply enhanced flow rate with proper gradient calculation
-                    let enhanced_flow_rate = self.parameters.flow_rate * drainage_enhancement;
-                    let grid_spacing = grid_spacing_m;
-
-                    // Calculate distance to neighbor (diagonal neighbors have √2 distance)
-                    let distance = if magnitude > 1.4 {
-                        // diagonal
-                        grid_spacing * 1.414213562
-                    } else {
-                        // orthogonal
-                        grid_spacing
-                    };
-
-                    // Convert height difference to gradient: gradient = slope / distance
-                    let gradient = steepest_slope / distance;
-
-                    flow_direction.x =
-                        (flow_direction.x / magnitude) * gradient * enhanced_flow_rate;
-                    flow_direction.y =
-                        (flow_direction.y / magnitude) * gradient * enhanced_flow_rate;
-                }
-
-                water
-                    .velocity
-                    .set(x, y, (flow_direction.x, flow_direction.y));
-            }
-        }
+        // Restore original algorithm
+        flow_engine.algorithm = original_algorithm;
     }
 
     /// Move water with boundary outlets for mass conservation on continental scales
