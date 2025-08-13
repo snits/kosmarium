@@ -837,6 +837,16 @@ impl WaterFlowSystem {
         // 3. Swap buffers to make the result the new primary depth
         water.swap_depth_buffers();
     }
+
+    /// Reset drainage metrics for a new measurement period
+    pub fn reset_drainage_metrics(&mut self) {
+        self.drainage_metrics = DrainageMetrics::new();
+    }
+
+    /// Get current drainage metrics for monitoring
+    pub fn get_drainage_metrics(&self) -> &DrainageMetrics {
+        &self.drainage_metrics
+    }
 }
 
 /// Boundary drainage monitoring and instrumentation
@@ -1870,7 +1880,7 @@ mod tests {
 
     #[test]
     fn flow_direction_flat_terrain_no_flow() {
-        let system = test_water_system(3, 3);
+        let mut system = test_water_system(3, 3);
         let heightmap = HeightMap::from_nested(vec![
             vec![0.5, 0.5, 0.5],
             vec![0.5, 0.5, 0.5],
@@ -1892,7 +1902,7 @@ mod tests {
 
     #[test]
     fn flow_direction_simple_slope() {
-        let system = test_water_system(3, 3);
+        let mut system = test_water_system(3, 3);
         // Create a simple slope from left to right
         let heightmap = HeightMap::from_nested(vec![
             vec![1.0, 0.5, 0.0],
@@ -1916,7 +1926,7 @@ mod tests {
 
     #[test]
     fn flow_direction_with_water_depth() {
-        let system = test_water_system(2, 2);
+        let mut system = test_water_system(2, 2);
         let heightmap = HeightMap::from_nested(vec![vec![1.0, 0.5], vec![1.0, 0.5]]);
         let mut water = WaterLayer::new(2, 2);
 
@@ -1936,7 +1946,7 @@ mod tests {
 
     #[test]
     fn flow_direction_eight_neighbors() {
-        let system = test_water_system(2, 2);
+        let mut system = test_water_system(2, 2);
         // Create a heightmap with center cell higher than all neighbors
         let heightmap = HeightMap::from_nested(vec![
             vec![0.0, 0.0, 0.0],
@@ -1963,7 +1973,7 @@ mod tests {
 
     #[test]
     fn flow_direction_boundary_conditions() {
-        let system = test_water_system(2, 2);
+        let mut system = test_water_system(2, 2);
         let heightmap = HeightMap::from_nested(vec![vec![1.0, 0.5], vec![0.8, 0.3]]);
         let mut water = WaterLayer::new(2, 2);
 
@@ -2032,7 +2042,7 @@ mod tests {
 
     #[test]
     fn erosion_removes_terrain_adds_sediment() {
-        let system = test_water_system(2, 2);
+        let mut system = test_water_system(2, 2);
         let mut heightmap = HeightMap::from_nested(vec![vec![1.0]]);
         let mut water = WaterLayer::new(1, 1);
         water.depth[0][0] = 0.1;
@@ -2051,7 +2061,7 @@ mod tests {
 
     #[test]
     fn deposition_adds_terrain_removes_sediment() {
-        let system = test_water_system(2, 2);
+        let mut system = test_water_system(2, 2);
         let mut heightmap = HeightMap::from_nested(vec![vec![1.0]]);
         let mut water = WaterLayer::new(1, 1);
         water.depth[0][0] = 0.1; // More water needed for capacity calculation
@@ -2527,7 +2537,7 @@ mod tests {
     #[test]
     fn cfl_stability_check() {
         let scale = test_scale(100, 100); // 100m per pixel
-        let system = test_water_system(100, 100);
+        let mut system = test_water_system(100, 100);
         let mut water = WaterLayer::new(3, 3);
 
         // Test with reasonable velocities - should be stable
@@ -2553,7 +2563,7 @@ mod tests {
         let mut water = WaterLayer::new(64, 32);
 
         // System created with proper WorldScale
-        let system = WaterFlowSystem::new_for_scale(&continental_scale);
+        let mut system = WaterFlowSystem::new_for_scale(&continental_scale);
 
         // This should now use the WorldScale's grid spacing (32km/pixel = 32,000m/pixel)
         // instead of the wrong heuristic (100m/pixel for grids < 10k cells)

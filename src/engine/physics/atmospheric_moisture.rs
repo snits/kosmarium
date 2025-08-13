@@ -132,6 +132,10 @@ pub struct SurfaceMoistureParameters {
     pub surface_roughness: f32,
     /// METIS CORRECTION: Physics-compliant energy balance parameters
     pub energy_parameters: SurfaceEnergyParameters,
+    /// Surface evaporation rate (mm/day)
+    pub surface_evaporation_rate: f32,
+    /// Temperature factor for evaporation scaling (K^-1)
+    pub temperature_evaporation_factor: f32,
 }
 
 impl Default for SurfaceMoistureParameters {
@@ -140,6 +144,8 @@ impl Default for SurfaceMoistureParameters {
             surface_moisture_capacity: 0.01, // 1cm maximum moisture holding
             surface_roughness: 1.0,          // Baseline surface
             energy_parameters: SurfaceEnergyParameters::default(),
+            surface_evaporation_rate: 2.0,   // 2mm/day baseline evaporation
+            temperature_evaporation_factor: 0.1, // 0.1/K temperature scaling
         }
     }
 }
@@ -166,6 +172,12 @@ impl ScaleAware for SurfaceMoistureParameters {
                 ground_heat_fraction: self.energy_parameters.ground_heat_fraction,
                 wind_speed_factor: self.energy_parameters.wind_speed_factor,
             },
+
+            // Evaporation scales with resolution (larger areas = more diverse conditions)
+            surface_evaporation_rate: self.surface_evaporation_rate * resolution_scale,
+
+            // Temperature factor is a physical constant - doesn't scale
+            temperature_evaporation_factor: self.temperature_evaporation_factor,
         }
     }
 }

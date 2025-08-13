@@ -549,6 +549,12 @@ mod tests {
             cached_temperature_valid: false,
             last_temperature_update: 0,
             temperature_cache_lifetime: 100,
+            flow_engine: crate::engine::physics::flow_engine::FlowEngine::new(
+                crate::engine::physics::flow_engine::FlowAlgorithm::Gradient,
+                100, // width
+                100, // height  
+                &world_scale,
+            ),
             water_flow_system,
         };
 

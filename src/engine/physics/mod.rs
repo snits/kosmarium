@@ -11,6 +11,7 @@ pub mod drainage;
 pub mod flow_engine;
 pub mod geological_evolution;
 pub mod hydro_biome_coupling;
+pub mod maritime_climate_coupling;
 pub mod optimized_geological_evolution;
 pub mod spatial_partitioning;
 pub mod tectonics;
@@ -31,3 +32,6 @@ pub use flow_engine::{FlowAlgorithm, FlowEngine, FlowParameters, VelocityField};
 
 // Re-export hydrology-biome coupling
 pub use hydro_biome_coupling::{HydrologyAwareBiomeClassifier, WaterAvailability};
+
+// Re-export maritime-climate coupling  
+pub use maritime_climate_coupling::{CoastalThermalEffects, MaritimAwareAtmosphereSystem};

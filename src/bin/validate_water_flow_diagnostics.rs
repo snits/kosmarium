@@ -47,7 +47,7 @@ fn main() {
 
 fn test_water_flow_diagnostics(scale: &WorldScale) {
     // Create test water flow system
-    let water_system = WaterFlowSystem::new_for_scale(scale);
+    let mut water_system = WaterFlowSystem::new_for_scale(scale);
 
     // Create simple test terrain with a slope to generate realistic flow
     let width = scale.resolution.0 as usize;

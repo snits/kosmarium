@@ -1,9 +1,8 @@
 use sim_protoype::engine::{
-    core::{heightmap::HeightMap, world_scale::WorldScale},
-    physics::{drainage::DrainageNetwork, water::WaterLayer},
+    core::{heightmap::HeightMap, scale::WorldScale},
+    physics::{drainage::DrainageNetwork, water::WaterLayer, worldgen::{DiamondSquareConfig, DiamondSquareGenerator, TerrainGenerator}},
     sim::WaterFlowSystem,
 };
-use sim_protoype::worldgen::{DiamondSquareConfig, DiamondSquareGenerator, TerrainGenerator};
 
 /// Test the new concentration factor system for continental-scale drainage
 fn main() {
@@ -21,17 +20,16 @@ fn main() {
     );
 
     // Create WorldScale for continental scale (32km/pixel)
-    let world_scale = WorldScale::from_total_size(
-        32000.0 * width as f32,
-        32000.0 * height as f32,
-        width,
-        height,
+    let world_scale = WorldScale::new(
+        32.0, // 32km physical size
+        (width as u32, height as u32),
+        crate::engine::core::scale::DetailLevel::Standard,
     );
 
     // Generate terrain
     let config = DiamondSquareConfig::default();
-    let mut generator = DiamondSquareGenerator::from_config(config, 1234);
-    let heightmap = generator.generate_heightmap(width, height);
+    let generator = DiamondSquareGenerator::new(1234);
+    let heightmap = generator.generate(width, height, &config);
 
     println!("Generated heightmap with {} cells", width * height);
 
