@@ -42,6 +42,7 @@ pub struct WaterFlowSystem {
     pub effective_rainfall_rate: f32, // Computed rainfall rate for current scale
     pub _stable_timestep_seconds: f32, // CFL-derived timestep for numerical stability
     pub evaporation_threshold: f32,   // Scale-aware threshold for clearing tiny water amounts
+    pub drainage_metrics: DrainageMetrics, // Boundary drainage monitoring and instrumentation
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -120,6 +121,7 @@ impl WaterFlowSystem {
             effective_rainfall_rate,
             _stable_timestep_seconds: stable_timestep_seconds,
             evaporation_threshold,
+            drainage_metrics: DrainageMetrics::new(),
         }
     }
 
@@ -292,6 +294,23 @@ impl WaterFlowSystem {
         }
     }
 
+    /// Estimate grid spacing from water layer dimensions (for boundary flow calculations)
+    fn estimate_grid_spacing_from_water_layer(&self, water: &WaterLayer) -> f32 {
+        // Use same scaling logic as heightmap version
+        let width = water.width();
+        let height = water.height();
+        let total_cells = width * height;
+
+        // Estimate based on common scaling patterns
+        if total_cells < 10_000 {
+            100.0 // Small domain
+        } else if total_cells < 100_000 {
+            1000.0 // Medium domain
+        } else {
+            10000.0 // Large domain
+        }
+    }
+
     /// Calculate flow direction for each cell based on elevation gradients
     /// Enhanced with drainage-aware flow for gradual water concentration
     pub fn calculate_flow_directions(&self, heightmap: &HeightMap, water: &mut WaterLayer) {
@@ -378,7 +397,7 @@ impl WaterFlowSystem {
 
     /// Simulate one tick of water flow with drainage-aware flow enhancement
     pub fn update_water_flow_with_drainage(
-        &self,
+        &mut self,
         heightmap: &mut HeightMap,
         water: &mut WaterLayer,
         drainage_network: &DrainageNetwork,
@@ -405,7 +424,7 @@ impl WaterFlowSystem {
     }
 
     /// Simulate one tick of water flow (legacy method without drainage awareness)
-    pub fn update_water_flow(&self, heightmap: &mut HeightMap, water: &mut WaterLayer) {
+    pub fn update_water_flow(&mut self, heightmap: &mut HeightMap, water: &mut WaterLayer) {
         // Calculate flow directions based on current state
         self.calculate_flow_directions_with_spacing(
             heightmap,
@@ -428,7 +447,7 @@ impl WaterFlowSystem {
 
     /// Simulate one tick of water flow with climate integration and drainage-aware flow
     pub fn update_water_flow_with_climate_and_drainage(
-        &self,
+        &mut self,
         heightmap: &mut HeightMap,
         water: &mut WaterLayer,
         temperature_layer: &mut TemperatureLayer,
@@ -458,7 +477,7 @@ impl WaterFlowSystem {
 
     /// Simulate one tick of water flow with climate integration (legacy method)
     pub fn update_water_flow_with_climate(
-        &self,
+        &mut self,
         heightmap: &mut HeightMap,
         water: &mut WaterLayer,
         temperature_layer: &mut TemperatureLayer,
@@ -484,7 +503,10 @@ impl WaterFlowSystem {
         self.apply_evaporation_with_temperature(water, temperature_layer, climate_system);
     }
 
-    fn add_rainfall(&self, water: &mut WaterLayer) {
+    fn add_rainfall(&mut self, water: &mut WaterLayer) {
+        let rainfall_added = self.effective_rainfall_rate * (water.width() * water.height()) as f32;
+        self.drainage_metrics.total_rainfall_input += rainfall_added;
+
         for depth in water.depth.iter_mut() {
             *depth += self.effective_rainfall_rate;
         }
@@ -607,13 +629,19 @@ impl WaterFlowSystem {
     }
 
     /// Apply uniform evaporation (base case without temperature effects)
-    fn apply_evaporation(&self, water: &mut WaterLayer) {
+    fn apply_evaporation(&mut self, water: &mut WaterLayer) {
+        let mut total_evaporated = 0.0;
+
         for depth in water.depth.iter_mut() {
+            let initial_depth = *depth;
             *depth *= 1.0 - self.parameters.evaporation_rate;
             if *depth < self.evaporation_threshold {
                 *depth = 0.0;
             }
+            total_evaporated += initial_depth - *depth;
         }
+
+        self.drainage_metrics.total_evaporation += total_evaporated;
 
         // Also evaporate sediment when water disappears
         for y in 0..water.height() {
@@ -628,11 +656,13 @@ impl WaterFlowSystem {
 
     /// Apply temperature-dependent evaporation using climate data WITH energy conservation
     fn apply_evaporation_with_temperature(
-        &self,
+        &mut self,
         water: &mut WaterLayer,
         temperature_layer: &mut TemperatureLayer,
         climate_system: &ClimateSystem,
     ) {
+        let mut total_evaporated = 0.0;
+
         for y in 0..water.height() {
             for x in 0..water.width() {
                 // Get current temperature at this location
@@ -651,6 +681,7 @@ impl WaterFlowSystem {
 
                 // Calculate water mass evaporated (m³/m² = m depth)
                 let evaporated_water_depth = current_depth - new_depth.max(0.0);
+                total_evaporated += evaporated_water_depth;
 
                 // Apply latent heat cooling: Energy conservation E = m * λ
                 // Latent heat of vaporization: 2.45 MJ/kg
@@ -686,6 +717,8 @@ impl WaterFlowSystem {
                 }
             }
         }
+
+        self.drainage_metrics.total_evaporation += total_evaporated;
 
         // Handle sediment settling when water disappears
         for y in 0..water.height() {
@@ -794,7 +827,7 @@ impl WaterFlowSystem {
     }
 
     /// Move water with boundary outlets for mass conservation on continental scales
-    fn move_water_with_boundaries(&self, water: &mut WaterLayer) {
+    fn move_water_with_boundaries(&mut self, water: &mut WaterLayer) {
         // Use double-buffering to eliminate clone() allocation:
         // 1. Copy current depth to buffer as starting point
         water.copy_depth_to_buffer();
@@ -807,8 +840,10 @@ impl WaterFlowSystem {
                 let max_velocity = 0.5; // Conservative CFL condition
                 let flow_amount = water.depth.get(x, y) * velocity_mag.min(max_velocity);
 
-                // Computational flow threshold - allows realistic small-scale movement
-                let flow_threshold = 1e-8; // Based on numerical precision, not evaporation rates
+                // Scale-aware flow threshold - physical minimum with scale adaptation
+                let meters_per_pixel = self.estimate_grid_spacing_from_water_layer(water);
+                let physical_threshold = 0.001 * meters_per_pixel / 1000.0; // 1mm depth scaled to pixel
+                let flow_threshold = 1e-8_f32.max(physical_threshold); // Ensure non-zero minimum
                 if flow_amount > flow_threshold {
                     // Enhanced accumulative flow: allow fractional movement accumulation
                     // instead of rounding immediately to integer positions
@@ -858,7 +893,10 @@ impl WaterFlowSystem {
                             }
                         } else {
                             // Flow out of bounds = boundary outflow (lost water)
-                            // Water exits the domain - continental scale boundary outflow
+                            // INSTRUMENTED: Track boundary drainage for continental scale analysis
+                            let boundary_outflow = flow_amount * weight;
+                            self.drainage_metrics.total_boundary_outflow += boundary_outflow;
+                            self.drainage_metrics.boundary_outflow_rate += boundary_outflow;
                         }
                     }
                 }
@@ -867,6 +905,89 @@ impl WaterFlowSystem {
 
         // 3. Swap buffers to make the result the new primary depth
         water.swap_depth_buffers();
+    }
+}
+
+/// Boundary drainage monitoring and instrumentation
+#[derive(Debug, Clone)]
+pub struct DrainageMetrics {
+    pub total_boundary_outflow: f32,
+    pub total_rainfall_input: f32,
+    pub total_evaporation: f32,
+    pub current_water_storage: f32,
+    pub drainage_efficiency: f32,   // outflow / (rainfall - evaporation)
+    pub mass_balance_error: f32,    // Should be near zero
+    pub boundary_outflow_rate: f32, // outflow per tick
+    pub edge_saturation_ratio: f32, // water near edges / total water
+    pub tick_count: u64,
+}
+
+impl DrainageMetrics {
+    pub fn new() -> Self {
+        Self {
+            total_boundary_outflow: 0.0,
+            total_rainfall_input: 0.0,
+            total_evaporation: 0.0,
+            current_water_storage: 0.0,
+            drainage_efficiency: 0.0,
+            mass_balance_error: 0.0,
+            boundary_outflow_rate: 0.0,
+            edge_saturation_ratio: 0.0,
+            tick_count: 0,
+        }
+    }
+
+    pub fn update_mass_balance(&mut self) {
+        let expected_water =
+            self.total_rainfall_input - self.total_evaporation - self.total_boundary_outflow;
+        self.mass_balance_error = (self.current_water_storage - expected_water).abs();
+
+        let net_input = self.total_rainfall_input - self.total_evaporation;
+        if net_input > 0.0 {
+            self.drainage_efficiency = self.total_boundary_outflow / net_input;
+        }
+    }
+
+    pub fn calculate_edge_saturation_ratio(&mut self, water: &WaterLayer) {
+        let width = water.width();
+        let height = water.height();
+        // Scale-aware edge margin: ~5% of domain size, minimum 5, maximum 50
+        let edge_margin = ((width.min(height) as f32 * 0.05) as usize).clamp(5, 50);
+
+        let mut total_water = 0.0;
+        let mut edge_water = 0.0;
+
+        for y in 0..height {
+            for x in 0..width {
+                let depth = water.depth.get(x, y);
+                total_water += depth;
+
+                if x < edge_margin
+                    || x >= width - edge_margin
+                    || y < edge_margin
+                    || y >= height - edge_margin
+                {
+                    edge_water += depth;
+                }
+            }
+        }
+
+        self.current_water_storage = total_water;
+        self.edge_saturation_ratio = if total_water > 0.0 {
+            edge_water / total_water
+        } else {
+            0.0
+        };
+    }
+
+    pub fn start_tick(&mut self) {
+        self.boundary_outflow_rate = 0.0; // Reset per-tick outflow
+        self.tick_count += 1;
+    }
+
+    pub fn end_tick(&mut self, water: &WaterLayer) {
+        self.calculate_edge_saturation_ratio(water);
+        self.update_mass_balance();
     }
 }
 
@@ -1017,6 +1138,9 @@ impl Simulation {
 
     /// Advance simulation by one time step with climate integration and atmospheric caching
     pub fn tick(&mut self) {
+        // Drainage metrics instrumentation - start of tick
+        self.water_system.drainage_metrics.start_tick();
+
         // Performance instrumentation (enabled with PERF_TRACE environment variable)
         let perf_trace = std::env::var("PERF_TRACE").is_ok();
         let tick_start = if perf_trace {
@@ -1196,6 +1320,9 @@ impl Simulation {
 
         self.tick_count += 1;
 
+        // Drainage metrics instrumentation - end of tick
+        self.water_system.drainage_metrics.end_tick(&self.water);
+
         // Total tick timing
         if let Some(start) = tick_start {
             if perf_trace {
@@ -1208,7 +1335,55 @@ impl Simulation {
         }
     }
 
-    /// Get simulation time information for display
+    /// Get drainage performance metrics for continental scale monitoring
+    pub fn get_drainage_metrics(&self) -> &DrainageMetrics {
+        &self.water_system.drainage_metrics
+    }
+
+    /// Check if drainage system is working effectively for current scale
+    pub fn is_drainage_effective(&self) -> bool {
+        let metrics = &self.water_system.drainage_metrics;
+
+        // Drainage is effective if:
+        // 1. Mass balance error is small (< 1% of total water input)
+        let total_input = metrics.total_rainfall_input;
+        let mass_balance_ok = if total_input > 0.0 {
+            metrics.mass_balance_error / total_input < 0.01
+        } else {
+            true
+        };
+
+        // 2. Edge saturation is reasonable (< 50% of water near boundaries)
+        let edge_ok = metrics.edge_saturation_ratio < 0.5;
+
+        // 3. Some drainage is actually happening if there's net water input
+        let net_input = metrics.total_rainfall_input - metrics.total_evaporation;
+        let drainage_ok = if net_input > 0.0 {
+            metrics.drainage_efficiency > 0.1 // At least 10% of excess water drains out
+        } else {
+            true
+        };
+
+        mass_balance_ok && edge_ok && drainage_ok
+    }
+
+    /// Get human-readable drainage status for debugging
+    pub fn get_drainage_status(&self) -> String {
+        let metrics = &self.water_system.drainage_metrics;
+        format!(
+            "Drainage Status: {} | Mass Balance Error: {:.6} | Edge Saturation: {:.1}% | Drainage Efficiency: {:.1}% | Boundary Outflow Rate: {:.6}/tick",
+            if self.is_drainage_effective() {
+                "EFFECTIVE"
+            } else {
+                "PROBLEMATIC"
+            },
+            metrics.mass_balance_error,
+            metrics.edge_saturation_ratio * 100.0,
+            metrics.drainage_efficiency * 100.0,
+            metrics.boundary_outflow_rate
+        )
+    }
+
     pub fn get_simulation_time(&self) -> SimulationTime {
         // Assuming 10Hz simulation rate, each tick = 6 minutes of simulation time
         // This gives reasonable atmospheric dynamics timing
