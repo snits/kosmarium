@@ -3,6 +3,7 @@
 
 pub mod atmosphere;
 pub mod atmospheric_moisture;
+pub mod atmospheric_pressure_coupling;
 pub mod climate;
 pub mod convergence;
 pub mod convergence_detection;
@@ -35,3 +36,6 @@ pub use hydro_biome_coupling::{HydrologyAwareBiomeClassifier, WaterAvailability}
 
 // Re-export maritime-climate coupling  
 pub use maritime_climate_coupling::{CoastalThermalEffects, MaritimAwareAtmosphereSystem};
+
+// Re-export atmospheric-pressure coupling
+pub use atmospheric_pressure_coupling::{AtmosphericPressureEffects, PressureAwareWaterFlowSystem};
