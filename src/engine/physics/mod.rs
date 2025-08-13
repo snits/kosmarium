@@ -8,6 +8,7 @@ pub mod convergence;
 pub mod convergence_detection;
 pub mod corrected_water_flow;
 pub mod drainage;
+pub mod flow_engine;
 pub mod geological_evolution;
 pub mod optimized_geological_evolution;
 pub mod spatial_partitioning;
@@ -23,3 +24,6 @@ pub use worldgen::{
 
 // Re-export geological evolution
 pub use geological_evolution::GeologicalEvolutionConfig;
+
+// Re-export unified flow engine
+pub use flow_engine::{FlowAlgorithm, FlowEngine, FlowParameters, VelocityField};
