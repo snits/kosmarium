@@ -1,7 +1,7 @@
 // ABOUTME: Demonstration of orographic precipitation coupling - shows terrain-driven rainfall patterns
 // ABOUTME: Creates mountain ridge scenario and demonstrates windward/leeward precipitation effects
 
-use sim_prototype::engine::{
+use sim_protoype::engine::{
     core::{
         heightmap::HeightMap,
         math::Vec2,

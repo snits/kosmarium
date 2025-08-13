@@ -691,29 +691,38 @@ fn test_performance_regression_detection() {
 
     // This test sets performance baselines that should trigger if optimizations regress
 
-    let baseline_tests = vec![
-        ("Continental Init", || {
-            let heightmap = HeightMap::from_nested(vec![vec![0.5; 240]; 120]);
-            let _sim = Simulation::new(heightmap);
-        }),
-        ("Continental Tick", || {
-            static mut SIM: Option<Simulation> = None;
-            unsafe {
-                if SIM.is_none() {
-                    let heightmap = HeightMap::from_nested(vec![vec![0.5; 240]; 120]);
-                    SIM = Some(Simulation::new(heightmap));
+    let baseline_tests: Vec<(&str, Box<dyn Fn()>)> = vec![
+        (
+            "Continental Init",
+            Box::new(|| {
+                let heightmap = HeightMap::from_nested(vec![vec![0.5; 240]; 120]);
+                let _sim = Simulation::new(heightmap);
+            }),
+        ),
+        (
+            "Continental Tick",
+            Box::new(|| {
+                static mut SIM: Option<Simulation> = None;
+                unsafe {
+                    if SIM.is_none() {
+                        let heightmap = HeightMap::from_nested(vec![vec![0.5; 240]; 120]);
+                        SIM = Some(Simulation::new(heightmap));
+                    }
+                    if let Some(ref mut sim) = SIM {
+                        sim.tick();
+                    }
                 }
-                if let Some(ref mut sim) = SIM {
-                    sim.tick();
-                }
-            }
-        }),
-        ("Temperature Gen", || {
-            let scale = WorldScale::new(100.0, (200, 100), DetailLevel::Standard);
-            let climate = ClimateSystem::new_for_scale(&scale);
-            let heightmap = HeightMap::from_nested(vec![vec![0.4; 200]; 100]);
-            let _temp = climate.generate_temperature_layer_optimized(&heightmap);
-        }),
+            }),
+        ),
+        (
+            "Temperature Gen",
+            Box::new(|| {
+                let scale = WorldScale::new(100.0, (200, 100), DetailLevel::Standard);
+                let climate = ClimateSystem::new_for_scale(&scale);
+                let heightmap = HeightMap::from_nested(vec![vec![0.4; 200]; 100]);
+                let _temp = climate.generate_temperature_layer_optimized(&heightmap);
+            }),
+        ),
     ];
 
     // Performance regression thresholds (conservative to avoid false positives)

@@ -180,9 +180,9 @@ impl OrographicEffects {
                         enhancement.min(parameters.max_enhancement_ratio);
                 }
 
-                // 4. Calculate rain shadow effects on leeward slopes
-                if slope_downwind < -0.001 {
-                    // Downwind slope (negative gradient)
+                // 4. Calculate rain shadow effects on leeward slopes (only if no windward enhancement)
+                if precipitation_multiplier[x][y] == 1.0 && slope_downwind < -0.001 {
+                    // Downwind slope (negative gradient) AND no prior enhancement
                     // Descending air warms and dries
                     let shadow_strength = (-slope_downwind * wind_speed * 2.0).min(1.0);
                     rain_shadow_intensity[x][y] = shadow_strength;
@@ -196,7 +196,25 @@ impl OrographicEffects {
                 // 5. Moderate effects based on local moisture availability
                 let available_moisture = atmospheric_moisture.surface_moisture.get_humidity(x, y);
                 let moisture_factor = (available_moisture / 50.0).min(1.0); // Scale by typical humidity
-                precipitation_multiplier[x][y] *= 0.5 + 0.5 * moisture_factor; // 50-100% based on moisture
+
+                // Apply moisture scaling differently for enhancement vs. reduction
+                if precipitation_multiplier[x][y] > 1.0 {
+                    // For enhancement: only scale if sufficient moisture (>50%), otherwise reduce enhancement
+                    if available_moisture >= 50.0 {
+                        // Full enhancement with good moisture
+                        // No additional scaling needed
+                    } else {
+                        // Reduce enhancement proportionally to moisture availability
+                        let enhancement_amount = precipitation_multiplier[x][y] - 1.0;
+                        precipitation_multiplier[x][y] = 1.0 + enhancement_amount * moisture_factor;
+                    }
+                } else if precipitation_multiplier[x][y] < 1.0 {
+                    // For rain shadow: always apply (independent of local moisture)
+                    // Rain shadow is due to air mass properties, not local moisture
+                } else {
+                    // For normal areas: apply standard moisture scaling
+                    precipitation_multiplier[x][y] *= 0.5 + 0.5 * moisture_factor; // 50-100% based on moisture
+                }
                 condensation_rate[x][y] *= moisture_factor;
             }
         }
@@ -424,7 +442,7 @@ mod tests {
             for y in 0..5 {
                 atmospheric_moisture
                     .surface_moisture
-                    .set_humidity(x, y, 40.0); // Moderate humidity
+                    .set_humidity(x, y, 60.0); // Good humidity for orographic effects
             }
         }
 
