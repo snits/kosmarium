@@ -144,7 +144,7 @@ impl Default for SurfaceMoistureParameters {
             surface_moisture_capacity: 0.01, // 1cm maximum moisture holding
             surface_roughness: 1.0,          // Baseline surface
             energy_parameters: SurfaceEnergyParameters::default(),
-            surface_evaporation_rate: 2.0,   // 2mm/day baseline evaporation
+            surface_evaporation_rate: 2.0, // 2mm/day baseline evaporation
             temperature_evaporation_factor: 0.1, // 0.1/K temperature scaling
         }
     }
