@@ -17,6 +17,7 @@ pub mod optimized_geological_evolution;
 pub mod orographic_precipitation;
 pub mod spatial_partitioning;
 pub mod tectonics;
+pub mod thermal_circulation;
 pub mod water;
 pub mod wind_erosion_coupling;
 pub mod worldgen;
@@ -48,4 +49,9 @@ pub use wind_erosion_coupling::{WindAwareGeologicalSystem, WindErosionEffects};
 // Re-export orographic-precipitation coupling
 pub use orographic_precipitation::{
     OrographicEffects, OrographicParameters, OrographicPrecipitationSystem,
+};
+
+// Re-export thermal-circulation coupling
+pub use thermal_circulation::{
+    ThermalCirculationEffects, ThermalCirculationParameters, ThermalCirculationSystem,
 };
