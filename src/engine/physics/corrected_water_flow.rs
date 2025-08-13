@@ -131,8 +131,8 @@ impl CorrectedWaterFlowSystem {
                 let h = water.get_water_depth(x, y).max(self.h_min_threshold);
                 let (u_old, v_old) = water.velocity.get(x, y);
 
-                // Calculate pressure gradient: -g * ∇h
-                let (dh_dx, dh_dy) = self.calculate_surface_gradient(heightmap, water, x, y);
+                // Calculate pressure gradient: -g * ∇h (now drainage-aware)
+                let (dh_dx, dh_dy) = self.calculate_surface_gradient(heightmap, water, x, y, drainage_network);
                 let pressure_force_x = -self.gravity * dh_dx;
                 let pressure_force_y = -self.gravity * dh_dy;
 
@@ -180,21 +180,38 @@ impl CorrectedWaterFlowSystem {
         }
     }
 
-    /// Calculate surface gradient including water surface elevation
+    /// Calculate drainage-aware surface gradient including channel depth
     fn calculate_surface_gradient(
         &self,
         heightmap: &HeightMap,
         water: &WaterLayer,
         x: usize,
         y: usize,
+        drainage_network: Option<&DrainageNetwork>,
     ) -> (f32, f32) {
         let width = heightmap.width();
         let height = heightmap.height();
         let dx = self.world_scale.meters_per_pixel() as f32;
 
-        // Calculate surface elevation = terrain + water depth
-        let get_surface_elevation =
-            |x: usize, y: usize| -> f32 { heightmap.get(x, y) + water.get_water_depth(x, y) };
+        // Calculate effective surface elevation = terrain + water depth - channel depth
+        let get_surface_elevation = |x: usize, y: usize| -> f32 {
+            let terrain_elevation = heightmap.get(x, y);
+            let water_depth = water.get_water_depth(x, y);
+            
+            // Include channel depth from drainage network flow accumulation
+            let channel_depth = if let Some(drainage) = drainage_network {
+                let flow_accumulation = drainage.get_flow_accumulation(x, y);
+                // Scale channel depth based on flow accumulation - more accumulation = deeper channel
+                // Use a realistic scaling factor: 1 pixel accumulation = 1cm channel depth
+                let pixel_area = (dx * dx) as f64;
+                let depth_scale = 0.01; // 1cm per pixel of flow accumulation
+                (flow_accumulation as f64 * depth_scale / pixel_area.sqrt()) as f32
+            } else {
+                0.0 // No drainage network provided, no channel modification
+            };
+            
+            terrain_elevation + water_depth - channel_depth
+        };
 
         let current_elevation = get_surface_elevation(x, y);
 
@@ -506,7 +523,7 @@ mod tests {
         }
 
         let (dh_dx, dh_dy) =
-            corrected_system.calculate_surface_gradient(&heightmap, &water, 25, 25);
+            corrected_system.calculate_surface_gradient(&heightmap, &water, 25, 25, None);
 
         // Should detect the slope
         assert!(dh_dx > 0.0); // Positive slope in x direction
