@@ -9,6 +9,7 @@ pub mod convergence;
 pub mod convergence_detection;
 pub mod corrected_water_flow;
 pub mod drainage;
+pub mod ecosystem_feedback;
 pub mod flow_engine;
 pub mod geological_evolution;
 pub mod hydro_biome_coupling;
@@ -17,6 +18,7 @@ pub mod optimized_geological_evolution;
 pub mod orographic_precipitation;
 pub mod spatial_partitioning;
 pub mod tectonics;
+pub mod temperature;
 pub mod thermal_circulation;
 pub mod water;
 pub mod wind_erosion_coupling;
@@ -55,3 +57,12 @@ pub use orographic_precipitation::{
 pub use thermal_circulation::{
     ThermalCirculationEffects, ThermalCirculationParameters, ThermalCirculationSystem,
 };
+
+// Re-export ecosystem-feedback coupling
+pub use ecosystem_feedback::{
+    BiomeMap, BiomeType, EcosystemFeedbackEffects, EcosystemFeedbackParameters,
+    EcosystemFeedbackSystem,
+};
+
+// Re-export temperature field
+pub use temperature::TemperatureField;

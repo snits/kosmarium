@@ -1022,7 +1022,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sim-protoype"
+name = "sim-prototype"
 version = "0.1.0"
 dependencies = [
  "atty",
