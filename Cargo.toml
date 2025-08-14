@@ -1,15 +1,15 @@
 [package]
-name = "sim-protoype"
+name = "sim-prototype"
 version = "0.1.0"
 edition = "2024"
-default-run = "sim-protoype"
+default-run = "sim-prototype"
 
 [features]
 default = ["simd"]
 simd = []
 
 [lib]
-name = "sim_protoype"
+name = "sim_prototype"
 path = "src/lib.rs"
 
 # Debug and analysis tools
