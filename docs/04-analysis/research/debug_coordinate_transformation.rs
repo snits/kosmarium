@@ -1,6 +1,6 @@
 // Debug script to verify coordinate transformation between nested Vec and PhysicsGrid
 
-use sim_protoype::engine::core::PhysicsGrid;
+use sim_prototype::engine::core::PhysicsGrid;
 
 fn main() {
     println!("Testing coordinate transformation between Vec<Vec<T>> and PhysicsGrid<T>");

@@ -1,13 +1,13 @@
 // ABOUTME: Diagnostic tool to analyze drainage regression issue causing biome classification changes
 // ABOUTME: Compares flow accumulation values and biome outputs to identify root cause
 
-use sim_protoype::engine::agents::biome::{BiomeClassifier, BiomeType};
-use sim_protoype::engine::core::heightmap::HeightMap;
-use sim_protoype::engine::core::{DetailLevel, WorldScale};
-use sim_protoype::engine::physics::climate::ClimateSystem;
-use sim_protoype::engine::physics::drainage::DrainageNetwork;
-use sim_protoype::engine::physics::water::WaterLayer;
-use sim_protoype::engine::physics::worldgen::{
+use sim_prototype::engine::agents::biome::{BiomeClassifier, BiomeType};
+use sim_prototype::engine::core::heightmap::HeightMap;
+use sim_prototype::engine::core::{DetailLevel, WorldScale};
+use sim_prototype::engine::physics::climate::ClimateSystem;
+use sim_prototype::engine::physics::drainage::DrainageNetwork;
+use sim_prototype::engine::physics::water::WaterLayer;
+use sim_prototype::engine::physics::worldgen::{
     DiamondSquareConfig, DiamondSquareGenerator, TerrainGenerator,
 };
 

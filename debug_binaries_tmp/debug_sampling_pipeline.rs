@@ -1,4 +1,4 @@
-use sim_protoype::worldgen::{DiamondSquareConfig, DiamondSquareGenerator, TerrainGenerator};
+use sim_prototype::worldgen::{DiamondSquareConfig, DiamondSquareGenerator, TerrainGenerator};
 
 fn main() {
     let seed = 12345;

@@ -1,7 +1,7 @@
 // ABOUTME: Demonstration of biome-hydrology coupling using unified FlowEngine velocity fields
 // ABOUTME: Shows how water flow patterns influence vegetation distribution in real-time
 
-use sim_protoype::engine::{
+use sim_prototype::engine::{
     agents::biome::{BiomeClassifier, BiomeType},
     core::{
         heightmap::HeightMap,

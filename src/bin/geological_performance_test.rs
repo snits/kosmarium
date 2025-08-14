@@ -1,19 +1,19 @@
 // ABOUTME: Performance analysis tool for geological evolution systems
 // ABOUTME: Measures hot paths, algorithmic complexity, and optimization effectiveness
 
-use sim_protoype::engine::core::cache_system::CachedClimateSystem;
-use sim_protoype::engine::core::optimized_heightmap::FlatHeightmap;
-use sim_protoype::engine::core::{DetailLevel, WorldScale};
-use sim_protoype::engine::physics::climate::ClimateSystem;
-use sim_protoype::engine::physics::convergence_detection::{ConvergenceConfig, ConvergenceTracker};
-use sim_protoype::engine::physics::geological_evolution::{
+use sim_prototype::engine::core::cache_system::CachedClimateSystem;
+use sim_prototype::engine::core::optimized_heightmap::FlatHeightmap;
+use sim_prototype::engine::core::{DetailLevel, WorldScale};
+use sim_prototype::engine::physics::climate::ClimateSystem;
+use sim_prototype::engine::physics::convergence_detection::{ConvergenceConfig, ConvergenceTracker};
+use sim_prototype::engine::physics::geological_evolution::{
     GeologicalEvolution, GeologicalEvolutionConfig,
 };
-use sim_protoype::engine::physics::optimized_geological_evolution::{
+use sim_prototype::engine::physics::optimized_geological_evolution::{
     OptimizedGeologicalConfig, OptimizedGeologicalEvolution,
 };
-use sim_protoype::engine::physics::spatial_partitioning::OptimizedWaterFlowSystem;
-use sim_protoype::engine::physics::worldgen::{
+use sim_prototype::engine::physics::spatial_partitioning::OptimizedWaterFlowSystem;
+use sim_prototype::engine::physics::worldgen::{
     DiamondSquareConfig, DiamondSquareGenerator, TerrainGenerator,
 };
 use std::time::{Duration, Instant};

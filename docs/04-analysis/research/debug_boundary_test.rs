@@ -1,6 +1,6 @@
 // Debug boundary outflow test issue
-use sim_protoype::engine::core::heightmap::HeightMap;
-use sim_protoype::engine::sim::Simulation;
+use sim_prototype::engine::core::heightmap::HeightMap;
+use sim_prototype::engine::sim::Simulation;
 
 fn main() {
     println!("Debugging boundary outflow test...\n");

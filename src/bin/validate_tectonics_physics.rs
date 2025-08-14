@@ -1,7 +1,7 @@
 // ABOUTME: Metis validation test for tectonics system physics corrections
 // ABOUTME: Verifies energy conservation, momentum conservation, and isostatic equilibrium fixes
 
-use sim_protoype::engine::physics::tectonics::{PlateType, TectonicSystem};
+use sim_prototype::engine::physics::tectonics::{PlateType, TectonicSystem};
 
 /// Test the three critical Metis corrections for tectonics system
 fn main() -> Result<(), Box<dyn std::error::Error>> {

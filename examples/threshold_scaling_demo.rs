@@ -1,9 +1,9 @@
 // ABOUTME: Demonstrates how water visualization thresholds scale with map size
 // ABOUTME: Shows the relationship between evaporation thresholds and visualization levels
 
-use sim_protoype::scale::{DetailLevel, WorldScale};
-use sim_protoype::sim::{Simulation, WaterFlowSystem};
-use sim_protoype::worldgen::{DiamondSquareConfig, DiamondSquareGenerator, TerrainGenerator};
+use sim_prototype::scale::{DetailLevel, WorldScale};
+use sim_prototype::sim::{Simulation, WaterFlowSystem};
+use sim_prototype::worldgen::{DiamondSquareConfig, DiamondSquareGenerator, TerrainGenerator};
 
 fn main() {
     println!("=== Water Visualization Threshold Scaling Demo ===\n");

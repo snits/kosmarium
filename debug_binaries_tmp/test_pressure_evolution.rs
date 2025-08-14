@@ -1,6 +1,6 @@
 // ABOUTME: Test program to verify temporal integration fix for atmospheric pressure system
 // ABOUTME: Monitors pressure evolution over time to ensure gradual changes instead of regeneration
-use sim_protoype::engine::{
+use sim_prototype::engine::{
     core::{
         heightmap::HeightMap,
         scale::{DetailLevel, WorldScale},

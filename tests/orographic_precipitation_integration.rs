@@ -1,11 +1,11 @@
 // ABOUTME: Integration test for orographic precipitation coupling - validates terrain-driven rainfall patterns
 // ABOUTME: Tests cross-system physics coupling between terrain, atmospheric flow, and precipitation
 
-use sim_protoype::engine::core::{
+use sim_prototype::engine::core::{
     heightmap::HeightMap,
     scale::{DetailLevel, WorldScale},
 };
-use sim_protoype::engine::physics::{
+use sim_prototype::engine::physics::{
     atmospheric_moisture::AtmosphericMoistureSystem,
     climate::ClimateSystem,
     flow_engine::{FlowAlgorithm, FlowEngine},
@@ -57,7 +57,7 @@ fn test_orographic_precipitation_mountain_ridge_scenario() {
             flow_engine.velocity_field.set_velocity(
                 x,
                 y,
-                sim_protoype::engine::core::math::Vec2::new(4.0, 0.0), // 4 m/s eastward
+                sim_prototype::engine::core::math::Vec2::new(4.0, 0.0), // 4 m/s eastward
             );
         }
     }
@@ -228,7 +228,7 @@ fn test_orographic_effects_no_wind_scenario() {
             flow_engine.velocity_field.set_velocity(
                 x,
                 y,
-                sim_protoype::engine::core::math::Vec2::new(1.0, 0.0), // 1 m/s (below 2 m/s threshold)
+                sim_prototype::engine::core::math::Vec2::new(1.0, 0.0), // 1 m/s (below 2 m/s threshold)
             );
         }
     }

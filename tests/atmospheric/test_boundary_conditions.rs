@@ -1,10 +1,10 @@
 // ABOUTME: Test program to verify atmospheric boundary conditions are working correctly
 // ABOUTME: Creates a simple atmospheric system and validates that boundary conditions prevent accumulation
 
-use sim_protoype::engine::physics::atmosphere::{AtmosphericSystem, WindLayer, BoundaryType};
-use sim_protoype::engine::physics::climate::ClimateSystem;
-use sim_protoype::engine::core::scale::{WorldScale, DetailLevel};
-use sim_protoype::engine::physics::water::Vec2;
+use sim_prototype::engine::physics::atmosphere::{AtmosphericSystem, WindLayer, BoundaryType};
+use sim_prototype::engine::physics::climate::ClimateSystem;
+use sim_prototype::engine::core::scale::{WorldScale, DetailLevel};
+use sim_prototype::engine::physics::water::Vec2;
 
 fn main() {
     println! ("Testing Atmospheric Boundary Conditions");

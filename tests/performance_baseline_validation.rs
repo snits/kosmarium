@@ -23,10 +23,10 @@ use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
 // Test dependencies - importing from main codebase
-use sim_protoype::engine::core::heightmap::HeightMap;
-use sim_protoype::engine::core::scale::{DetailLevel, WorldScale};
-use sim_protoype::engine::physics::climate::ClimateSystem;
-use sim_protoype::engine::sim::Simulation;
+use sim_prototype::engine::core::heightmap::HeightMap;
+use sim_prototype::engine::core::scale::{DetailLevel, WorldScale};
+use sim_prototype::engine::physics::climate::ClimateSystem;
+use sim_prototype::engine::sim::Simulation;
 
 /// Performance test configuration
 #[derive(Debug, Clone)]

@@ -1,9 +1,9 @@
 // ABOUTME: Demonstration of dimensional analysis functionality for water flow physics
 // ABOUTME: Shows how to validate physical parameters and convert between units
 
-use sim_protoype::heightmap::HeightMap;
-use sim_protoype::scale::{DetailLevel, WorldScale};
-use sim_protoype::sim::Simulation;
+use sim_prototype::heightmap::HeightMap;
+use sim_prototype::scale::{DetailLevel, WorldScale};
+use sim_prototype::sim::Simulation;
 
 fn main() {
     // Create a simple heightmap
@@ -64,7 +64,7 @@ fn main() {
 
     // Convert to different units for intuition
     let rainfall_mm =
-        rainfall_depth.convert_to(sim_protoype::dimensional::PhysicalUnit::Millimeters);
+        rainfall_depth.convert_to(sim_prototype::dimensional::PhysicalUnit::Millimeters);
     println!("- Rainfall: {:.6} mm depth", rainfall_mm.value);
 
     println!("\n=== Demo Complete ===");

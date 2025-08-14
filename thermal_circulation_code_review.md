@@ -91,9 +91,9 @@ The thermal circulation coupling implementation demonstrates **high-quality phys
 - `tests/thermal_circulation_integration_test.rs:4`
 - `src/bin/thermal_circulation_demo.rs:4`
 
-**Issue**: Import statements use `sim_protoype` instead of `sim_prototype`
+**Issue**: Import statements use `sim_prototype` instead of `sim_prototype`
 ```rust
-use sim_protoype::engine::{  // ❌ Typo
+use sim_prototype::engine::{  // ❌ Typo
 ```
 
 **Fix Required**:

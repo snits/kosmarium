@@ -2,7 +2,7 @@
 // ABOUTME: Systematically tracks wind layer boundary state during simulation updates
 // ABOUTME: Identifies where boundary conditions get corrupted in the update cycle
 
-use sim_protoype::engine::{
+use sim_prototype::engine::{
     core::scale::{DetailLevel, WorldScale},
     physics::{DiamondSquareConfig, DiamondSquareGenerator, TerrainGenerator},
     sim::Simulation,
@@ -140,7 +140,7 @@ struct BoundaryMomentumAnalysis {
 }
 
 fn analyze_boundary_momentum_from_wind_layer(
-    wind_layer: &sim_protoype::engine::physics::atmosphere::WindLayer,
+    wind_layer: &sim_prototype::engine::physics::atmosphere::WindLayer,
 ) -> BoundaryMomentumAnalysis {
     let width = wind_layer.width();
     let height = wind_layer.height();

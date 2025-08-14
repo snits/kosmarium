@@ -1,9 +1,9 @@
 // ABOUTME: Demonstration of climate system with temperature layer and seasonal cycling
 // ABOUTME: Shows how elevation and latitude affect temperature distribution
 
-use sim_protoype::climate::{ClimateParameters, ClimateSystem};
-use sim_protoype::scale::{DetailLevel, WorldScale};
-use sim_protoype::worldgen::{DiamondSquareConfig, DiamondSquareGenerator, TerrainGenerator};
+use sim_prototype::climate::{ClimateParameters, ClimateSystem};
+use sim_prototype::scale::{DetailLevel, WorldScale};
+use sim_prototype::worldgen::{DiamondSquareConfig, DiamondSquareGenerator, TerrainGenerator};
 
 fn main() {
     println!("=== Climate System Demo ===\n");

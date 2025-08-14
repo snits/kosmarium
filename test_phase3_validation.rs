@@ -1,9 +1,9 @@
 // Phase 3 Geostrophic Wind Validation Test
 // Tests the new F_THRESHOLD implementation and geostrophic balance improvements
 
-use sim_protoype::engine::core::scale::{DetailLevel, WorldScale};
-use sim_protoype::engine::physics::atmosphere::AtmosphericSystem;
-use sim_protoype::engine::physics::climate::AtmosphericPressureLayer;
+use sim_prototype::engine::core::scale::{DetailLevel, WorldScale};
+use sim_prototype::engine::physics::atmosphere::AtmosphericSystem;
+use sim_prototype::engine::physics::climate::AtmosphericPressureLayer;
 
 fn main() {
     println!("=== PHASE 3: GEOSTROPHIC WIND VALIDATION ===");

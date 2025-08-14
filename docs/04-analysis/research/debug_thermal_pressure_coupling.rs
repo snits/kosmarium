@@ -1,9 +1,9 @@
 // ABOUTME: Debug thermal-pressure coupling issue - 0.024% vs expected 57% variation
 // ABOUTME: Analyzes temperature-pressure relationship to determine if values are realistic
 
-use sim_protoype::engine::core::heightmap::HeightMap;
-use sim_protoype::engine::core::scale::{DetailLevel, WorldScale};
-use sim_protoype::engine::physics::climate::ClimateSystem;
+use sim_prototype::engine::core::heightmap::HeightMap;
+use sim_prototype::engine::core::scale::{DetailLevel, WorldScale};
+use sim_prototype::engine::physics::climate::ClimateSystem;
 use std::fs::File;
 use std::io::Write;
 

@@ -1,14 +1,14 @@
 // ABOUTME: Metis validation test for atmospheric moisture system physics corrections
 // ABOUTME: Verifies energy conservation, Clausius-Clapeyron compliance, and mass conservation fixes
 
-use sim_protoype::engine::core::heightmap::HeightMap;
-use sim_protoype::engine::core::scale::{DetailLevel, WorldScale};
-use sim_protoype::engine::physics::atmospheric_moisture::{
+use sim_prototype::engine::core::heightmap::HeightMap;
+use sim_prototype::engine::core::scale::{DetailLevel, WorldScale};
+use sim_prototype::engine::physics::atmospheric_moisture::{
     AtmosphericMoistureSystem, SurfaceMoistureLayer, SurfaceMoistureParameters,
     calculate_saturation_humidity, clausius_clapeyron_saturation_pressure,
 };
-use sim_protoype::engine::physics::climate::ClimateSystem;
-use sim_protoype::engine::physics::water::WaterLayer;
+use sim_prototype::engine::physics::climate::ClimateSystem;
+use sim_prototype::engine::physics::water::WaterLayer;
 
 /// Test the critical Metis corrections for atmospheric moisture system
 fn main() -> Result<(), Box<dyn std::error::Error>> {

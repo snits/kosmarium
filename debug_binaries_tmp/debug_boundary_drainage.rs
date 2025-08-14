@@ -1,11 +1,11 @@
 // ABOUTME: Quick diagnostic to check actual boundary outflow behavior
 // ABOUTME: Verifies if water is being removed from system vs just tracked
 
-use sim_protoype::engine::core::scale::{DetailLevel, ScaleAware, WorldScale};
-use sim_protoype::engine::physics::worldgen::{
+use sim_prototype::engine::core::scale::{DetailLevel, ScaleAware, WorldScale};
+use sim_prototype::engine::physics::worldgen::{
     TectonicConfig, TectonicGenerator, TerrainGenerator,
 };
-use sim_protoype::engine::sim::Simulation;
+use sim_prototype::engine::sim::Simulation;
 
 fn main() {
     println!("BOUNDARY DRAINAGE DEBUG ANALYSIS");

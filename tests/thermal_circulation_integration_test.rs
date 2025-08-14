@@ -1,7 +1,7 @@
 // ABOUTME: Integration tests for thermal circulation coupling system
 // ABOUTME: Validates temperature-driven atmospheric flow patterns and physics integration
 
-use sim_protoype::engine::{
+use sim_prototype::engine::{
     core::{
         PhysicsGrid,
         heightmap::HeightMap,

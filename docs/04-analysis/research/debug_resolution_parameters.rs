@@ -1,9 +1,9 @@
 // ABOUTME: Debug script to analyze climate parameter scaling at different resolutions  
 // ABOUTME: Identifies resolution-dependent thermal circulation parameter values
 
-use sim_protoype::engine::core::{WorldScale, DetailLevel};
-use sim_protoype::engine::core::scale::ScaleAware;
-use sim_protoype::engine::physics::climate::ClimateParameters;
+use sim_prototype::engine::core::{WorldScale, DetailLevel};
+use sim_prototype::engine::core::scale::ScaleAware;
+use sim_prototype::engine::physics::climate::ClimateParameters;
 
 fn main() {
     println!("=== RESOLUTION-DEPENDENT PARAMETER ANALYSIS ===\n");

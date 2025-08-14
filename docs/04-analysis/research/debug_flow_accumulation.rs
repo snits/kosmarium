@@ -1,6 +1,6 @@
 // Debug flow accumulation issue
-use sim_protoype::engine::physics::drainage::{FlowDirectionMap, FlowAccumulationMap};
-use sim_protoype::engine::core::heightmap::HeightMap;
+use sim_prototype::engine::physics::drainage::{FlowDirectionMap, FlowAccumulationMap};
+use sim_prototype::engine::core::heightmap::HeightMap;
 
 fn main() {
     println!("Debugging flow accumulation calculation...");

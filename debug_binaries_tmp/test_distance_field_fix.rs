@@ -1,7 +1,7 @@
 // ABOUTME: Test script to validate the coastal distance field fix for NaN/infinity issues
 // ABOUTME: Demonstrates the problem and validates the proposed solution
 
-use sim_protoype::worldgen::{TectonicConfig, TectonicGenerator, TerrainGenerator};
+use sim_prototype::worldgen::{TectonicConfig, TectonicGenerator, TerrainGenerator};
 
 fn main() {
     println!("=== Testing Distance Field Fix for NaN/Infinity Issues ===\n");

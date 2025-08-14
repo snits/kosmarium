@@ -1,4 +1,4 @@
-use sim_protoype::engine::physics::worldgen::{
+use sim_prototype::engine::physics::worldgen::{
     DiamondSquareConfig, DiamondSquareGenerator, TerrainGenerator,
 };
 use std::time::{SystemTime, UNIX_EPOCH};
