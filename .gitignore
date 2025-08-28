@@ -1,2 +1,6 @@
 /target
 .git/
+
+# Claude agent configurations (tracked in separate repos)
+.claude/
+.opencode/
