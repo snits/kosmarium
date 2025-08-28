@@ -3,6 +3,7 @@
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use super::core::temporal_scaling::TemporalScalingConfig;
 
 /// Complete scientific workspace configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -49,6 +50,8 @@ pub struct SimulationDefaults {
     pub dimensions: (usize, usize),
     /// Update interval in simulation ticks
     pub interval: usize,
+    /// Temporal scaling configuration for realistic vs demo modes
+    pub temporal_scaling: TemporalScalingConfig,
 }
 
 /// ASCII framebuffer layout and visualization configuration
@@ -104,6 +107,7 @@ impl Default for WorkspaceConfig {
                 persistence: 0.6,
                 dimensions: (240, 120),
                 interval: 10,
+                temporal_scaling: TemporalScalingConfig::default(),
             },
             layout: FramebufferLayout {
                 buffer_size: 5,
