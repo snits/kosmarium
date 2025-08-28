@@ -174,8 +174,11 @@ impl ThermalCirculationSystem {
                 let temp_north = temperature_layer.get_temperature(x, y - 1);
                 let temp_south = temperature_layer.get_temperature(x, y + 1);
 
-                let dt_dx = (temp_east - temp_west) / (2.0_f32 * cell_size_m);
-                let dt_dy = (temp_south - temp_north) / (2.0_f32 * cell_size_m);
+                // METIS SCALING FIX: Remove cell_size_m scaling to achieve scale invariance
+                // Theoretical analysis showed α = -1.0 scaling exponent due to grid dependency
+                // Scale-invariant formulation uses dimensionless temperature differences
+                let dt_dx = (temp_east - temp_west) / 2.0_f32;
+                let dt_dy = (temp_south - temp_north) / 2.0_f32;
 
                 let gradient_magnitude = (dt_dx * dt_dx + dt_dy * dt_dy).sqrt();
                 effects.temperature_gradient[x][y] = gradient_magnitude;

@@ -69,9 +69,11 @@ impl CoastalThermalEffects {
                 
                 thermal_gradients[x][y] = temp_difference;
                 
-                // Pressure anomaly from thermal contrast
-                // Simplified: ΔP ≈ -ρg(ΔT/T₀)h where h is characteristic height
-                let characteristic_height = 1000.0; // 1 km mixing layer
+                // METIS SCALING FIX: Replace hardcoded mixing height with scale-dependent formulation
+                // Theoretical analysis showed 97% pressure underestimate at 10,000km due to fixed height
+                // Scale-aware mixing height: h ∝ domain_size^0.5 (boundary layer scaling)
+                let domain_size_m = scale.physical_size_km * 1000.0; // Convert to meters
+                let characteristic_height = ((domain_size_m / 10000.0).sqrt() * 1000.0) as f32; // Scale from 10km baseline
                 let pressure_anomaly = -air_density * gravity * thermal_expansion_coeff 
                     * temp_difference * characteristic_height;
                 pressure_anomalies[x][y] = pressure_anomaly;

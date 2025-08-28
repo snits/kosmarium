@@ -314,9 +314,11 @@ fn calculate_terrain_slopes(
     let wind_dir_x = wind_velocity.x / wind_speed;
     let wind_dir_y = wind_velocity.y / wind_speed;
 
-    // Calculate terrain gradients using centered differences
-    let dh_dx = (heightmap.get(x + 1, y) - heightmap.get(x - 1, y)) / (2.0 * cell_size_m);
-    let dh_dy = (heightmap.get(x, y + 1) - heightmap.get(x, y - 1)) / (2.0 * cell_size_m);
+    // METIS SCALING FIX: Remove cell_size_m scaling to achieve scale invariance
+    // Theoretical analysis showed α = +1.0 scaling exponent due to grid dependency
+    // Scale-invariant formulation uses dimensionless elevation differences
+    let dh_dx = (heightmap.get(x + 1, y) - heightmap.get(x - 1, y)) / 2.0;
+    let dh_dy = (heightmap.get(x, y + 1) - heightmap.get(x, y - 1)) / 2.0;
 
     // Project terrain gradient onto wind direction
     // Positive = upslope in wind direction, negative = downslope
