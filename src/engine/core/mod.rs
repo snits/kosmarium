@@ -8,9 +8,13 @@ pub mod math;
 pub mod optimized_heightmap;
 pub mod physics_grid;
 pub mod scale;
+pub mod temporal_performance;
 pub mod temporal_scaling;
 
 // Re-export key types for convenience
 pub use physics_grid::PhysicsGrid;
 pub use scale::{DetailLevel, WorldScale};
+pub use temporal_performance::{
+    PerformanceSummary, TemporalPerformanceMonitor, TemporalScalingTimer,
+};
 pub use temporal_scaling::{TemporalMode, TemporalScalingConfig, TemporalScalingService};
