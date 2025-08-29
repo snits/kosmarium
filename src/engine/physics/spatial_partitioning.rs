@@ -552,7 +552,7 @@ mod tests {
             flow_engine: crate::engine::physics::flow_engine::FlowEngine::new(
                 crate::engine::physics::flow_engine::FlowAlgorithm::Gradient,
                 100, // width
-                100, // height  
+                100, // height
                 &world_scale,
             ),
             water_flow_system,

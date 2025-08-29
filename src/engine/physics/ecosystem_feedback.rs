@@ -292,8 +292,8 @@ pub struct EcosystemFeedbackSystem {
 impl EcosystemFeedbackSystem {
     /// Create new ecosystem feedback system
     pub fn new(parameters: EcosystemFeedbackParameters, width: usize, height: usize) -> Self {
-        use super::super::core::temporal_scaling::{TemporalScalingConfig, TemporalMode};
-        
+        use super::super::core::temporal_scaling::{TemporalMode, TemporalScalingConfig};
+
         Self {
             parameters,
             biome_map: BiomeMap::new(width, height),
@@ -304,11 +304,11 @@ impl EcosystemFeedbackSystem {
             }),
         }
     }
-    
+
     /// Create new ecosystem feedback system with explicit temporal scaling configuration
     pub fn new_with_temporal_scaling(
-        parameters: EcosystemFeedbackParameters, 
-        width: usize, 
+        parameters: EcosystemFeedbackParameters,
+        width: usize,
         height: usize,
         temporal_scaling: TemporalScalingService,
     ) -> Self {
@@ -339,22 +339,25 @@ impl EcosystemFeedbackSystem {
     pub fn biome_map(&self) -> &BiomeMap {
         &self.biome_map
     }
-    
+
     /// Get current temporal scaling mode
     pub fn get_temporal_mode(&self) -> super::super::core::temporal_scaling::TemporalMode {
         self.temporal_scaling.mode()
     }
-    
+
     /// Update temporal scaling configuration
     pub fn update_temporal_scaling(&mut self, temporal_scaling: TemporalScalingService) {
         self.temporal_scaling = temporal_scaling;
     }
-    
+
     /// Check if currently in demo mode (preserves exact behavior)
     pub fn is_demo_mode(&self) -> bool {
-        matches!(self.temporal_scaling.mode(), super::super::core::temporal_scaling::TemporalMode::Demo)
+        matches!(
+            self.temporal_scaling.mode(),
+            super::super::core::temporal_scaling::TemporalMode::Demo
+        )
     }
-    
+
     /// Get human-readable description of current temporal scaling
     pub fn temporal_scaling_description(&self) -> String {
         self.temporal_scaling.scaling_description()
@@ -464,10 +467,10 @@ impl EcosystemFeedbackSystem {
                 // CRITICAL FIX: Apply temporal scaling to transform 10.0 kg/m²/day Demo rate to 2.5 kg/m²/year Realistic rate
                 let dt_hours = dt * 24.0; // Convert dt from fraction of day to hours
                 let scaled_growth_rate = self.temporal_scaling.scale_ecosystem_growth_rate(
-                    self.parameters.growth_rate as f64, 
-                    dt_hours as f64
+                    self.parameters.growth_rate as f64,
+                    dt_hours as f64,
                 ) as f32;
-                
+
                 let growth_factor = overall_health * scaled_growth_rate;
                 let optimal_biomass = self.get_optimal_biomass(biome);
                 let biomass_change = if biomass < optimal_biomass {
