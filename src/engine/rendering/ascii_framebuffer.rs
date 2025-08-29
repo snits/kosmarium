@@ -370,7 +370,9 @@ impl AsciiFramebuffer {
         sim_height: usize,
     ) {
         let water_system = simulation.get_water_system();
-        let threshold = water_system.evaporation_threshold;
+        // Fix: Use rainfall-scale aware threshold instead of evaporation threshold for rendering
+        // The evaporation threshold (1e-8) is too small for realistic rainfall visualization
+        let threshold = (water_system.effective_rainfall_rate * 0.1).max(1e-6).min(1e-3);
 
         for y in 0..display_height {
             for x in 0..display_width {

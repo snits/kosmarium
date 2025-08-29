@@ -113,7 +113,11 @@ impl GraphicsRenderer {
 
         // Overlay water layer if available
         let water_layer = simulation.get_water_layer();
+        let water_system = simulation.get_water_system();
         let cell_size = self.calculate_cell_size(water_layer.width(), water_layer.height());
+
+        // Scale-aware rendering threshold (same approach as ASCII framebuffer)
+        let render_max_depth = (water_system.effective_rainfall_rate * 100.0).max(0.001);
 
         // Center the simulation data in the viewport (same as elevation mode)
         let total_width = water_layer.width() as f32 * cell_size;
@@ -125,12 +129,17 @@ impl GraphicsRenderer {
             for x in 0..water_layer.width() {
                 let water_depth = water_layer.get_water_depth(x, y);
                 if water_depth > 0.0 {
-                    let alpha = (water_depth * 255.0).min(200.0) as u8;
-                    let water_color = Color::new(0.0, 0.4, 0.8, alpha as f32 / 255.0);
+                    // Scale-aware alpha calculation instead of hardcoded multiplier
+                    let normalized_alpha = (water_depth / render_max_depth).min(1.0);
+                    let alpha = (normalized_alpha * 200.0) as u8;
+                    
+                    if alpha > 0 { // Only draw if visible
+                        let water_color = Color::new(0.0, 0.4, 0.8, alpha as f32 / 255.0);
 
-                    let world_x = offset_x + x as f32 * cell_size;
-                    let world_y = offset_y + (water_layer.height() - 1 - y) as f32 * cell_size;
-                    draw_rectangle(world_x, world_y, cell_size, cell_size, water_color);
+                        let world_x = offset_x + x as f32 * cell_size;
+                        let world_y = offset_y + (water_layer.height() - 1 - y) as f32 * cell_size;
+                        draw_rectangle(world_x, world_y, cell_size, cell_size, water_color);
+                    }
                 }
             }
         }
