@@ -871,7 +871,7 @@ impl ClimateSystem {
             let is_high_pressure = (rng_state % 2) == 0;
             // Scale pressure amplitude based on domain size to create appropriate gradients
             // Use larger amplitudes to create synoptic-scale gradients
-            let base_amplitude = 2500.0f32; // ±25 hPa base amplitude for stronger gradients
+            let base_amplitude = 25.0f32; // ±0.25 hPa base amplitude for realistic gradients (was 2500.0 - too strong by 100x)
             let domain_scale_factor = (domain_size_km as f32 / 500.0).max(0.8).min(1.5);
             let pressure_amplitude = if is_high_pressure {
                 base_amplitude * domain_scale_factor
@@ -1046,7 +1046,7 @@ impl ClimateSystem {
             
             // Alternate between high and low pressure systems
             let is_high_pressure = (rng_state % 2) == 0;
-            let pressure_amplitude = if is_high_pressure { 2500.0 } else { -2500.0 }; // ±25 hPa
+            let pressure_amplitude = if is_high_pressure { 25.0 } else { -25.0 }; // ±0.25 hPa (was 2500.0 - too strong by 100x)
             
             // Typical synoptic system radius (~200km for 500km domain)
             let system_radius_cells = virtual_grid_size as f32 / 8.0;
