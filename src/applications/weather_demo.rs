@@ -867,7 +867,7 @@ fn run_ascii_framebuffer_mode(
         // Capture and display frame at specified interval
         if iteration_count % args.interval == 0 {
             let frame = framebuffer.capture_frame(&simulation);
-            let output = framebuffer.format_frame(&frame);
+            let output = framebuffer.format_frame_colorized(&frame);
             framebuffer.add_frame(frame);
 
             // Clear screen and display frame
