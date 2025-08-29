@@ -6,4 +6,8 @@ pub mod biome;
 
 // Re-export key agent types
 
-// Re-export biome system
+// Re-export biome and vegetation classification systems for rendering integration
+pub use biome::{
+    BiomeClassificationParameters, BiomeClassifier, BiomeMap, BiomeType, VegetationState,
+    VegetationStateClassifier, VegetationStateParameters,
+};

@@ -165,6 +165,278 @@ impl BiomeType {
     }
 }
 
+/// Vegetation state based on accumulated biomass for temporal scaling consistency
+/// Represents actual vegetation growth over time vs potential vegetation classification
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum VegetationState {
+    /// Bare ground with minimal vegetation (0-0.1 kg/m²)
+    Bare,
+    /// Grassland with herbaceous growth (0.1-2.0 kg/m²)
+    Grassland,
+    /// Shrubland with woody perennials (2.0-5.0 kg/m²)
+    Shrubland,
+    /// Forest with established tree canopy (5.0+ kg/m²)
+    Forest,
+}
+
+impl VegetationState {
+    /// Get display character for vegetation state rendering
+    pub fn display_char(self) -> char {
+        match self {
+            VegetationState::Bare => '.',
+            VegetationState::Grassland => ',',
+            VegetationState::Shrubland => ':',
+            VegetationState::Forest => 'T',
+        }
+    }
+
+    /// Get display color for vegetation state rendering (RGB tuple)
+    pub fn display_color(self) -> (u8, u8, u8) {
+        match self {
+            VegetationState::Bare => (139, 119, 101),     // Sandy brown
+            VegetationState::Grassland => (124, 252, 0),  // Lawn green
+            VegetationState::Shrubland => (107, 142, 35), // Olive drab
+            VegetationState::Forest => (34, 139, 34),     // Forest green
+        }
+    }
+
+    /// Get approximate biomass range for this vegetation state (kg/m²)
+    pub fn biomass_range(self) -> (f32, f32) {
+        match self {
+            VegetationState::Bare => (0.0, 0.1),
+            VegetationState::Grassland => (0.1, 2.0),
+            VegetationState::Shrubland => (2.0, 5.0),
+            VegetationState::Forest => (5.0, 50.0),
+        }
+    }
+}
+
+/// Vegetation state classification parameters for scale-aware biomass thresholds
+/// Based on ecological succession patterns and typical biomass accumulation rates
+#[derive(Clone, Debug)]
+pub struct VegetationStateParameters {
+    /// Minimum biomass for grassland establishment (kg/m²)
+    pub grassland_threshold: f32,
+    /// Minimum biomass for shrubland development (kg/m²)
+    pub shrubland_threshold: f32,
+    /// Minimum biomass for forest establishment (kg/m²)
+    pub forest_threshold: f32,
+}
+
+impl Default for VegetationStateParameters {
+    fn default() -> Self {
+        Self {
+            // Standard ecological succession thresholds
+            grassland_threshold: 0.1, // Herbaceous establishment
+            shrubland_threshold: 2.0, // Woody perennial development
+            forest_threshold: 5.0,    // Canopy closure
+        }
+    }
+}
+
+impl ScaleAware for VegetationStateParameters {
+    fn derive_parameters(&self, scale: &WorldScale) -> Self {
+        let physical_extent_km = scale.physical_size_km as f32;
+
+        // Scale thresholds based on spatial resolution and temporal scaling
+        // Larger domains may have coarser resolution requiring higher thresholds
+        // for the same ecological state to be detectable
+        let scale_factor = if physical_extent_km > 100.0 {
+            // Large continental scales - increase thresholds slightly for detectability
+            1.0 + (physical_extent_km / 1000.0 * 0.2)
+        } else {
+            // Regional/local scales - use standard thresholds
+            1.0
+        };
+
+        Self {
+            grassland_threshold: self.grassland_threshold * scale_factor,
+            shrubland_threshold: self.shrubland_threshold * scale_factor,
+            forest_threshold: self.forest_threshold * scale_factor,
+        }
+    }
+}
+
+/// High-performance vegetation state classifier for biomass-based vegetation rendering
+/// Addresses temporal scaling inconsistency by using actual accumulated biomass
+/// instead of potential vegetation classification
+///
+/// **ECS Integration**: Designed for efficient queries from rendering systems that need
+/// real-time vegetation state based on EcosystemFeedbackSystem biomass accumulation
+#[derive(Clone, Debug)]
+pub struct VegetationStateClassifier {
+    parameters: VegetationStateParameters,
+}
+
+impl VegetationStateClassifier {
+    /// Create new vegetation state classifier for given world scale
+    pub fn new_for_scale(scale: &WorldScale) -> Self {
+        let parameters = VegetationStateParameters::default().derive_parameters(scale);
+        Self { parameters }
+    }
+
+    /// Create from custom parameters with scale derivation
+    pub fn from_parameters(parameters: VegetationStateParameters, scale: &WorldScale) -> Self {
+        let scaled_params = parameters.derive_parameters(scale);
+        Self {
+            parameters: scaled_params,
+        }
+    }
+
+    /// Classify vegetation state from accumulated biomass
+    /// Uses ecological succession thresholds to determine current vegetation state
+    #[inline]
+    pub fn classify_from_biomass(&self, biomass_kg_per_m2: f32) -> VegetationState {
+        if biomass_kg_per_m2 >= self.parameters.forest_threshold {
+            VegetationState::Forest
+        } else if biomass_kg_per_m2 >= self.parameters.shrubland_threshold {
+            VegetationState::Shrubland
+        } else if biomass_kg_per_m2 >= self.parameters.grassland_threshold {
+            VegetationState::Grassland
+        } else {
+            VegetationState::Bare
+        }
+    }
+
+    /// Get current classification thresholds for analysis
+    pub fn get_thresholds(&self) -> (f32, f32, f32) {
+        (
+            self.parameters.grassland_threshold,
+            self.parameters.shrubland_threshold,
+            self.parameters.forest_threshold,
+        )
+    }
+
+    /// Classify vegetation state from biomass with additional environmental context
+    /// For future enhancement with water stress, temperature effects, etc.
+    pub fn classify_with_environment(
+        &self,
+        biomass_kg_per_m2: f32,
+        _water_stress: f32,
+        _temperature_stress: f32,
+    ) -> VegetationState {
+        // For now, use simple biomass classification
+        // Future enhancement could modify thresholds based on environmental stress
+        self.classify_from_biomass(biomass_kg_per_m2)
+    }
+
+    /// Generate vegetation state map from biomass data
+    /// Efficiently processes large biomass arrays for real-time visualization
+    pub fn generate_vegetation_state_map(
+        &self,
+        biomass_data: &[Vec<f32>],
+    ) -> Vec<Vec<VegetationState>> {
+        let width = biomass_data.len();
+        if width == 0 {
+            return Vec::new();
+        }
+        let height = biomass_data[0].len();
+
+        let mut vegetation_states = Vec::with_capacity(width);
+
+        for x in 0..width {
+            let mut column = Vec::with_capacity(height);
+            for y in 0..height {
+                let biomass = biomass_data[x][y];
+                let state = self.classify_from_biomass(biomass);
+                column.push(state);
+            }
+            vegetation_states.push(column);
+        }
+
+        vegetation_states
+    }
+
+    /// **ECS Integration Method**: Query vegetation state directly from EcosystemFeedbackSystem
+    /// This is the primary interface for rendering systems to get temporal-aware vegetation state
+    ///
+    /// # Arguments
+    /// * `ecosystem_system` - Reference to EcosystemFeedbackSystem containing biomass data
+    /// * `x, y` - Coordinates to query
+    ///
+    /// # Returns
+    /// VegetationState based on actual accumulated biomass at the location
+    pub fn query_vegetation_state_from_ecosystem(
+        &self,
+        ecosystem_system: &crate::engine::physics::ecosystem_feedback::EcosystemFeedbackSystem,
+        x: usize,
+        y: usize,
+    ) -> VegetationState {
+        let biomass = ecosystem_system.biome_map().get_biomass(x, y);
+        self.classify_from_biomass(biomass)
+    }
+
+    /// **ECS Integration Method**: Generate complete vegetation state map from EcosystemFeedbackSystem
+    /// Efficiently extracts biomass data and converts to vegetation states for rendering
+    ///
+    /// # Performance
+    /// - Optimized for hot path rendering queries
+    /// - Direct access to biomass data without copying
+    /// - Cache-friendly iteration pattern
+    ///
+    /// # Arguments
+    /// * `ecosystem_system` - Reference to EcosystemFeedbackSystem containing biomass data
+    ///
+    /// # Returns
+    /// 2D vector of VegetationState matching the ecosystem system dimensions
+    pub fn generate_vegetation_state_map_from_ecosystem(
+        &self,
+        ecosystem_system: &crate::engine::physics::ecosystem_feedback::EcosystemFeedbackSystem,
+    ) -> Vec<Vec<VegetationState>> {
+        let (width, height) = ecosystem_system.biome_map().dimensions();
+        let mut vegetation_states = Vec::with_capacity(width);
+
+        for x in 0..width {
+            let mut column = Vec::with_capacity(height);
+            for y in 0..height {
+                let biomass = ecosystem_system.biome_map().get_biomass(x, y);
+                let state = self.classify_from_biomass(biomass);
+                column.push(state);
+            }
+            vegetation_states.push(column);
+        }
+
+        vegetation_states
+    }
+
+    /// **ECS Integration Method**: Get vegetation state with fallback to biome classification
+    /// For rendering systems that need both temporal-aware vegetation AND biome context
+    ///
+    /// # Process
+    /// 1. Query actual biomass from EcosystemFeedbackSystem
+    /// 2. Classify vegetation state based on biomass accumulation
+    /// 3. Provide biome context for areas without vegetation data
+    ///
+    /// # Arguments
+    /// * `ecosystem_system` - Reference to EcosystemFeedbackSystem for biomass data
+    /// * `biome_classifier` - Optional BiomeClassifier for fallback context
+    /// * `x, y` - Coordinates to query
+    ///
+    /// # Returns
+    /// (VegetationState, Option<BiomeType>) - Actual vegetation state with optional biome context
+    pub fn query_vegetation_with_biome_context(
+        &self,
+        ecosystem_system: &crate::engine::physics::ecosystem_feedback::EcosystemFeedbackSystem,
+        biome_classifier: Option<&BiomeClassifier>,
+        x: usize,
+        y: usize,
+        elevation: f32,
+        temperature: f32,
+        precipitation: f32,
+        water_depth: f32,
+    ) -> (VegetationState, Option<BiomeType>) {
+        // Get actual vegetation state from biomass
+        let vegetation_state = self.query_vegetation_state_from_ecosystem(ecosystem_system, x, y);
+
+        // Get potential biome classification for context
+        let biome_context = biome_classifier.map(|classifier| {
+            classifier.classify_biome(elevation, temperature, precipitation, water_depth)
+        });
+
+        (vegetation_state, biome_context)
+    }
+}
+
 /// Whittaker biome classification parameters
 /// Based on temperature and precipitation thresholds
 #[derive(Clone, Debug)]
@@ -1304,6 +1576,245 @@ mod tests {
         );
 
         println!("✅ Precipitation circular dependency fix verified!");
+    }
+
+    #[test]
+    fn vegetation_state_classification() {
+        // Test basic vegetation state classification from biomass
+        let scale = WorldScale::new(100.0, (50, 50), DetailLevel::Standard);
+        let classifier = VegetationStateClassifier::new_for_scale(&scale);
+
+        // Test bare ground classification
+        let state = classifier.classify_from_biomass(0.05);
+        assert_eq!(state, VegetationState::Bare);
+
+        // Test grassland classification
+        let state = classifier.classify_from_biomass(1.0);
+        assert_eq!(state, VegetationState::Grassland);
+
+        // Test shrubland classification
+        let state = classifier.classify_from_biomass(3.0);
+        assert_eq!(state, VegetationState::Shrubland);
+
+        // Test forest classification
+        let state = classifier.classify_from_biomass(10.0);
+        assert_eq!(state, VegetationState::Forest);
+
+        // Test threshold boundaries
+        let state = classifier.classify_from_biomass(0.1);
+        assert_eq!(
+            state,
+            VegetationState::Grassland,
+            "Exact grassland threshold should classify as grassland"
+        );
+
+        let state = classifier.classify_from_biomass(2.0);
+        assert_eq!(
+            state,
+            VegetationState::Shrubland,
+            "Exact shrubland threshold should classify as shrubland"
+        );
+
+        let state = classifier.classify_from_biomass(5.0);
+        assert_eq!(
+            state,
+            VegetationState::Forest,
+            "Exact forest threshold should classify as forest"
+        );
+    }
+
+    #[test]
+    fn vegetation_state_properties() {
+        // Test display characters
+        assert_eq!(VegetationState::Bare.display_char(), '.');
+        assert_eq!(VegetationState::Grassland.display_char(), ',');
+        assert_eq!(VegetationState::Shrubland.display_char(), ':');
+        assert_eq!(VegetationState::Forest.display_char(), 'T');
+
+        // Test biomass ranges
+        let (min, max) = VegetationState::Bare.biomass_range();
+        assert_eq!(min, 0.0);
+        assert_eq!(max, 0.1);
+
+        let (min, max) = VegetationState::Forest.biomass_range();
+        assert_eq!(min, 5.0);
+        assert_eq!(max, 50.0);
+
+        // Test display colors are valid RGB values
+        let (r, g, b) = VegetationState::Grassland.display_color();
+        assert!(r <= 255 && g <= 255 && b <= 255);
+    }
+
+    #[test]
+    fn vegetation_state_scale_aware_parameters() {
+        let base_params = VegetationStateParameters::default();
+
+        // Test small scale (should use standard thresholds)
+        let small_scale = WorldScale::new(50.0, (50, 50), DetailLevel::Standard);
+        let small_scaled = base_params.derive_parameters(&small_scale);
+        assert_eq!(
+            small_scaled.grassland_threshold,
+            base_params.grassland_threshold
+        );
+        assert_eq!(
+            small_scaled.shrubland_threshold,
+            base_params.shrubland_threshold
+        );
+        assert_eq!(small_scaled.forest_threshold, base_params.forest_threshold);
+
+        // Test large continental scale (should increase thresholds)
+        let large_scale = WorldScale::new(1000.0, (500, 500), DetailLevel::Standard);
+        let large_scaled = base_params.derive_parameters(&large_scale);
+        assert!(large_scaled.grassland_threshold > base_params.grassland_threshold);
+        assert!(large_scaled.shrubland_threshold > base_params.shrubland_threshold);
+        assert!(large_scaled.forest_threshold > base_params.forest_threshold);
+
+        // Test that scaling is reasonable
+        assert!(large_scaled.grassland_threshold < base_params.grassland_threshold * 2.0);
+        assert!(large_scaled.forest_threshold < base_params.forest_threshold * 2.0);
+    }
+
+    #[test]
+    fn vegetation_state_classifier_thresholds() {
+        let scale = WorldScale::new(200.0, (100, 100), DetailLevel::Standard);
+        let classifier = VegetationStateClassifier::new_for_scale(&scale);
+
+        let (grass_thresh, shrub_thresh, forest_thresh) = classifier.get_thresholds();
+
+        // Verify threshold ordering
+        assert!(grass_thresh < shrub_thresh);
+        assert!(shrub_thresh < forest_thresh);
+
+        // Test custom parameters
+        let custom_params = VegetationStateParameters {
+            grassland_threshold: 0.2,
+            shrubland_threshold: 3.0,
+            forest_threshold: 8.0,
+        };
+
+        let custom_classifier = VegetationStateClassifier::from_parameters(custom_params, &scale);
+        let (custom_grass, custom_shrub, custom_forest) = custom_classifier.get_thresholds();
+
+        assert!(custom_grass != grass_thresh);
+        assert!(custom_shrub != shrub_thresh);
+        assert!(custom_forest != forest_thresh);
+    }
+
+    #[test]
+    fn vegetation_state_map_generation() {
+        let scale = WorldScale::new(100.0, (50, 50), DetailLevel::Standard);
+        let classifier = VegetationStateClassifier::new_for_scale(&scale);
+
+        // Create test biomass data with clear patterns
+        let biomass_data = vec![
+            vec![0.05, 0.5, 3.0, 10.0], // Bare, Grassland, Shrubland, Forest
+            vec![0.0, 1.5, 2.5, 15.0],  // Bare, Grassland, Shrubland, Forest
+            vec![0.08, 0.15, 4.0, 6.0], // Bare, Grassland, Shrubland, Forest
+        ];
+
+        let vegetation_states = classifier.generate_vegetation_state_map(&biomass_data);
+
+        // Verify dimensions
+        assert_eq!(vegetation_states.len(), 3);
+        assert_eq!(vegetation_states[0].len(), 4);
+
+        // Verify classifications
+        assert_eq!(vegetation_states[0][0], VegetationState::Bare);
+        assert_eq!(vegetation_states[0][1], VegetationState::Grassland);
+        assert_eq!(vegetation_states[0][2], VegetationState::Shrubland);
+        assert_eq!(vegetation_states[0][3], VegetationState::Forest);
+
+        assert_eq!(vegetation_states[1][0], VegetationState::Bare);
+        assert_eq!(vegetation_states[1][1], VegetationState::Grassland);
+        assert_eq!(vegetation_states[2][0], VegetationState::Bare);
+        assert_eq!(vegetation_states[2][1], VegetationState::Grassland);
+
+        // Test empty data
+        let empty_vegetation_states = classifier.generate_vegetation_state_map(&vec![]);
+        assert!(empty_vegetation_states.is_empty());
+    }
+
+    #[test]
+    fn vegetation_state_environmental_context() {
+        let scale = WorldScale::new(100.0, (50, 50), DetailLevel::Standard);
+        let classifier = VegetationStateClassifier::new_for_scale(&scale);
+
+        // Test environmental context method (currently same as basic classification)
+        let state = classifier.classify_with_environment(3.5, 0.2, 0.1);
+        assert_eq!(state, VegetationState::Shrubland);
+
+        // This demonstrates the extension point for future environmental stress factors
+        // Currently just uses biomass classification but structure is ready for enhancement
+        let stressed_state = classifier.classify_with_environment(3.5, 0.8, 0.9); // High stress
+        assert_eq!(stressed_state, VegetationState::Shrubland); // No stress effect yet
+    }
+
+    #[test]
+    fn vegetation_state_temporal_scaling_integration() {
+        // Test that vegetation state classification addresses the temporal scaling inconsistency
+        // This test demonstrates the solution to the problem described in the context
+
+        let scale = WorldScale::new(200.0, (240, 120), DetailLevel::Standard);
+        let classifier = VegetationStateClassifier::new_for_scale(&scale);
+
+        // Test Case 1: Day 0 realistic mode - low biomass should show bare/grassland, not forest
+        let initial_biomass = 0.05; // Very low initial biomass typical of day 0
+        let initial_state = classifier.classify_from_biomass(initial_biomass);
+        assert_eq!(
+            initial_state,
+            VegetationState::Bare,
+            "Day 0 should show bare ground, not mature vegetation"
+        );
+
+        // Test Case 2: After growth period - sufficient biomass should show appropriate vegetation
+        let mature_grassland_biomass = 1.2;
+        let mature_state = classifier.classify_from_biomass(mature_grassland_biomass);
+        assert_eq!(
+            mature_state,
+            VegetationState::Grassland,
+            "Accumulated biomass should determine vegetation state"
+        );
+
+        // Test Case 3: Long-term succession - high biomass shows forest
+        let mature_forest_biomass = 12.0;
+        let forest_state = classifier.classify_from_biomass(mature_forest_biomass);
+        assert_eq!(
+            forest_state,
+            VegetationState::Forest,
+            "High accumulated biomass should show forest"
+        );
+
+        // Key insight: VegetationStateClassifier uses ACTUAL biomass accumulation
+        // instead of POTENTIAL biome classification, solving the temporal inconsistency
+
+        // Test progressive succession
+        let succession_biomass = [0.0, 0.08, 0.15, 0.5, 1.5, 2.5, 4.0, 8.0, 15.0];
+        let expected_states = [
+            VegetationState::Bare,
+            VegetationState::Bare,
+            VegetationState::Grassland,
+            VegetationState::Grassland,
+            VegetationState::Grassland,
+            VegetationState::Shrubland,
+            VegetationState::Shrubland,
+            VegetationState::Forest,
+            VegetationState::Forest,
+        ];
+
+        for (biomass, expected) in succession_biomass.iter().zip(expected_states.iter()) {
+            let actual_state = classifier.classify_from_biomass(*biomass);
+            assert_eq!(
+                actual_state, *expected,
+                "Biomass {:.2} kg/m² should classify as {:?}",
+                biomass, expected
+            );
+        }
+
+        println!("✅ Vegetation state temporal scaling integration validated!");
+        println!("  ✓ Day 0 shows appropriate low-biomass vegetation state");
+        println!("  ✓ Biomass accumulation drives vegetation progression");
+        println!("  ✓ Ecological succession thresholds properly implemented");
+        println!("  ✓ Solution addresses BiomeClassifier vs EcosystemFeedbackSystem inconsistency");
     }
 
     #[test]
