@@ -4,3 +4,7 @@
 # Claude agent configurations (tracked in separate repos)
 .claude/
 .opencode/
+
+# Log files
+*.log
+weather_output.log
