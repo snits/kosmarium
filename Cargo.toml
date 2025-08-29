@@ -12,6 +12,11 @@ simd = []
 name = "sim_prototype"
 path = "src/lib.rs"
 
+# Applications
+[[bin]]
+name = "weather-demo"
+path = "src/applications/weather_demo.rs"
+
 # Debug and analysis tools
 [[bin]]
 name = "debug_drainage_regression"

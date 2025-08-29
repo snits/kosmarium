@@ -6,7 +6,7 @@ use macroquad::prelude::*;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 // Import engine components
-use crate::engine::{
+use sim_prototype::engine::{
     Simulation, WorkspaceConfig,
     core::{
         DetailLevel, TemporalMode, TemporalPerformanceMonitor, TemporalScalingConfig,
@@ -992,4 +992,8 @@ fn run_multi_viewport_tui(simulation: Simulation) -> Result<(), Box<dyn std::err
     terminal.show_cursor()?;
 
     result
+}
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    run_weather_demo()
 }
