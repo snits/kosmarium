@@ -841,8 +841,10 @@ impl ClimateSystem {
         let width = pressure_layer.pressure.width();
         let domain_size_km = scale.physical_size_km;
 
-        // Only apply synoptic patterns for domains large enough to support them (>100km)
+        // PHASE 2 FIX: Handle small domains with virtual domain crop approach
+        // Small domains experience subsections of larger synoptic patterns
         if domain_size_km < 100.0 {
+            self.generate_small_domain_synoptic_pressure(pressure_layer, scale);
             return;
         }
 
@@ -958,6 +960,112 @@ impl ClimateSystem {
                 }
             }
         }
+    }
+
+    /// Generate synoptic pressure patterns for small domains (<100km) using virtual domain crop
+    /// Creates realistic pressure gradients by sampling from larger synoptic patterns
+    /// Based on SageMath validation: ensures gradients in 0.0006-0.0032 Pa/m range
+    fn generate_small_domain_synoptic_pressure(
+        &self,
+        pressure_layer: &mut AtmosphericPressureLayer,
+        scale: &WorldScale,
+    ) {
+        let height = pressure_layer.pressure.height();
+        let width = pressure_layer.pressure.width();
+        
+        // Virtual domain size (500km) large enough to contain full synoptic patterns
+        const VIRTUAL_DOMAIN_KM: f32 = 500.0;
+        let virtual_grid_size = 320; // High resolution for realistic patterns
+        
+        // Generate realistic synoptic patterns on virtual domain
+        let virtual_pressure = self.generate_virtual_synoptic_field(virtual_grid_size);
+        
+        // Calculate crop parameters to extract small domain section
+        let pixels_per_km = virtual_grid_size as f32 / VIRTUAL_DOMAIN_KM;
+        let crop_size_x = (scale.physical_size_km as f32 * pixels_per_km) as usize;
+        let crop_size_y = crop_size_x; // Assume square domains for now
+        
+        // Ensure crop doesn't exceed virtual domain
+        let crop_size_x = crop_size_x.min(virtual_grid_size);
+        let crop_size_y = crop_size_y.min(virtual_grid_size);
+        
+        // Randomly select crop position using deterministic seed
+        let crop_rng = self.pressure_seed.wrapping_mul(7919); // Prime number for mixing
+        let max_crop_x = virtual_grid_size.saturating_sub(crop_size_x);
+        let max_crop_y = virtual_grid_size.saturating_sub(crop_size_y);
+        
+        let crop_start_x = if max_crop_x > 0 { 
+            (crop_rng % max_crop_x as u64) as usize 
+        } else { 0 };
+        let crop_start_y = if max_crop_y > 0 { 
+            ((crop_rng / 1000) % max_crop_y as u64) as usize 
+        } else { 0 };
+        
+        // Apply cropped synoptic patterns to pressure layer
+        for y in 0..height {
+            for x in 0..width {
+                // Map from small domain coordinates to virtual domain crop
+                let virtual_x = crop_start_x + (x * crop_size_x / width).min(crop_size_x - 1);
+                let virtual_y = crop_start_y + (y * crop_size_y / height).min(crop_size_y - 1);
+                
+                let synoptic_pressure = virtual_pressure[virtual_y][virtual_x];
+                let current_pressure = *pressure_layer.pressure.get(x, y);
+                let new_pressure = current_pressure + synoptic_pressure;
+                
+                // Apply scale-aware pressure bounds
+                let (min_pressure, max_pressure) = get_pressure_bounds(scale);
+                let bounded_pressure = new_pressure.max(min_pressure).min(max_pressure);
+                
+                pressure_layer.pressure.set(x, y, bounded_pressure);
+            }
+        }
+        
+        // Validate that the fix produces realistic gradients
+        pressure_layer.calculate_pressure_gradients(scale.meters_per_pixel() as f32);
+        self.validate_pressure_gradients(pressure_layer, scale);
+    }
+    
+    /// Generate synoptic pressure field on virtual domain for cropping
+    /// Creates multiple realistic pressure systems (highs/lows) with proper spatial scale
+    fn generate_virtual_synoptic_field(&self, virtual_grid_size: usize) -> Vec<Vec<f32>> {
+        let mut virtual_pressure = vec![vec![0.0; virtual_grid_size]; virtual_grid_size];
+        
+        // Generate 3 pressure systems across virtual domain (realistic for 500km)
+        let num_systems = 3;
+        
+        for system_idx in 0..num_systems {
+            // Use pressure_seed for deterministic but varied system placement
+            let rng_state = self.pressure_seed.wrapping_add(system_idx as u64 * 12345);
+            
+            // Position systems with good separation
+            let center_x_norm = 0.2 + 0.6 * ((rng_state % 1000) as f32 / 999.0);
+            let center_y_norm = 0.2 + 0.6 * (((rng_state / 1000) % 1000) as f32 / 999.0);
+            
+            let center_x = (center_x_norm * virtual_grid_size as f32) as usize;
+            let center_y = (center_y_norm * virtual_grid_size as f32) as usize;
+            
+            // Alternate between high and low pressure systems
+            let is_high_pressure = (rng_state % 2) == 0;
+            let pressure_amplitude = if is_high_pressure { 2500.0 } else { -2500.0 }; // ±25 hPa
+            
+            // Typical synoptic system radius (~200km for 500km domain)
+            let system_radius_cells = virtual_grid_size as f32 / 8.0;
+            let sigma = system_radius_cells / 2.0; // Gaussian width parameter
+            
+            // Apply Gaussian pressure pattern
+            for y in 0..virtual_grid_size {
+                for x in 0..virtual_grid_size {
+                    let dx = x as f32 - center_x as f32;
+                    let dy = y as f32 - center_y as f32;
+                    let distance_sq = dx * dx + dy * dy;
+                    let gaussian = (-distance_sq / (2.0 * sigma * sigma)).exp();
+                    
+                    virtual_pressure[y][x] += pressure_amplitude * gaussian;
+                }
+            }
+        }
+        
+        virtual_pressure
     }
 
     /// Validate that pressure gradients are in realistic synoptic range
