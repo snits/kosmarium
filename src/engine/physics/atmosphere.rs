@@ -1291,6 +1291,141 @@ impl AtmosphericSystem {
 
         filtered
     }
+
+    /// Generate geostrophic wind field with temporal scaling for unified physics consistency
+    /// Follows the existing water system pattern for temporal scaling implementation
+    pub fn generate_geostrophic_winds_scaled(
+        &self,
+        pressure_layer: &AtmosphericPressureLayer,
+        scale: &WorldScale,
+        temporal_factor: f32,
+    ) -> WindLayer {
+        let height = pressure_layer.pressure.height();
+        let width = pressure_layer.pressure.width();
+
+        let mut wind_layer = WindLayer::new(width, height);
+
+        if !self.coriolis_active {
+            // No Coriolis effects - return zero wind field
+            return wind_layer;
+        }
+
+        // Calculate geostrophic winds for each cell with temporal scaling
+        for y in 0..height {
+            for x in 0..width {
+                let pressure_gradient = pressure_layer.get_pressure_gradient(x, y);
+
+                // Calculate latitude-dependent Coriolis parameter
+                let latitude_rad = self.grid_y_to_latitude(y, height);
+                let f = self.coriolis_parameter_at_latitude(latitude_rad);
+
+                // Apply F_THRESHOLD safety parameter from SageMath validation
+                const F_THRESHOLD: f64 = 1e-6; // s⁻¹ - numerical stability limit
+
+                // Handle special latitude cases and numerical stability
+                if f.abs() < F_THRESHOLD {
+                    // Near equator or numerical instability region
+                    // Use direct pressure-driven flow with proper scaling
+                    let rho = self.parameters.air_density_sea_level;
+
+                    // Scale pressure gradient to reasonable wind speeds for non-geostrophic regions
+                    // Use reduced coupling to prevent unrealistic winds near equator
+                    let pressure_scale_factor = 0.1 / rho; // Empirical scaling for equatorial regions
+                    
+                    // TEMPORAL SCALING: Scale wind response with temporal factor
+                    let scaled_pressure_scale_factor = pressure_scale_factor * temporal_factor;
+                    let direct_u = -pressure_gradient.x * scaled_pressure_scale_factor;
+                    let direct_v = -pressure_gradient.y * scaled_pressure_scale_factor;
+
+                    wind_layer.velocity.set(x, y, Vec2::new(direct_u, direct_v));
+                    continue;
+                }
+
+                // Use F_THRESHOLD as minimum Coriolis parameter for numerical stability
+                let f_stable = if f.abs() < F_THRESHOLD {
+                    if f >= 0.0 { F_THRESHOLD } else { -F_THRESHOLD }
+                } else { f };
+
+                let rho = self.parameters.air_density_sea_level;
+
+                // Geostrophic wind calculation: f × v = -∇P/ρ
+                // This gives: v = (-∇P/ρ) × (1/f) rotated 90 degrees
+                // u = -∂P/∂y / (ρf)
+                // v = ∂P/∂x / (ρf)
+                
+                // TEMPORAL SCALING: Scale wind generation with temporal factor
+                // Faster time = winds adjust to pressure gradients more quickly
+                let scaled_wind_factor = temporal_factor / (rho * f_stable as f32);
+                let u = -pressure_gradient.y * scaled_wind_factor;
+                let v = pressure_gradient.x * scaled_wind_factor;
+
+                // Apply wind speed limits for numerical stability and realism
+                let wind_speed = (u * u + v * v).sqrt();
+                let max_wind_speed = 50.0; // Maximum reasonable wind speed in m/s (hurricane strength)
+                
+                if wind_speed > max_wind_speed {
+                    let scale_factor = max_wind_speed / wind_speed;
+                    wind_layer.velocity.set(x, y, Vec2::new(u * scale_factor, v * scale_factor));
+                } else {
+                    wind_layer.velocity.set(x, y, Vec2::new(u, v));
+                }
+            }
+        }
+
+        // Apply spatial smoothing to eliminate sharp wind transitions
+        // This is particularly important with temporal scaling
+        self.apply_wind_smoothing(&mut wind_layer, temporal_factor);
+
+        wind_layer
+    }
+
+    /// Apply wind smoothing with temporal scaling considerations
+    fn apply_wind_smoothing(&self, wind_layer: &mut WindLayer, temporal_factor: f32) {
+        let height = wind_layer.velocity.height();
+        let width = wind_layer.velocity.width();
+
+        if height < 3 || width < 3 {
+            return; // Skip smoothing for very small maps
+        }
+
+        // TEMPORAL SCALING: Adjust smoothing strength based on temporal factor
+        // Faster time = more aggressive smoothing to prevent instabilities
+        let smoothing_strength = 0.1 * (1.0 + temporal_factor * 0.2);
+
+        // Create backup of current velocities
+        let original_velocities = wind_layer.velocity.clone();
+
+        // Apply smoothing with temporal-aware strength
+        for y in 1..height - 1 {
+            for x in 1..width - 1 {
+                let current_velocity = original_velocities.get(x, y);
+                let mut sum_u = 0.0;
+                let mut sum_v = 0.0;
+                let mut count = 0;
+
+                // Sample 3x3 neighborhood
+                for dy in -1i32..=1 {
+                    for dx in -1i32..=1 {
+                        let nx = (x as i32 + dx) as usize;
+                        let ny = (y as i32 + dy) as usize;
+                        let neighbor_velocity = original_velocities.get(nx, ny);
+                        sum_u += neighbor_velocity.x;
+                        sum_v += neighbor_velocity.y;
+                        count += 1;
+                    }
+                }
+
+                let avg_u = sum_u / count as f32;
+                let avg_v = sum_v / count as f32;
+
+                // Blend current with neighborhood average
+                let smoothed_u = current_velocity.x * (1.0 - smoothing_strength) + avg_u * smoothing_strength;
+                let smoothed_v = current_velocity.y * (1.0 - smoothing_strength) + avg_v * smoothing_strength;
+
+                wind_layer.velocity.set(x, y, Vec2::new(smoothed_u, smoothed_v));
+            }
+        }
+    }
 }
 
 #[cfg(test)]

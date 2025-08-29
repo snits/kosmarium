@@ -1433,6 +1433,160 @@ impl ClimateSystem {
         // Recalculate pressure gradients after evolution
         current_pressure.calculate_pressure_gradients(scale.meters_per_pixel() as f32);
     }
+
+    /// Generate temperature layer with temporal scaling for unified physics consistency
+    /// Follows the existing water system pattern for temporal scaling implementation
+    pub fn generate_temperature_layer_scaled(
+        &self,
+        heightmap: &super::super::core::heightmap::HeightMap,
+        temporal_factor: f32,
+    ) -> TemperatureLayer {
+        // Temperature generation is largely instantaneous compared to flow processes
+        // However, temporal scaling can affect thermal equilibration rates
+        
+        let width = heightmap.width();
+        let height = heightmap.height();
+        let mut temp_layer = TemperatureLayer::new(width, height);
+
+        // Base temperature generation (same as optimized version)
+        for y in 0..height {
+            for x in 0..width {
+                let elevation = heightmap.get(x, y);
+
+                // Base temperature calculation
+                let mut temperature = self.parameters.base_temperature_c;
+
+                // Apply elevation-based cooling (higher = colder)
+                let elevation_cooling =
+                    elevation.max(0.0) * self.parameters.elevation_lapse_rate * 1000.0;
+                temperature -= elevation_cooling;
+
+                // Apply continental-scale north-south temperature gradient
+                let north_south_position = (y as f32) / (height as f32).max(1.0);
+                let distance_from_center = (north_south_position - 0.5).abs() * 2.0;
+                let domain_scale_factor = if width < 50 || height < 50 { 0.1 } else { 1.0 };
+                temperature -=
+                    distance_from_center * self.parameters.latitude_gradient * domain_scale_factor;
+
+                // TEMPORAL SCALING: Scale seasonal variations with temporal factor
+                // Faster time = stronger seasonal effects become apparent faster
+                let scaled_seasonal_amplitude = self.parameters.seasonal_amplitude * temporal_factor.sqrt();
+
+                // Clamp to reasonable limits
+                temperature = temperature
+                    .max(self.parameters.min_temperature)
+                    .min(self.parameters.max_temperature);
+
+                temp_layer.temperature.set(x, y, temperature);
+
+                // Seasonal variation scales with distance from center and temporal factor
+                temp_layer.seasonal_variation.set(
+                    x,
+                    y,
+                    scaled_seasonal_amplitude * (0.7 + distance_from_center * 0.3),
+                );
+            }
+        }
+
+        // Apply spatial smoothing to eliminate banding artifacts
+        self.apply_spatial_smoothing(&mut temp_layer);
+
+        temp_layer
+    }
+
+    /// Evolve pressure layer with temporal scaling for unified physics consistency
+    /// Follows the existing water system pattern for temporal scaling implementation
+    pub fn evolve_pressure_layer_scaled(
+        &self,
+        current_pressure: &mut AtmosphericPressureLayer,
+        temperature_layer: &TemperatureLayer,
+        heightmap: &[Vec<f32>],
+        scale: &WorldScale,
+        evolution_rate: f32,
+        temporal_factor: f32,
+    ) {
+        let height = heightmap.len();
+        let width = if height > 0 { heightmap[0].len() } else { 0 };
+
+        // TEMPORAL SCALING: Scale evolution rate with temporal factor
+        let scaled_evolution_rate = evolution_rate * temporal_factor;
+
+        // Evolve pressure for each cell with temporal scaling
+        for y in 0..height {
+            for x in 0..width {
+                let elevation = heightmap[y][x];
+                let temperature_c =
+                    temperature_layer.get_current_temperature(x, y, self.current_season);
+
+                // Calculate target pressure based on current conditions
+                let mut target_pressure = self.parameters.base_pressure_pa;
+
+                // Apply elevation-based pressure reduction (hydrostatic balance)
+                let scale_height = 8400.0; // meters
+                let elevation_meters = elevation.max(0.0) * 1000.0; // Convert to meters
+                target_pressure *= (-elevation_meters / scale_height).exp();
+
+                // Apply temperature-pressure coupling (warmer air = lower pressure)
+                let temp_deviation = temperature_c - self.parameters.base_temperature_c;
+                let thermal_pressure_change =
+                    -temp_deviation * self.parameters.pressure_temperature_coupling / 10.0;
+                target_pressure += thermal_pressure_change;
+
+                // Apply seasonal pressure variation
+                let seasonal_factor = (self.current_season * 2.0 * std::f32::consts::PI).sin();
+                target_pressure += seasonal_factor * self.parameters.seasonal_pressure_amplitude;
+
+                // Add spatial pressure smoothing for realistic circulation patterns
+                let current_pressure_val = *current_pressure.pressure.get(x, y);
+
+                // Calculate pressure gradient from neighboring cells for circulation effects
+                let mut neighbor_pressure_sum = 0.0;
+                let mut neighbor_count = 0;
+
+                // Sample surrounding pressure values for gradient-based evolution
+                for dy in -1i32..=1 {
+                    for dx in -1i32..=1 {
+                        if dx == 0 && dy == 0 {
+                            continue;
+                        }
+
+                        let nx = (x as i32 + dx).max(0).min(width as i32 - 1) as usize;
+                        let ny = (y as i32 + dy).max(0).min(height as i32 - 1) as usize;
+
+                        neighbor_pressure_sum += *current_pressure.pressure.get(nx, ny);
+                        neighbor_count += 1;
+                    }
+                }
+
+                // Add circulation-driven pressure tendency
+                let neighbor_average = if neighbor_count > 0 {
+                    neighbor_pressure_sum / neighbor_count as f32
+                } else {
+                    current_pressure_val
+                };
+
+                // Combine thermal forcing and circulation effects
+                let circulation_influence = 0.1; // Weight for spatial smoothing
+                let thermal_target = target_pressure * (1.0 - circulation_influence);
+                let circulation_target = neighbor_average * circulation_influence;
+                let combined_target = thermal_target + circulation_target;
+
+                // CRITICAL: Apply scaled evolution rate toward target pressure
+                let pressure_change = (combined_target - current_pressure_val) * scaled_evolution_rate;
+
+                // Apply bounded pressure limits for physical realism
+                let (min_pressure, max_pressure) = get_pressure_bounds(scale);
+                let new_pressure = (current_pressure_val + pressure_change)
+                    .max(min_pressure)
+                    .min(max_pressure);
+
+                current_pressure.pressure.set(x, y, new_pressure);
+            }
+        }
+
+        // Recalculate pressure gradients after evolution
+        current_pressure.calculate_pressure_gradients(scale.meters_per_pixel() as f32);
+    }
 }
 
 #[cfg(test)]
