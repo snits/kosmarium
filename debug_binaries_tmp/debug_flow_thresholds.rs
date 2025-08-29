@@ -1,11 +1,11 @@
 // ABOUTME: Debug the actual flow threshold values being calculated
 // ABOUTME: Check if thresholds are too high to allow any boundary flow
 
-use sim_prototype::engine::core::scale::{DetailLevel, ScaleAware, WorldScale};
-use sim_prototype::engine::physics::worldgen::{
+use kosmarium::engine::core::scale::{DetailLevel, ScaleAware, WorldScale};
+use kosmarium::engine::physics::worldgen::{
     TectonicConfig, TectonicGenerator, TerrainGenerator,
 };
-use sim_prototype::engine::sim::Simulation;
+use kosmarium::engine::sim::Simulation;
 
 fn main() {
     println!("FLOW THRESHOLD DEBUG ANALYSIS");

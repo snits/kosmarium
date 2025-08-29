@@ -22,13 +22,13 @@
 use std::time::Instant;
 
 // Test dependencies - importing from main codebase
-use sim_prototype::engine::core::heightmap::HeightMap;
-use sim_prototype::engine::core::scale::{DetailLevel, WorldScale};
-use sim_prototype::engine::physics::drainage::{
+use kosmarium::engine::core::heightmap::HeightMap;
+use kosmarium::engine::core::scale::{DetailLevel, WorldScale};
+use kosmarium::engine::physics::drainage::{
     DrainageNetwork, FlowAccumulationMap, FlowDirection, FlowDirectionMap,
 };
-use sim_prototype::engine::physics::water::WaterLayer;
-use sim_prototype::engine::sim::{Simulation, WaterFlowSystem};
+use kosmarium::engine::physics::water::WaterLayer;
+use kosmarium::engine::sim::{Simulation, WaterFlowSystem};
 
 /// Test tolerance for water mass balance - computational hydrologist requirement: ±0.1%
 const WATER_MASS_TOLERANCE: f32 = 0.001;

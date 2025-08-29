@@ -1,11 +1,11 @@
 // ABOUTME: Validation script to test OpenGL data safety for layered terrain generation
 // ABOUTME: Implements defensive programming patterns and validates all floating point values
 
-use sim_prototype::engine::core::heightmap::HeightMap;
-use sim_prototype::engine::physics::worldgen::{
+use kosmarium::engine::core::heightmap::HeightMap;
+use kosmarium::engine::physics::worldgen::{
     TectonicConfig, TectonicGenerator, TerrainGenerator,
 };
-use sim_prototype::engine::sim::Simulation;
+use kosmarium::engine::sim::Simulation;
 
 fn main() {
     println!("=== OpenGL Data Validation for Layered Terrain ===\n");

@@ -1,17 +1,17 @@
 // ABOUTME: Test suite for colorized ASCII framebuffer functionality
 // ABOUTME: Validates ANSI color integration with existing framebuffer system
 
-use sim_prototype::engine::agents::biome::BiomeType;
-use sim_prototype::engine::core::heightmap::HeightMap;
-use sim_prototype::engine::physics::worldgen::{
+use kosmarium::engine::agents::biome::BiomeType;
+use kosmarium::engine::core::heightmap::HeightMap;
+use kosmarium::engine::physics::worldgen::{
     DiamondSquareConfig, DiamondSquareGenerator, TerrainGenerator,
 };
-use sim_prototype::engine::rendering::ansi_colors::{
+use kosmarium::engine::rendering::ansi_colors::{
     ANSI_RESET, AnsiColor, biome_to_ansi_color, colorize_char, elevation_to_ansi_color,
     pressure_to_ansi_color, temperature_to_ansi_color,
 };
-use sim_prototype::engine::rendering::{AsciiFramebuffer, FramebufferConfig, VisualizationLayer};
-use sim_prototype::engine::sim::Simulation;
+use kosmarium::engine::rendering::{AsciiFramebuffer, FramebufferConfig, VisualizationLayer};
+use kosmarium::engine::sim::Simulation;
 
 #[test]
 fn test_colorized_framebuffer_creation() {

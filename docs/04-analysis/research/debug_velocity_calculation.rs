@@ -1,8 +1,8 @@
 // ABOUTME: Debug script to analyze velocity calculations for boundary outflow test case
 // ABOUTME: Verifies if velocities are correctly calculated from heightmap gradients
 
-use sim_prototype::engine::core::heightmap::HeightMap;
-use sim_prototype::engine::sim::Simulation;
+use kosmarium::engine::core::heightmap::HeightMap;
+use kosmarium::engine::sim::Simulation;
 
 fn main() {
     println!("=== VELOCITY CALCULATION DEBUG ===");

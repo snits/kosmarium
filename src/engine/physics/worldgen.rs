@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Schnitsel and contributors
+
 // kosmarium/src/engine/physics/worldgen.rs
 
 use super::super::core::heightmap::HeightMap;

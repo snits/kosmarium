@@ -1,5 +1,5 @@
-use sim_prototype::engine::core::heightmap::HeightMap;
-use sim_prototype::engine::sim::Simulation;
+use kosmarium::engine::core::heightmap::HeightMap;
+use kosmarium::engine::sim::Simulation;
 
 fn main() {
     // Create the same terrain as the failing test

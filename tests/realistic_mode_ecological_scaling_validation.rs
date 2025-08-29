@@ -4,11 +4,11 @@
 //! by implementing scientifically accurate 2.5 kg/m²/year growth rates in Realistic mode
 //! while preserving exact Demo mode behavior for backward compatibility.
 
-use sim_prototype::engine::core::{
+use kosmarium::engine::core::{
     scale::{DetailLevel, WorldScale},
     temporal_scaling::{TemporalMode, TemporalScalingConfig, TemporalScalingService},
 };
-use sim_prototype::engine::physics::{
+use kosmarium::engine::physics::{
     atmospheric_moisture::SurfaceMoistureLayer,
     ecosystem_feedback::{BiomeType, EcosystemFeedbackParameters, EcosystemFeedbackSystem},
     flow_engine::FlowEngine,
@@ -136,7 +136,7 @@ fn test_ecosystem_feedback_realistic_integration() {
     let mut water_layer = WaterLayer::new(50, 50);
     let mut moisture_layer = SurfaceMoistureLayer::new(50, 50);
     let flow_engine = FlowEngine::new(
-        sim_prototype::engine::physics::flow_engine::FlowAlgorithm::Gradient,
+        kosmarium::engine::physics::flow_engine::FlowAlgorithm::Gradient,
         50,
         50,
         &world_scale,
@@ -218,7 +218,7 @@ fn test_ecological_process_coherence() {
     let mut water_layer = WaterLayer::new(20, 20);
     let mut moisture_layer = SurfaceMoistureLayer::new(20, 20);
     let flow_engine = FlowEngine::new(
-        sim_prototype::engine::physics::flow_engine::FlowAlgorithm::Gradient,
+        kosmarium::engine::physics::flow_engine::FlowAlgorithm::Gradient,
         20,
         20,
         &world_scale,

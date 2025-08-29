@@ -1,8 +1,8 @@
 // ABOUTME: Detailed step-by-step analysis of boundary outflow during water flow simulation
 // ABOUTME: Tracks water mass through each phase: rainfall -> flow -> evaporation
 
-use sim_prototype::engine::core::heightmap::HeightMap;
-use sim_prototype::engine::sim::Simulation;
+use kosmarium::engine::core::heightmap::HeightMap;
+use kosmarium::engine::sim::Simulation;
 
 fn main() {
     println!("=== DETAILED BOUNDARY FLOW ANALYSIS ===");

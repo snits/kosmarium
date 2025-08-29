@@ -1,10 +1,10 @@
 // Test to reproduce Jerry's water accumulation issue at continental scales
 
-use sim_prototype::engine::core::heightmap::HeightMap;
-use sim_prototype::engine::core::scale::{DetailLevel, WorldScale};
-use sim_prototype::engine::physics::worldgen::{TectonicConfig, TectonicGenerator, TerrainGenerator};
-use sim_prototype::engine::physics::water::WaterLayer;
-use sim_prototype::engine::sim::{Simulation, WaterFlowSystem};
+use kosmarium::engine::core::heightmap::HeightMap;
+use kosmarium::engine::core::scale::{DetailLevel, WorldScale};
+use kosmarium::engine::physics::worldgen::{TectonicConfig, TectonicGenerator, TerrainGenerator};
+use kosmarium::engine::physics::water::WaterLayer;
+use kosmarium::engine::sim::{Simulation, WaterFlowSystem};
 
 fn test_scale_water_behavior(scale_km: f64, label: &str) {
     println!("\n=== Testing {} Scale ({:.0}km domain) ===", label, scale_km);

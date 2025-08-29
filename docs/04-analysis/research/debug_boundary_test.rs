@@ -1,6 +1,6 @@
 // Debug boundary outflow test issue
-use sim_prototype::engine::core::heightmap::HeightMap;
-use sim_prototype::engine::sim::Simulation;
+use kosmarium::engine::core::heightmap::HeightMap;
+use kosmarium::engine::sim::Simulation;
 
 fn main() {
     println!("Debugging boundary outflow test...\n");

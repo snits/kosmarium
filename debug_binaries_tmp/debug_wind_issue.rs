@@ -1,8 +1,8 @@
 // ABOUTME: Debug script to investigate why wind speeds are all zero
 // ABOUTME: Checks atmospheric system activation and Coriolis threshold
 
-use sim_prototype::scale::{WorldScale, DetailLevel, ScaleAware};
-use sim_prototype::atmosphere::{AtmosphericSystem, AtmosphericParameters};
+use kosmarium::scale::{WorldScale, DetailLevel, ScaleAware};
+use kosmarium::atmosphere::{AtmosphericSystem, AtmosphericParameters};
 
 fn main() {
     println!("=== Wind Debug Investigation ===\n");

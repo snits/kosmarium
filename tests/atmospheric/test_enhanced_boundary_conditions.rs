@@ -1,10 +1,10 @@
 // ABOUTME: Enhanced test program for atmospheric boundary conditions with sponge layer damping
 // ABOUTME: Compares standard zero-gradient vs enhanced sponge layer boundary conditions for momentum conservation
 
-use sim_prototype::engine::physics::atmosphere::{AtmosphericSystem, WindLayer};
+use kosmarium::engine::physics::atmosphere::{AtmosphericSystem, WindLayer};
 // Removed unused ClimateSystem import
-use sim_prototype::engine::core::scale::{WorldScale, DetailLevel};
-use sim_prototype::engine::physics::water::Vec2;
+use kosmarium::engine::core::scale::{WorldScale, DetailLevel};
+use kosmarium::engine::physics::water::Vec2;
 
 fn main() {
     println!("Enhanced Atmospheric Boundary Conditions Test");
@@ -115,7 +115,7 @@ fn test_pressure_gradient_scenario(atmospheric_system: &AtmosphericSystem, scale
     
     // Create a simple pressure field manually for testing
     // Low pressure in the west, high pressure in the east (creates westward flow)
-    let mut pressure_layer = sim_prototype::engine::physics::climate::AtmosphericPressureLayer::new(width, height);
+    let mut pressure_layer = kosmarium::engine::physics::climate::AtmosphericPressureLayer::new(width, height);
     
     let base_pressure = 101325.0; // Standard sea level pressure (Pa)
     

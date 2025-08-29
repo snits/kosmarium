@@ -1,7 +1,7 @@
 // ABOUTME: Validation test for temporal scaling Demo mode bit-identical behavior preservation
 // ABOUTME: Ensures ecosystem dynamics remain exactly the same after temporal scaling integration
 
-use sim_prototype::engine::{
+use kosmarium::engine::{
     core::{
         scale::{DetailLevel, WorldScale},
         temporal_scaling::{TemporalMode, TemporalScalingConfig, TemporalScalingService},
@@ -196,7 +196,7 @@ fn create_test_setup() -> (
 
     // Create flow engine (needed for ecosystem update)
     let flow_engine = FlowEngine::new(
-        sim_prototype::engine::physics::flow_engine::FlowAlgorithm::Gradient,
+        kosmarium::engine::physics::flow_engine::FlowAlgorithm::Gradient,
         width,
         height,
         &world_scale,

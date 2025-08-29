@@ -1,8 +1,8 @@
 // Quick test of the corrected concentration factor for continental drainage
-use sim_prototype::WaterFlowSystem;
-use sim_prototype::engine::core::heightmap::HeightMap;
-use sim_prototype::engine::physics::drainage::DrainageNetwork;
-use sim_prototype::engine::physics::water::WaterLayer;
+use kosmarium::WaterFlowSystem;
+use kosmarium::engine::core::heightmap::HeightMap;
+use kosmarium::engine::physics::drainage::DrainageNetwork;
+use kosmarium::engine::physics::water::WaterLayer;
 
 fn main() {
     println!("Testing Corrected Concentration Factor (Scale Factor = 5000)");
@@ -24,7 +24,7 @@ fn main() {
 
     // Create drainage network (need to create a temporary WorldScale)
     // For testing purposes, create a WorldScale that represents continental scale
-    use sim_prototype::engine::core::scale::{DetailLevel, WorldScale};
+    use kosmarium::engine::core::scale::{DetailLevel, WorldScale};
     let temp_scale = WorldScale::new(
         32.0 * width as f64,
         (width as u32, height as u32),

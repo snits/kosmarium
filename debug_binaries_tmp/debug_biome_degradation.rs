@@ -1,7 +1,7 @@
 // ABOUTME: Debug program to investigate biome degradation from realistic → lake world pattern
 // ABOUTME: Systematically tracks water, temperature, and biome changes over time to find root cause
 
-use sim_prototype::engine::{
+use kosmarium::engine::{
     core::{
         heightmap::HeightMap,
         scale::{DetailLevel, WorldScale},

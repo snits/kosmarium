@@ -1,7 +1,7 @@
 // ABOUTME: Integration tests for ecosystem feedback coupling system
 // ABOUTME: Validates biome effects on climate and hydrology integration
 
-use sim_prototype::engine::{
+use kosmarium::engine::{
     core::scale::{DetailLevel, WorldScale},
     physics::{
         atmospheric_moisture::SurfaceMoistureLayer,

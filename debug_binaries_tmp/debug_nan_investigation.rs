@@ -1,7 +1,7 @@
 // ABOUTME: Comprehensive debugging script to identify NaN/infinity sources in layered terrain generation
 // ABOUTME: Tests mathematical operations and validates floating point values before OpenGL rendering
 
-use sim_prototype::worldgen::{TectonicGenerator, TerrainGenerator, TectonicConfig};
+use kosmarium::worldgen::{TectonicGenerator, TerrainGenerator, TectonicConfig};
 use std::collections::HashMap;
 
 fn main() {

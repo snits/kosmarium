@@ -1,7 +1,7 @@
 // Simple Phase 2 validation test
-use sim_prototype::engine::core::scale::{DetailLevel, WorldScale};
-use sim_prototype::engine::physics::atmosphere::AtmosphericSystem;
-use sim_prototype::engine::physics::climate::ClimateSystem;
+use kosmarium::engine::core::scale::{DetailLevel, WorldScale};
+use kosmarium::engine::physics::atmosphere::AtmosphericSystem;
+use kosmarium::engine::physics::climate::ClimateSystem;
 
 fn main() {
     println!("PHASE 2 Simple Validation Test");

@@ -23,11 +23,11 @@ use std::io::Write;
 use std::time::Instant;
 
 // Test dependencies - importing from main codebase
-use sim_prototype::engine::core::heightmap::HeightMap;
-use sim_prototype::engine::core::scale::{DetailLevel, WorldScale};
-use sim_prototype::engine::physics::climate::{ClimateSystem, TemperatureLayer};
-use sim_prototype::engine::physics::water::WaterLayer;
-use sim_prototype::engine::sim::Simulation;
+use kosmarium::engine::core::heightmap::HeightMap;
+use kosmarium::engine::core::scale::{DetailLevel, WorldScale};
+use kosmarium::engine::physics::climate::{ClimateSystem, TemperatureLayer};
+use kosmarium::engine::physics::water::WaterLayer;
+use kosmarium::engine::sim::Simulation;
 
 /// Test tolerance for energy conservation - atmospheric physicist requirement: ±1%
 const ENERGY_CONSERVATION_TOLERANCE: f32 = 0.01;

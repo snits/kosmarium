@@ -1,10 +1,10 @@
 // ABOUTME: Tests for geostrophic balance validation framework detecting current physics violations
 // ABOUTME: Implements f × v ≈ -(1/ρ)∇P validation and measures pressure-wind coupling correlation
 
-use sim_prototype::engine::core::scale::{DetailLevel, WorldScale};
-use sim_prototype::engine::physics::atmosphere::{AtmosphericSystem, BoundaryType, WindLayer};
-use sim_prototype::engine::physics::climate::AtmosphericPressureLayer;
-use sim_prototype::engine::physics::water::Vec2;
+use kosmarium::engine::core::scale::{DetailLevel, WorldScale};
+use kosmarium::engine::physics::atmosphere::{AtmosphericSystem, BoundaryType, WindLayer};
+use kosmarium::engine::physics::climate::AtmosphericPressureLayer;
+use kosmarium::engine::physics::water::Vec2;
 
 // Safety parameters from SageMath validation
 const F_THRESHOLD: f64 = 1e-6; // s⁻¹ - numerical stability  
@@ -1086,7 +1086,7 @@ mod tests {
 
         // Create realistic temperature field for pressure generation
         let mut climate_system =
-            sim_prototype::engine::physics::climate::ClimateSystem::new_for_scale(&scale);
+            kosmarium::engine::physics::climate::ClimateSystem::new_for_scale(&scale);
 
         // Create test heightmap
         let heightmap = vec![vec![0.0; 60]; 60]; // Flat terrain for cleaner testing

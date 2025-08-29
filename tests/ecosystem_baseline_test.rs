@@ -1,7 +1,7 @@
 // ABOUTME: Simple ecosystem baseline test for temporal scaling integration validation
 // ABOUTME: Captures current ecosystem behavior before temporal scaling implementation
 
-use sim_prototype::engine::{
+use kosmarium::engine::{
     core::scale::{DetailLevel, WorldScale},
     physics::{
         atmospheric_moisture::SurfaceMoistureLayer,
@@ -50,7 +50,7 @@ fn test_capture_baseline_ecosystem_behavior() {
 
     // Create flow engine
     let flow_engine = FlowEngine::new(
-        sim_prototype::engine::physics::flow_engine::FlowAlgorithm::Gradient,
+        kosmarium::engine::physics::flow_engine::FlowAlgorithm::Gradient,
         width,
         height,
         &world_scale,

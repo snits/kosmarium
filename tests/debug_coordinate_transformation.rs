@@ -1,6 +1,6 @@
 // Debug coordinate transformation between nested Vec and PhysicsGrid
 
-use sim_prototype::engine::core::PhysicsGrid;
+use kosmarium::engine::core::PhysicsGrid;
 
 #[test]
 fn test_coordinate_transformation_debugging() {
