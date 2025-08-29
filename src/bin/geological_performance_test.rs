@@ -5,7 +5,9 @@ use sim_prototype::engine::core::cache_system::CachedClimateSystem;
 use sim_prototype::engine::core::optimized_heightmap::FlatHeightmap;
 use sim_prototype::engine::core::{DetailLevel, WorldScale};
 use sim_prototype::engine::physics::climate::ClimateSystem;
-use sim_prototype::engine::physics::convergence_detection::{ConvergenceConfig, ConvergenceTracker};
+use sim_prototype::engine::physics::convergence_detection::{
+    ConvergenceConfig, ConvergenceTracker,
+};
 use sim_prototype::engine::physics::geological_evolution::{
     GeologicalEvolution, GeologicalEvolutionConfig,
 };
