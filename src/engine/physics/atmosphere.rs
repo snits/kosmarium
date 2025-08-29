@@ -163,15 +163,22 @@ pub struct WindLayer {
     pub speed: PhysicsGrid<f32>,
     /// Wind direction in radians (0 = east, π/2 = north) at each cell - PhysicsGrid for cache efficiency
     pub direction: PhysicsGrid<f32>,
+    /// Atmospheric moisture (precipitable water) in kg/m² at each cell (primary buffer)
+    pub precipitable_water: PhysicsGrid<f32>,
+    /// Secondary buffer for double-buffering atmospheric moisture advection
+    precipitable_water_buffer: PhysicsGrid<f32>,
 }
 
 impl WindLayer {
     /// Create a new wind layer with the given dimensions
+    /// Initial precipitable_water set to small baseline value (1e-6 kg/m²) for numerical stability
     pub fn new(width: usize, height: usize) -> Self {
         Self {
             velocity: PhysicsGrid::new(width, height, Vec2::zero()),
             speed: PhysicsGrid::new(width, height, 0.0),
             direction: PhysicsGrid::new(width, height, 0.0),
+            precipitable_water: PhysicsGrid::new(width, height, 1e-6), // Small baseline for stability
+            precipitable_water_buffer: PhysicsGrid::new(width, height, 1e-6),
         }
     }
 
@@ -249,6 +256,32 @@ impl WindLayer {
         }
 
         vorticity
+    }
+
+    /// Get mutable reference to the precipitable water buffer for double-buffering optimization  
+    pub fn get_precipitable_water_buffer_mut(&mut self) -> &mut PhysicsGrid<f32> {
+        &mut self.precipitable_water_buffer
+    }
+
+    /// Swap the primary precipitable water buffer with the secondary buffer (ping-pong optimization)
+    pub fn swap_precipitable_water_buffers(&mut self) {
+        std::mem::swap(&mut self.precipitable_water, &mut self.precipitable_water_buffer);
+    }
+
+    /// Clear the precipitable water buffer (prepare for next iteration)
+    pub fn clear_precipitable_water_buffer(&mut self) {
+        self.precipitable_water_buffer.fill(1e-6); // Reset to baseline, not zero
+    }
+
+    /// Copy current precipitable water to buffer for double-buffering
+    pub fn copy_precipitable_water_to_buffer(&mut self) {
+        // Note: PhysicsGrid needs a copy method - will need to implement or use element-wise copy
+        for y in 0..self.height() {
+            for x in 0..self.width() {
+                let value = *self.precipitable_water.get(x, y);
+                self.precipitable_water_buffer.set(x, y, value);
+            }
+        }
     }
 
     /// Check if a cell is at the domain boundary
@@ -564,7 +597,7 @@ impl WindLayer {
 
     /// Apply interior momentum conservation correction for Phase 5 system integration
     /// Ensures total domain momentum remains physically bounded while preserving local geostrophic balance
-    pub fn apply_interior_momentum_conservation(&mut self) {
+    pub fn apply_interior_momentum_conservation(&mut self, meters_per_pixel: f32) {
         // PHASE 5 CORE PRINCIPLE: Global momentum conservation for atmospheric stability
         // Even with perfect local geostrophic balance, domain-integrated momentum can accumulate
         // due to coherent pressure patterns. This correction maintains bounded total momentum
@@ -600,41 +633,53 @@ impl WindLayer {
             }
 
             // Apply continuity correction to reduce divergence violations
-            self.apply_continuity_correction();
+            self.apply_continuity_correction(meters_per_pixel);
         }
+    }
+
+    /// Calculate divergence field (∇·v = ∂u/∂x + ∂v/∂y) for atmospheric physics
+    /// Returns raw divergence before any corrections - used by both continuity correction and precipitation systems
+    /// Uses WorldScale integration for proper spatial scaling across different domain sizes
+    pub(crate) fn calculate_divergence_field(&self, meters_per_pixel: f32) -> PhysicsGrid<f32> {
+        let width = self.width();
+        let height = self.height();
+        let mut divergence_field = PhysicsGrid::new(width, height, 0.0);
+
+        // Calculate divergence using central differences in interior cells
+        for y in 1..height - 1 {
+            for x in 1..width - 1 {
+                // Central differences for divergence: ∇·v = ∂u/∂x + ∂v/∂y
+                // Uses WorldScale-aware spatial derivatives like calculate_vorticity()
+                let du_dx = (self.velocity.get(x + 1, y).x - self.velocity.get(x - 1, y).x) 
+                    / (2.0 * meters_per_pixel);
+                let dv_dy = (self.velocity.get(x, y + 1).y - self.velocity.get(x, y - 1).y) 
+                    / (2.0 * meters_per_pixel);
+
+                divergence_field.set(x, y, du_dx + dv_dy);
+            }
+        }
+
+        divergence_field
     }
 
     /// Apply continuity equation correction to reduce divergence violations (Phase 5)
     /// Addresses the 9% continuity violations identified in diagnostics
-    fn apply_continuity_correction(&mut self) {
-        let width = self.width();
-        let height = self.height();
-
+    fn apply_continuity_correction(&mut self, meters_per_pixel: f32) {
         // Iterative continuity correction: reduce ∇·v in interior cells
         // Use simple pressure relaxation approach for divergence removal
         const MAX_ITERATIONS: usize = 3;
         const RELAXATION_FACTOR: f32 = 0.3;
 
         for _iteration in 0..MAX_ITERATIONS {
-            // Calculate divergence field
-            let mut divergence_field = vec![vec![0.0f32; width]; height];
-
-            for y in 1..height - 1 {
-                for x in 1..width - 1 {
-                    // Central differences for divergence: ∇·v = ∂u/∂x + ∂v/∂y
-                    let du_dx =
-                        (self.velocity.get(x + 1, y).x - self.velocity.get(x - 1, y).x) / 2.0;
-                    let dv_dy =
-                        (self.velocity.get(x, y + 1).y - self.velocity.get(x, y - 1).y) / 2.0;
-
-                    divergence_field[y][x] = du_dx + dv_dy;
-                }
-            }
+            // Calculate divergence field using the extracted helper method with WorldScale integration
+            let divergence_field = self.calculate_divergence_field(meters_per_pixel);
 
             // Apply divergence correction to velocity field
+            let width = self.width();
+            let height = self.height();
             for y in 1..height - 1 {
                 for x in 1..width - 1 {
-                    let divergence = divergence_field[y][x];
+                    let divergence = *divergence_field.get(x, y);
 
                     // Reduce divergence by adjusting velocity components
                     // Distribute correction equally between u and v components
@@ -963,7 +1008,7 @@ impl AtmosphericSystem {
     pub fn generate_geostrophic_winds(
         &self,
         pressure_layer: &AtmosphericPressureLayer,
-        _scale: &WorldScale,
+        scale: &WorldScale,
     ) -> WindLayer {
         let height = pressure_layer.pressure.height();
         let width = pressure_layer.pressure.width();
@@ -1084,7 +1129,7 @@ impl AtmosphericSystem {
         // Key insight: Even with perfect boundary conditions and geostrophic balance,
         // the total domain momentum can accumulate due to pressure pattern alignment
         // Apply global momentum conservation constraint to keep total momentum bounded
-        wind_layer.apply_interior_momentum_conservation();
+        wind_layer.apply_interior_momentum_conservation(scale.meters_per_pixel() as f32);
 
         wind_layer
     }
