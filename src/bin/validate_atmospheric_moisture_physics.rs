@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Metis validation test for atmospheric moisture system physics corrections
 // ABOUTME: Verifies energy conservation, Clausius-Clapeyron compliance, and mass conservation fixes
 

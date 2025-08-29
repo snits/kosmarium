@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Scientific workspace configuration system for YAML-based team collaboration
 // ABOUTME: Enables persistent analysis workflows, shareable templates, and version-controlled research setups
 

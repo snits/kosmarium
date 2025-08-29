@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Unified mathematical types and utilities for cross-system data sharing
 // ABOUTME: Consolidated from duplicate Vec2 implementations in water.rs and tectonics.rs
 

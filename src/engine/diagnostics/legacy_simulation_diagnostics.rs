@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Simulation diagnostics and monitoring system for ASCII stats output
 // ABOUTME: Collects and formats key metrics for debugging scale-aware simulation parameters
 

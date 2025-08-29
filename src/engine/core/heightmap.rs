@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: High-performance 2D terrain storage with flat memory layout for cache efficiency
 // ABOUTME: Replaces Vec<Vec<f32>> pattern with contiguous Vec<f32> storage and fast indexing functions
 

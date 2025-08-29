@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Deep analysis of water flow calculations to find why velocities are zero
 // ABOUTME: Investigates elevation gradients, flow direction calculation, and water movement
 

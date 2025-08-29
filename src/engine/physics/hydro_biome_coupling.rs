@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Biome-hydrology coupling using unified FlowEngine velocity fields for realistic vegetation patterns
 // ABOUTME: Implements water availability calculations that influence biome distribution based on flow dynamics
 

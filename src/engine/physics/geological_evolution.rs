@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Geological time scale evolution system for pre-aging terrain through erosion processes
 // ABOUTME: Runs accelerated water flow and erosion over geological timescales before real-time simulation
 

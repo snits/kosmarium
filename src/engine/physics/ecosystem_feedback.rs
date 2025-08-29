@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Ecosystem feedback loops coupling - biome effects on climate and hydrology
 // ABOUTME: Models how vegetation and biomes influence temperature, humidity, evapotranspiration, and water cycles
 

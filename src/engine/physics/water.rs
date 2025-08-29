@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Water layer data structure for simulation water flow and accumulation
 // ABOUTME: Provides high-performance storage for water depth, velocity, and sediment data
 

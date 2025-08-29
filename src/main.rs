@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: CLI dispatcher - routes to different application modes
 // ABOUTME: Simple entry point that delegates to application-specific implementations
 

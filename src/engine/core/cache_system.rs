@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Caching system for expensive calculations in geological simulation
 // ABOUTME: Implements temperature field caching, change detection, and selective recomputation
 

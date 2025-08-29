@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Biome classification system using Whittaker model for realistic terrain types
 // ABOUTME: High-performance storage and real-time queries for agent movement and behavior systems
 

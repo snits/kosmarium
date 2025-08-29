@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Test binary for corrected water flow physics implementation
 // ABOUTME: Validates improvements and compares before/after diagnostic results
 

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Corrected water flow physics implementation with proper shallow water equations
 // ABOUTME: Migrated to use unified FlowEngine with conservation-based shallow water physics
 

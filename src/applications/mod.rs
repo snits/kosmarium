@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Application implementations - different ways to use the simulation engine
 // ABOUTME: Demonstrates engine flexibility through specialized application instances
 

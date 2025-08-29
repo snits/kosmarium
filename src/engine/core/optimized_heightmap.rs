@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Memory-optimized heightmap data structure with flat storage for cache efficiency
 // ABOUTME: Provides coordinate mapping utilities and spatial access patterns for performance
 

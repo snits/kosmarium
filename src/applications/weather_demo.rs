@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Weather Demo application - atmospheric dynamics and weather pattern visualization
 // ABOUTME: Demonstrates engine weather systems with Coriolis effects and geostrophic winds
 

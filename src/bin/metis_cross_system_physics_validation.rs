@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Comprehensive Metis mathematical validation for cross-system physics couplings
 // ABOUTME: Following 7,883x success pattern to validate 8 physics couplings across domain scales
 

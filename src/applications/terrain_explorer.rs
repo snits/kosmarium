@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Terrain Explorer application - interactive terrain generation and visualization
 // ABOUTME: Demonstrates engine usage for terrain exploration with multiple rendering modes
 

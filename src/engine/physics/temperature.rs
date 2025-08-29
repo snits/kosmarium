@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Temperature field management for atmospheric and surface thermal simulation
 // ABOUTME: Provides temperature storage and manipulation for climate coupling systems
 

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Multi-viewport TUI system for simultaneous monitoring of atmospheric data layers
 // ABOUTME: Enables scientists to view multiple data layers simultaneously with independent navigation
 

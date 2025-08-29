@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Core engine foundation - fundamental data structures and scaling systems
 // ABOUTME: Provides basic building blocks for all other engine components
 

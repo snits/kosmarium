@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Generic high-performance 2D grid for physics data with flat memory layout
 // ABOUTME: Extends HeightMap pattern to any data type T for cache-efficient physics simulations
 

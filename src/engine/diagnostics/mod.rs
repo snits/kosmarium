@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Diagnostic modules for comprehensive physics system validation
 // ABOUTME: Provides real-time monitoring and validation of physics systems
 

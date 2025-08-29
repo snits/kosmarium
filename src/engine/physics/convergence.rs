@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Grid convergence testing framework for validating simulation scaling behavior
 // ABOUTME: Provides tools to test that simulations converge as grid resolution increases
 

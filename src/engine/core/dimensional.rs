@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Dimensional analysis system for proper physical units in water flow simulation
 // ABOUTME: Provides unit conversion, physical validation, and dimensional correctness checking
 

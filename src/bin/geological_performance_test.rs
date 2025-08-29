@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Performance analysis tool for geological evolution systems
 // ABOUTME: Measures hot paths, algorithmic complexity, and optimization effectiveness
 

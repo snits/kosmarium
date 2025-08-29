@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Orographic precipitation coupling - terrain-driven rainfall patterns via elevation-climate coupling
 // ABOUTME: Implements physical orographic lift and adiabatic cooling for realistic mountain weather patterns
 

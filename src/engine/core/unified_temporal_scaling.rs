@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Unified temporal scaling architecture that fixes physics violations from selective scaling
 // ABOUTME: Provides single temporal factor for all physics systems to maintain causality and conservation laws
 

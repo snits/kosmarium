@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Rendering and visualization systems - ASCII, TUI, and graphics rendering
 // ABOUTME: Provides multiple visualization modes for simulation data and user interaction
 

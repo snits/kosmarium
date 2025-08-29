@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: ANSI color mapping system for colorized ASCII framebuffer output
 // ABOUTME: Provides semantic color coding matching graphics frontend for AI agent consumption
 

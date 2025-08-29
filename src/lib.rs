@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Library interface for Kosmarium planetary physics simulation engine
 // ABOUTME: Exposes clean public API for external use while keeping internal organization
 

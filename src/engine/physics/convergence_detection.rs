@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Convergence detection system for early termination of geological simulation iterations
 // ABOUTME: Implements multiple convergence criteria and adaptive stopping conditions for performance optimization
 

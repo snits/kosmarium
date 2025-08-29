@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // sim-prototype/src/render.rs
 
 use super::super::agents::biome::BiomeMap;

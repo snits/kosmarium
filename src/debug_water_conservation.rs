@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Diagnostic tool for debugging water conservation issues in simulation
 // ABOUTME: Traces water mass, flow velocities, and accumulation patterns over time
 

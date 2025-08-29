@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Maritime climate coupling using coastal temperature gradients to influence atmospheric circulation
 // ABOUTME: Models sea/land breeze effects and regional weather modification based on thermal contrasts
 

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Demonstration of orographic precipitation coupling - shows terrain-driven rainfall patterns
 // ABOUTME: Creates mountain ridge scenario and demonstrates windward/leeward precipitation effects
 

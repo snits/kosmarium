@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: ASCII framebuffer system for multi-layer temporal visualization of simulation data
 // ABOUTME: Provides real-time monitoring with configurable layers, change detection, and frame buffering
 

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Performance testing script for flow accumulation algorithm scaling analysis
 // ABOUTME: Measures performance across different map sizes to identify algorithmic complexity
 

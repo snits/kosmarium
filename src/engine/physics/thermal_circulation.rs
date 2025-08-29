@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Thermal circulation coupling - temperature-driven atmospheric flow patterns
 // ABOUTME: Creates buoyancy effects and pressure gradients from temperature differences
 

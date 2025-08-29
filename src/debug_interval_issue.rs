@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Test the water flow interval issue to confirm the 66% conservation error cause
 // ABOUTME: Validates that the issue is flow update timing rather than actual water loss
 

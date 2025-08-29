@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Hydrological validation test for Jerry's scale-aware boundary drainage implementation
 // ABOUTME: Tests mass conservation, boundary physics, and effectiveness criteria across multiple scales
 

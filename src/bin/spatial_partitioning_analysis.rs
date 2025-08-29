@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Detailed analysis of spatial partitioning effectiveness in geological evolution
 // ABOUTME: Measures actual active cell percentages and optimization gains across scenarios
 

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Spatial partitioning system for selective cell updates in geological simulation
 // ABOUTME: Implements multi-tier update regions for water/evaporation coupling and convergence tracking
 

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Performance monitoring and statistics for temporal scaling operations
 // ABOUTME: Tracks scaling overhead, operation counts, and provides performance transparency for scientific validation
 

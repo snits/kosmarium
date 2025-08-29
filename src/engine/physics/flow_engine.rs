@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Unified flow calculation engine consolidating 5 duplicate implementations
 // ABOUTME: Provides consistent physics algorithms with pluggable approaches for different contexts
 

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Test binary for water flow diagnostic framework validation
 // ABOUTME: Validates diagnostic system works and identifies physics issues before implementation
 

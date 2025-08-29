@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Wind-driven erosion coupling for atmospheric influence on geological processes using unified FlowEngine
 // ABOUTME: Models wind velocity effects on sediment transport and terrain modification through cross-system physics
 

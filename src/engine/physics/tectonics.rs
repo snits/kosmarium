@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Tectonic plate simulation using Voronoi diagrams for realistic geological processes
 // ABOUTME: Handles plate movement, boundary interactions, and elevation generation from tectonics
 

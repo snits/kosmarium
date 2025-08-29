@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Headless terrain analysis tool for batch testing terrain generation and atmospheric systems
 // ABOUTME: Generates multiple worlds with different seeds and provides statistical analysis of results
 

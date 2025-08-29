@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Demo binary showcasing thermal circulation coupling system
 // ABOUTME: Demonstrates temperature-driven atmospheric flow patterns and visualization
 

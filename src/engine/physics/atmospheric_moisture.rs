@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Atmospheric moisture and surface humidity system for realistic weather simulation
 // ABOUTME: Separates surface moisture from standing water bodies for proper atmospheric coupling
 

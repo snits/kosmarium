@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Drainage network calculation for realistic water body formation using watershed analysis
 // ABOUTME: Implements D8 flow direction, flow accumulation, and water concentration algorithms
 

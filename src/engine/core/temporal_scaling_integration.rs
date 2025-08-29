@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Integration interface specifications and usage examples for temporal scaling framework
 // ABOUTME: Shows how ecosystem_feedback.rs and other temporal processes will use TemporalScalingService
 

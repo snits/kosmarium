@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: TUI implementation with ratatui for interactive terrain exploration
 // ABOUTME: Provides scrollable viewport system for navigating large generated maps
 

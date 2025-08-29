@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Graphics rendering system using macroquad for atmospheric visualization
 // ABOUTME: Handles wind vectors, pressure fields, and weather patterns with 2D graphics
 

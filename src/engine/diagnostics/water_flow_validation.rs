@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Water flow physics diagnostic framework for real-time validation of hydrodynamics
 // ABOUTME: Comprehensive validation of mass conservation, CFL stability, and physics quality metrics
 

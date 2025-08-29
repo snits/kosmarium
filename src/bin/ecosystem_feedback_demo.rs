@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Demo binary showcasing ecosystem feedback loops coupling system
 // ABOUTME: Demonstrates biome effects on climate and hydrology with realistic scenarios
 

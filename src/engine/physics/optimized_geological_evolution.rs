@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: High-performance geological evolution system integrating all optimization techniques
 // ABOUTME: Demonstrates spatial partitioning, caching, flat data structures, and convergence detection
 

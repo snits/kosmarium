@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Physics simulation systems - terrain generation, water flow, climate, atmosphere
 // ABOUTME: Provides scale-aware physics implementations for environmental simulation
 

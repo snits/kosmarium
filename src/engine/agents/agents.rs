@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Real-time agent system with high-performance structure-of-arrays storage
 // ABOUTME: Supports NPCs, creatures, and player avatars with social dynamics and cultural evolution
 

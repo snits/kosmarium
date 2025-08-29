@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Metis validation test for tectonics system physics corrections
 // ABOUTME: Verifies energy conservation, momentum conservation, and isostatic equilibrium fixes
 

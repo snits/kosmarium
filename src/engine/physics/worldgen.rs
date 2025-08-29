@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025 Jerry Schnitsel and contributors
+// Copyright (c) 2025 Jerry Snitselaar and contributors
 
 // kosmarium/src/engine/physics/worldgen.rs
 

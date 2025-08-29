@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Core simulation state and water flow system for dynamic terrain evolution
 // ABOUTME: Manages heightmap terrain with real-time water flow, accumulation, and hydraulic erosion
 

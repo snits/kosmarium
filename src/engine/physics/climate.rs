@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Temperature and climate system for environmental simulation layer
 // ABOUTME: Implements elevation-based temperature gradients with scale-aware parameters
 

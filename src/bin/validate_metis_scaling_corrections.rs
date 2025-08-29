@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Validation binary for Metis scaling corrections implementation
 // ABOUTME: Tests the three critical physics violations fixed following mathematical analysis
 

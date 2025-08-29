@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Atmospheric dynamics system for large-scale flow effects including Coriolis forces
 // ABOUTME: Implements geostrophic wind patterns, pressure-driven flows, and rotating reference frame physics
 

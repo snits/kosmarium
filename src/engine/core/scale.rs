@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Core scaling architecture for scale-aware world generation systems
 // ABOUTME: Provides WorldScale context and ScaleAware trait for consistent parameter derivation
 

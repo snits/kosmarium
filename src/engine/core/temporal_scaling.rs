@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Temporal scaling framework for realistic scientific simulation rates
 // ABOUTME: Provides demo/realistic/research modes with configurable temporal scaling factors
 

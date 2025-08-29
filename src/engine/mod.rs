@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Engine module organization - core simulation engine components
 // ABOUTME: Provides clean internal structure for engine subsystems
 

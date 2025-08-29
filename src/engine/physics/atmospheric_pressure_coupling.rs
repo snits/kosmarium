@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Jerry Snitselaar and contributors
+
 // ABOUTME: Atmospheric pressure coupling for water flow system modifications based on barometric variations
 // ABOUTME: Models pressure effects on evaporation rates and drainage patterns using unified FlowEngine data
 
