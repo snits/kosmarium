@@ -1,4 +1,4 @@
-// ABOUTME: Library interface for sim-prototype terrain generation and simulation engine
+// ABOUTME: Library interface for Kosmarium planetary physics simulation engine
 // ABOUTME: Exposes clean public API for external use while keeping internal organization
 
 pub mod engine;

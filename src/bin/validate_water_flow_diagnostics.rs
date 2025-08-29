@@ -1,10 +1,10 @@
 // ABOUTME: Test binary for water flow diagnostic framework validation
 // ABOUTME: Validates diagnostic system works and identifies physics issues before implementation
 
-use sim_prototype::engine::core::heightmap::HeightMap;
-use sim_prototype::engine::core::scale::{DetailLevel, WorldScale};
-use sim_prototype::engine::physics::water::WaterLayer;
-use sim_prototype::engine::{WaterFlowDiagnostics, WaterFlowSystem};
+use kosmarium::engine::core::heightmap::HeightMap;
+use kosmarium::engine::core::scale::{DetailLevel, WorldScale};
+use kosmarium::engine::physics::water::WaterLayer;
+use kosmarium::engine::{WaterFlowDiagnostics, WaterFlowSystem};
 
 fn main() {
     println!("=== WATER FLOW DIAGNOSTIC FRAMEWORK TEST ===");

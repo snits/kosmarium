@@ -2,11 +2,11 @@
 // ABOUTME: Generates multiple worlds with different seeds and provides statistical analysis of results
 
 use clap::Parser;
-use sim_prototype::engine::physics::worldgen::{
+use kosmarium::engine::physics::worldgen::{
     DiamondSquareConfig, DiamondSquareGenerator, TectonicConfig, TectonicGenerator,
     TerrainGenerator,
 };
-use sim_prototype::engine::sim::Simulation;
+use kosmarium::engine::sim::Simulation;
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 

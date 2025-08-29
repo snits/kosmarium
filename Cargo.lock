@@ -606,6 +606,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "kosmarium"
+version = "0.1.0"
+dependencies = [
+ "atty",
+ "chrono",
+ "clap",
+ "crossterm",
+ "futures",
+ "macroquad",
+ "rand",
+ "ratatui",
+ "rayon",
+ "serde",
+ "serde_yaml",
+ "tokio",
+]
+
+[[package]]
 name = "libc"
 version = "0.2.174"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1019,24 +1037,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9203b8055f63a2a00e2f593bb0510367fe707d7ff1e5c872de2f537b339e5410"
 dependencies = [
  "libc",
-]
-
-[[package]]
-name = "sim-prototype"
-version = "0.1.0"
-dependencies = [
- "atty",
- "chrono",
- "clap",
- "crossterm",
- "futures",
- "macroquad",
- "rand",
- "ratatui",
- "rayon",
- "serde",
- "serde_yaml",
- "tokio",
 ]
 
 [[package]]

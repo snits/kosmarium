@@ -6,7 +6,7 @@ use macroquad::prelude::*;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 // Import engine components
-use sim_prototype::engine::{
+use kosmarium::engine::{
     Simulation, WorkspaceConfig,
     core::{
         DetailLevel, TemporalMode, TemporalPerformanceMonitor, TemporalScale, TemporalScalingConfig,
@@ -708,7 +708,7 @@ pub fn run_weather_demo() -> Result<(), Box<dyn std::error::Error>> {
 
         // Configure window and run graphics mode
         let window_config = Conf {
-            window_title: "Weather System Demo".to_owned(),
+            window_title: "Kosmarium - Planetary Physics Simulation".to_owned(),
             window_width: 1000,
             window_height: 700,
             window_resizable: true,

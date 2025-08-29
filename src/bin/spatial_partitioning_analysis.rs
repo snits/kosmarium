@@ -1,14 +1,14 @@
 // ABOUTME: Detailed analysis of spatial partitioning effectiveness in geological evolution
 // ABOUTME: Measures actual active cell percentages and optimization gains across scenarios
 
-use sim_prototype::engine::core::{DetailLevel, WorldScale};
-use sim_prototype::engine::physics::convergence_detection::{
+use kosmarium::engine::core::{DetailLevel, WorldScale};
+use kosmarium::engine::physics::convergence_detection::{
     ConvergenceConfig, ConvergenceCriterion,
 };
-use sim_prototype::engine::physics::optimized_geological_evolution::{
+use kosmarium::engine::physics::optimized_geological_evolution::{
     OptimizedGeologicalConfig, OptimizedGeologicalEvolution,
 };
-use sim_prototype::engine::physics::worldgen::{
+use kosmarium::engine::physics::worldgen::{
     DiamondSquareConfig, DiamondSquareGenerator, TerrainGenerator,
 };
 use std::time::Instant;

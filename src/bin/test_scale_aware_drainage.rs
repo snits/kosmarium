@@ -1,11 +1,11 @@
 // ABOUTME: Hydrological validation test for Jerry's scale-aware boundary drainage implementation
 // ABOUTME: Tests mass conservation, boundary physics, and effectiveness criteria across multiple scales
 
-use sim_prototype::engine::core::scale::{DetailLevel, ScaleAware, WorldScale};
-use sim_prototype::engine::physics::worldgen::{
+use kosmarium::engine::core::scale::{DetailLevel, ScaleAware, WorldScale};
+use kosmarium::engine::physics::worldgen::{
     TectonicConfig, TectonicGenerator, TerrainGenerator,
 };
-use sim_prototype::engine::sim::Simulation;
+use kosmarium::engine::sim::Simulation;
 
 /// Hydrological validation for a specific scale configuration
 fn validate_drainage_at_scale(scale_km: f64, resolution: usize, test_name: &str) -> bool {

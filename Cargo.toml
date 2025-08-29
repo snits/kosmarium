@@ -1,16 +1,28 @@
 [package]
-name = "sim-prototype"
+name = "kosmarium"
 version = "0.1.0"
 edition = "2024"
-default-run = "sim-prototype"
+description = "Planetary physics simulation platform with real-time temporal scaling and educational visualization"
+authors = ["Jerry Schnitsel <jsnitsel@desertislandgames.com>"]
+homepage = "https://github.com/jsnitsel/kosmarium"
+repository = "https://github.com/jsnitsel/kosmarium"
+keywords = ["simulation", "physics", "planetary", "climate", "education"]
+categories = ["science", "simulation", "visualization"]
+readme = "README.md"
+default-run = "kosmarium"
 
 [features]
 default = ["simd"]
 simd = []
 
 [lib]
-name = "sim_prototype"
+name = "kosmarium"
 path = "src/lib.rs"
+
+# Main application
+[[bin]]
+name = "kosmarium"
+path = "src/main.rs"
 
 # Applications
 [[bin]]

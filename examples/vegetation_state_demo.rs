@@ -1,7 +1,7 @@
 // ABOUTME: Demonstration of VegetationStateClassifier solving temporal scaling inconsistency in biome visualization
 // ABOUTME: Shows how actual biomass accumulation drives vegetation state progression instead of potential classification
 
-use sim_prototype::engine::{
+use kosmarium::engine::{
     agents::biome::{VegetationState, VegetationStateClassifier},
     core::scale::{DetailLevel, WorldScale},
 };

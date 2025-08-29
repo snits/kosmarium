@@ -1,11 +1,11 @@
 // ABOUTME: Validation binary for Metis scaling corrections implementation
 // ABOUTME: Tests the three critical physics violations fixed following mathematical analysis
 
-use sim_prototype::engine::core::{
+use kosmarium::engine::core::{
     heightmap::HeightMap,
     scale::{DetailLevel, WorldScale},
 };
-use sim_prototype::engine::physics::{
+use kosmarium::engine::physics::{
     atmospheric_moisture::AtmosphericMoistureSystem,
     climate::ClimateSystem,
     flow_engine::{FlowAlgorithm, FlowEngine},
@@ -56,12 +56,12 @@ fn test_thermal_circulation_scaling() -> Result<(), Box<dyn std::error::Error>> 
         // Create supporting systems for thermal circulation test
         let mut flow_engine = FlowEngine::new(FlowAlgorithm::Gradient, 50, 50, &scale);
         let mut pressure_layer =
-            sim_prototype::engine::physics::climate::AtmosphericPressureLayer {
-                pressure: sim_prototype::engine::core::PhysicsGrid::new(50, 50, 101325.0),
-                pressure_gradient: sim_prototype::engine::core::PhysicsGrid::new(
+            kosmarium::engine::physics::climate::AtmosphericPressureLayer {
+                pressure: kosmarium::engine::core::PhysicsGrid::new(50, 50, 101325.0),
+                pressure_gradient: kosmarium::engine::core::PhysicsGrid::new(
                     50,
                     50,
-                    sim_prototype::engine::physics::water::Vec2::new(0.0, 0.0),
+                    kosmarium::engine::physics::water::Vec2::new(0.0, 0.0),
                 ),
             };
 
@@ -160,7 +160,7 @@ fn test_orographic_precipitation_scaling() -> Result<(), Box<dyn std::error::Err
                 flow_engine.velocity_field.set_velocity(
                     x,
                     y,
-                    sim_prototype::engine::core::math::Vec2::new(5.0, 0.0), // 5 m/s eastward wind
+                    kosmarium::engine::core::math::Vec2::new(5.0, 0.0), // 5 m/s eastward wind
                 );
             }
         }

@@ -1,7 +1,7 @@
 // ABOUTME: Demonstration of grid convergence testing framework for simulation validation
 // ABOUTME: Shows how the simulation behaves as grid resolution increases
 
-use sim_prototype::convergence::{ConvergenceStudy, ConvergenceStudyConfig};
+use kosmarium::convergence::{ConvergenceStudy, ConvergenceStudyConfig};
 
 fn main() {
     println!("=== Grid Convergence Study Demo ===\n");

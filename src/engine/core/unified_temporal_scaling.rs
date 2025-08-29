@@ -56,7 +56,7 @@ impl TemporalScale {
     ///
     /// # Example
     /// ```rust
-    /// use sim_prototype::engine::core::unified_temporal_scaling::TemporalScale;
+    /// use kosmarium::engine::core::unified_temporal_scaling::TemporalScale;
     ///
     /// let temporal_scale = TemporalScale::from_study_phenomenon("drought").unwrap();
     /// assert_eq!(temporal_scale.global_temporal_factor, 0.2);

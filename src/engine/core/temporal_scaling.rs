@@ -89,7 +89,7 @@ impl TemporalScalingService {
     ///
     /// # Example
     /// ```rust
-    /// use sim_prototype::engine::core::{TemporalScalingService, TemporalMode};
+    /// use kosmarium::engine::core::{TemporalScalingService, TemporalMode};
     ///
     /// let config = TemporalScalingService::from_study_phenomenon("drought").unwrap();
     /// assert_eq!(config.mode, TemporalMode::Research);

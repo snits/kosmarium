@@ -1,11 +1,11 @@
 // ABOUTME: Test binary for corrected water flow physics implementation
 // ABOUTME: Validates improvements and compares before/after diagnostic results
 
-use sim_prototype::engine::core::heightmap::HeightMap;
-use sim_prototype::engine::core::scale::{DetailLevel, WorldScale};
-use sim_prototype::engine::physics::corrected_water_flow::CorrectedWaterFlowSystem;
-use sim_prototype::engine::physics::water::WaterLayer;
-use sim_prototype::engine::{WaterFlowDiagnostics, WaterFlowSystem};
+use kosmarium::engine::core::heightmap::HeightMap;
+use kosmarium::engine::core::scale::{DetailLevel, WorldScale};
+use kosmarium::engine::physics::corrected_water_flow::CorrectedWaterFlowSystem;
+use kosmarium::engine::physics::water::WaterLayer;
+use kosmarium::engine::{WaterFlowDiagnostics, WaterFlowSystem};
 
 fn main() {
     println!("=== CORRECTED WATER FLOW VALIDATION TEST ===");

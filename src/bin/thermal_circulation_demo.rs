@@ -1,7 +1,7 @@
 // ABOUTME: Demo binary showcasing thermal circulation coupling system
 // ABOUTME: Demonstrates temperature-driven atmospheric flow patterns and visualization
 
-use sim_prototype::engine::{
+use kosmarium::engine::{
     core::{
         PhysicsGrid,
         heightmap::HeightMap,

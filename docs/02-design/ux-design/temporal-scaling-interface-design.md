@@ -376,7 +376,7 @@ Study Type Shortcuts:
 ### Integration with Scientific Workflow
 ```python
 # Python API for programmatic control
-from sim_prototype import TemporalSimulation
+from kosmarium import TemporalSimulation
 
 # Configuration-driven research
 sim = TemporalSimulation.from_config("drought_study_2024.toml")

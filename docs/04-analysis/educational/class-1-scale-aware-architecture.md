@@ -369,13 +369,13 @@ pub mod agents;         // ← Agent system (separate!)
 
 **Hurricane Hunter App** (Large-scale weather):
 ```rust
-use sim_prototype::{scale, dimensional, atmosphere, climate, water};
+use kosmarium::{scale, dimensional, atmosphere, climate, water};
 // 100km cells, 2000km domain, full atmospheric physics
 ```
 
 **Agent Social Simulator** (Small-scale interactions):  
 ```rust
-use sim_prototype::{scale, agents, heightmap};
+use kosmarium::{scale, agents, heightmap};
 // 10m cells, 1km domain, simplified terrain
 ```
 

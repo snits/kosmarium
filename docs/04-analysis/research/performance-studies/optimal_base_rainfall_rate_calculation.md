@@ -107,7 +107,7 @@ Conservation ratio: 1.0000 (mathematically perfect)
 ## Implementation Strategy
 
 ### Primary Recommendation
-**File**: `/Users/jsnitsel/desert-island/sim-prototype/src/engine/sim.rs` (line ~77)
+**File**: `src/engine/sim.rs` (line ~77)
 
 **Change**:
 ```rust

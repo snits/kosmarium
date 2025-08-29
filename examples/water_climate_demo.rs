@@ -1,8 +1,8 @@
 // ABOUTME: Demonstration of integrated water flow and climate systems
 // ABOUTME: Shows temperature-dependent evaporation and seasonal effects on water behavior
 
-use sim_prototype::sim::Simulation;
-use sim_prototype::worldgen::{DiamondSquareConfig, DiamondSquareGenerator, TerrainGenerator};
+use kosmarium::sim::Simulation;
+use kosmarium::worldgen::{DiamondSquareConfig, DiamondSquareGenerator, TerrainGenerator};
 
 fn main() {
     println!("=== Water-Climate Integration Demo ===\n");

@@ -1,4 +1,4 @@
-// sim-prototype/src/worldgen.rs
+// kosmarium/src/engine/physics/worldgen.rs
 
 use super::super::core::heightmap::HeightMap;
 use super::super::core::scale::{ScaleAware, WorldScale};

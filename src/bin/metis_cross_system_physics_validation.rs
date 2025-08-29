@@ -1,11 +1,11 @@
 // ABOUTME: Comprehensive Metis mathematical validation for cross-system physics couplings
 // ABOUTME: Following 7,883x success pattern to validate 8 physics couplings across domain scales
 
-use sim_prototype::engine::core::{
+use kosmarium::engine::core::{
     heightmap::HeightMap,
     scale::{DetailLevel, WorldScale},
 };
-use sim_prototype::engine::physics::{
+use kosmarium::engine::physics::{
     atmospheric_moisture::AtmosphericMoistureSystem,
     climate::ClimateSystem,
     flow_engine::{FlowAlgorithm, FlowEngine},
@@ -182,17 +182,17 @@ impl MetisCrossSystemValidator {
     /// Validate thermal circulation physics
     fn validate_thermal_circulation(
         &self,
-        temperature_layer: &sim_prototype::engine::physics::climate::TemperatureLayer,
+        temperature_layer: &kosmarium::engine::physics::climate::TemperatureLayer,
         flow_engine: &mut FlowEngine,
         climate: &ClimateSystem,
         scale: &WorldScale,
     ) -> (f32, f32, f32) {
-        use sim_prototype::engine::core::PhysicsGrid;
-        use sim_prototype::engine::physics::climate::AtmosphericPressureLayer;
-        use sim_prototype::engine::physics::thermal_circulation::{
+        use kosmarium::engine::core::PhysicsGrid;
+        use kosmarium::engine::physics::climate::AtmosphericPressureLayer;
+        use kosmarium::engine::physics::thermal_circulation::{
             ThermalCirculationParameters, ThermalCirculationSystem,
         };
-        use sim_prototype::engine::physics::water::Vec2;
+        use kosmarium::engine::physics::water::Vec2;
 
         let mut thermal_system =
             ThermalCirculationSystem::new(ThermalCirculationParameters::default());
@@ -296,7 +296,7 @@ impl MetisCrossSystemValidator {
     fn validate_maritime_climate(
         &self,
         heightmap: &HeightMap,
-        temperature_layer: &sim_prototype::engine::physics::climate::TemperatureLayer,
+        temperature_layer: &kosmarium::engine::physics::climate::TemperatureLayer,
         flow_engine: &mut FlowEngine,
         scale: &WorldScale,
     ) -> (f32, f32, f32) {

@@ -1,7 +1,7 @@
 // ABOUTME: Demo binary showcasing ecosystem feedback loops coupling system
 // ABOUTME: Demonstrates biome effects on climate and hydrology with realistic scenarios
 
-use sim_prototype::engine::{
+use kosmarium::engine::{
     core::{
         heightmap::HeightMap,
         scale::{DetailLevel, WorldScale},
