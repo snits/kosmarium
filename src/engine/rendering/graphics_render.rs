@@ -6,6 +6,7 @@ use super::super::physics::atmosphere::{WeatherPattern, WeatherPatternType};
 use crate::engine::Simulation;
 use crate::engine::physics::climate::AtmosphericPressureLayer;
 use macroquad::prelude::*;
+use std::time::{Duration, Instant};
 
 // Layout constants for bounded viewport system
 const LEFT_SIDEBAR_WIDTH: f32 = 160.0;
@@ -20,6 +21,7 @@ pub struct GraphicsRenderer {
     zoom_level: f32,
     pan_offset: Vec2,
     simulation_paused: bool,
+    last_sim_tick: Instant,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -55,8 +57,9 @@ impl GraphicsRenderer {
             viewport,
             display_mode: DisplayMode::Elevation,
             zoom_level: 1.0,
-            pan_offset: Vec2::new(0.0, 0.0),
+            pan_offset: Vec2::ZERO,
             simulation_paused: false,
+            last_sim_tick: Instant::now(),
         }
     }
 
@@ -406,15 +409,6 @@ impl GraphicsRenderer {
         draw_text("SIMULATION", sidebar_x, y_pos, 16.0, WHITE);
         y_pos += line_height * 1.5;
 
-        // Simulation time
-        let sim_time = simulation.get_simulation_time();
-        let time_text = format!(
-            "Day {}, {:02}:{:02}",
-            sim_time.days, sim_time.hours, sim_time.minutes
-        );
-        draw_text(&time_text, sidebar_x, y_pos, 14.0, LIGHTGRAY);
-        y_pos += line_height;
-
         // Simulation state
         let sim_state = if self.simulation_paused {
             "PAUSED"
@@ -468,16 +462,7 @@ impl GraphicsRenderer {
             WHITE,
         );
 
-        // Time (center section)
-        let sim_time = simulation.get_simulation_time();
-        let time_text = format!(
-            "Day {}, {:02}:{:02}",
-            sim_time.days, sim_time.hours, sim_time.minutes
-        );
-        let time_x = LEFT_SIDEBAR_WIDTH + section_width;
-        draw_text(&time_text, time_x, bar_y, 16.0, LIGHTGRAY);
-
-        // Simulation state (right section)
+        // Simulation state (center section)
         let sim_state = if self.simulation_paused {
             "PAUSED"
         } else {
@@ -488,13 +473,24 @@ impl GraphicsRenderer {
         } else {
             GREEN
         };
-        let state_x = LEFT_SIDEBAR_WIDTH + section_width * 2.0;
+        let state_x = LEFT_SIDEBAR_WIDTH + section_width + 10.0;
         draw_text(
-            &format!("Simulation: {}", sim_state),
+            &format!("Status: {}", sim_state),
             state_x,
             bar_y,
             16.0,
             sim_color,
+        );
+
+        // Biological time display (right section)
+        let time_text = simulation.get_biological_time_display();
+        let time_x = LEFT_SIDEBAR_WIDTH + 2.0 * section_width + 10.0;
+        draw_text(
+            &time_text,
+            time_x,
+            bar_y,
+            16.0,
+            LIGHTGRAY,
         );
     }
 
@@ -781,8 +777,19 @@ impl GraphicsRenderer {
     }
 
     // Input handling
-    pub fn should_tick_simulation(&self) -> bool {
-        !self.simulation_paused
+    pub fn should_tick_simulation(&mut self) -> bool {
+        if self.simulation_paused {
+            return false;
+        }
+        
+        // Match TUI timing: ~10 simulation ticks per second
+        let sim_tick_interval = Duration::from_millis(100);
+        if self.last_sim_tick.elapsed() >= sim_tick_interval {
+            self.last_sim_tick = Instant::now();
+            true
+        } else {
+            false
+        }
     }
 
     pub fn handle_input(&mut self) {

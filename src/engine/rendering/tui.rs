@@ -868,8 +868,10 @@ pub fn ui(f: &mut Frame, app: &mut TuiApp) {
     let (elevation, terrain_type, symbol) = app.get_cursor_terrain_info();
     let total_water = app.simulation.water.get_total_water();
 
+    let biological_time = app.simulation.get_biological_time_display();
     let status_text = format!(
-        "Pos: ({}, {}) | Zoom: 1:{} | {} {} ({:.3}) | Water: {:.1} | Tick: {} | {} | WASD=Move SPC=Pause F=AddWater V=ToggleWater Q=Quit",
+        "{} | Pos: ({}, {}) | Zoom: 1:{} | {} {} ({:.3}) | Water: {:.1} | {} | WASD=Move SPC=Pause F=AddWater V=ToggleWater Q=Quit",
+        biological_time,
         app.viewport.world_x,
         app.viewport.world_y,
         app.zoom_level,
@@ -877,7 +879,6 @@ pub fn ui(f: &mut Frame, app: &mut TuiApp) {
         terrain_type,
         elevation,
         total_water,
-        app.simulation.tick_count,
         if app.paused { "PAUSED" } else { "RUNNING" }
     );
 

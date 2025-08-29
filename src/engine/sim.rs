@@ -17,10 +17,20 @@ use super::physics::water::{Vec2, WaterLayer};
 #[derive(Debug, Clone)]
 pub struct SimulationTime {
     pub tick_count: u64,
-    pub days: u32,
-    pub hours: u32,
-    pub minutes: u32,
-    pub total_hours: u32,
+    // Biological time (accelerated by temporal scaling)
+    pub biological_days: u32,
+    pub biological_hours: u32,
+    pub biological_minutes: u32,
+    pub biological_total_hours: u32,
+    pub biological_years: u32,
+    pub biological_months: u32,
+    // Session time (actual real time passed in simulation)
+    pub session_days: u32,
+    pub session_hours: u32,
+    pub session_minutes: u32,
+    pub session_total_hours: u32,
+    // Temporal scaling factor for display
+    pub temporal_scaling_factor: f32,
 }
 
 /// Raw, scale-independent water flow parameters
@@ -1350,6 +1360,7 @@ impl Simulation {
             #[cfg(feature = "simd")]
             {
                 // Use specialized optimization for common continental scale
+                // TODO: Create SIMD-optimized scaled variants in future optimization pass
                 if self.heightmap.width() == 240 && self.heightmap.height() == 120 {
                     self.temperature_layer = self
                         .climate_system
@@ -1362,9 +1373,10 @@ impl Simulation {
             }
             #[cfg(not(feature = "simd"))]
             {
+                // CRITICAL: Replace with temporal-scaled variant for unified physics consistency
                 self.temperature_layer = self
                     .climate_system
-                    .generate_temperature_layer_optimized(&self.heightmap);
+                    .generate_temperature_layer_scaled(&self.heightmap, temporal_factor);
             }
 
             if let Some(start) = temp_start {
@@ -1391,6 +1403,7 @@ impl Simulation {
 
             #[cfg(feature = "simd")]
             {
+                // TODO: Create SIMD-optimized scaled variant in future optimization pass
                 self.climate_system.evolve_pressure_layer_simd(
                     &mut self.pressure_layer,
                     &self.temperature_layer,
@@ -1402,12 +1415,14 @@ impl Simulation {
             #[cfg(not(feature = "simd"))]
             {
                 let heightmap_nested = self.heightmap.to_nested();
-                self.climate_system.evolve_pressure_layer(
+                // CRITICAL: Replace with temporal-scaled variant for unified physics consistency
+                self.climate_system.evolve_pressure_layer_scaled(
                     &mut self.pressure_layer,
                     &self.temperature_layer,
                     &heightmap_nested,
                     &self._world_scale,
                     evolution_rate,
+                    temporal_factor,
                 );
             }
             self.last_pressure_update = self.tick_count;
@@ -1416,9 +1431,10 @@ impl Simulation {
 
         // Update wind field when pressure changes OR enough time has passed
         if pressure_updated || self.tick_count - self.last_wind_update >= WIND_UPDATE_INTERVAL {
+            // CRITICAL: Replace with temporal-scaled variant for unified physics consistency
             self.wind_layer = self
                 .atmospheric_system
-                .generate_geostrophic_winds(&self.pressure_layer, &self._world_scale);
+                .generate_geostrophic_winds_scaled(&self.pressure_layer, &self._world_scale, temporal_factor);
             self.last_wind_update = self.tick_count;
         }
 
@@ -1551,22 +1567,140 @@ impl Simulation {
     }
 
     pub fn get_simulation_time(&self) -> SimulationTime {
-        // Assuming 10Hz simulation rate, each tick = 6 minutes of simulation time
+        // Base time per tick (6 minutes at reference scale)
         // This gives reasonable atmospheric dynamics timing
-        const MINUTES_PER_TICK: f32 = 6.0;
-
-        let total_minutes = self.tick_count as f32 * MINUTES_PER_TICK;
-        let total_hours = total_minutes / 60.0;
-        let days = (total_hours / 24.0) as u32;
-        let hours = (total_hours % 24.0) as u32;
-        let minutes = (total_minutes % 60.0) as u32;
+        let base_minutes_per_tick = 6.0;
+        
+        let temporal_factor = self._world_scale.temporal_scale.temporal_factor() as f32;
+        
+        // BIOLOGICAL TIME: Time experienced by the simulation world (accelerated by scaling factor)
+        // Normalize against realistic scale factor so realistic mode = 6 minutes, higher scaling = proportionally more
+        let realistic_scale_factor = 2.5 / 3650.0; // From temporal_scaling.rs line 175
+        let biological_minutes_per_tick = base_minutes_per_tick * temporal_factor / realistic_scale_factor as f32;
+        let biological_total_minutes = self.tick_count as f32 * biological_minutes_per_tick;
+        let biological_total_hours = biological_total_minutes / 60.0;
+        let biological_days = (biological_total_hours / 24.0) as u32;
+        let biological_hours = (biological_total_hours % 24.0) as u32;
+        let biological_minutes = (biological_total_minutes % 60.0) as u32;
+        
+        // Calculate biological years and months for better display
+        let biological_years = biological_days / 365;
+        let biological_months = (biological_days % 365) / 30;
+        
+        // SESSION TIME: Actual real time passed in simulation session (unscaled)
+        let session_total_minutes = self.tick_count as f32 * base_minutes_per_tick;
+        let session_total_hours = session_total_minutes / 60.0;
+        let session_days = (session_total_hours / 24.0) as u32;
+        let session_hours = (session_total_hours % 24.0) as u32;
+        let session_minutes = (session_total_minutes % 60.0) as u32;
 
         SimulationTime {
             tick_count: self.tick_count,
-            days,
-            hours,
-            minutes,
-            total_hours: total_hours as u32,
+            // Biological time (accelerated)
+            biological_days,
+            biological_hours,
+            biological_minutes,
+            biological_total_hours: biological_total_hours as u32,
+            biological_years,
+            biological_months,
+            // Session time (actual)
+            session_days,
+            session_hours,
+            session_minutes,
+            session_total_hours: session_total_hours as u32,
+            // Scaling factor for display
+            temporal_scaling_factor: temporal_factor,
+        }
+    }
+
+    /// Get formatted dual time display string as requested by UX expert
+    /// Format: "Biological Time: 412 years, 3 months    Real Time: 178 days    [100x scaling]"
+    pub fn get_dual_time_display(&self) -> String {
+        let sim_time = self.get_simulation_time();
+        
+        let biological_time_str = Self::format_biological_time(
+            sim_time.biological_years,
+            sim_time.biological_months,
+            sim_time.biological_days,
+            sim_time.biological_hours,
+            sim_time.biological_minutes,
+        );
+        
+        let session_time_str = Self::format_session_time(
+            sim_time.session_days,
+            sim_time.session_hours,
+            sim_time.session_minutes,
+        );
+        
+        let scaling_indicator = if sim_time.temporal_scaling_factor == 1.0 {
+            "[1x real-time]".to_string()
+        } else {
+            format!("[{:.0}x scaling]", sim_time.temporal_scaling_factor)
+        };
+        
+        format!(
+            "Biological Time: {}    Session Time: {}    {}",
+            biological_time_str, session_time_str, scaling_indicator
+        )
+    }
+
+    /// Get formatted biological time display (ecological time only)
+    /// Format: "412 years, 3 months  [100x scaling]" or "2 days, 5 hours  [1x real-time]"
+    pub fn get_biological_time_display(&self) -> String {
+        let sim_time = self.get_simulation_time();
+        
+        let biological_time_str = Self::format_biological_time(
+            sim_time.biological_years,
+            sim_time.biological_months,
+            sim_time.biological_days,
+            sim_time.biological_hours,
+            sim_time.biological_minutes,
+        );
+        
+        let scaling_indicator = if sim_time.temporal_scaling_factor == 1.0 {
+            "[1x real-time]".to_string()
+        } else {
+            format!("[{:.0}x scaling]", sim_time.temporal_scaling_factor)
+        };
+        
+        format!("{} {}", biological_time_str, scaling_indicator)
+    }
+
+    /// Format biological time in fixed-width format: 9999999999y99m99d99h:99m
+    fn format_biological_time(years: u32, months: u32, days: u32, hours: u32, minutes: u32) -> String {
+        // Properly handle day/month/year rollover for accurate time display
+        let total_days = days;
+        let total_months = months + (total_days / 30); // Convert excess days to months (30 day months)
+        let final_days = total_days % 30; // Days should be 0-29
+        
+        let total_years = years + (total_months / 12); // Convert excess months to years  
+        let final_months = total_months % 12; // Months should be 0-11
+        
+        // Fixed-width format for consistent display width
+        format!("{:4}y{:2}m{:2}d{:2}h:{:02}m", 
+                total_years, 
+                final_months, 
+                final_days, 
+                hours, 
+                minutes)
+    }
+
+    /// Format session time (always in days/hours/minutes for consistency)
+    fn format_session_time(days: u32, hours: u32, minutes: u32) -> String {
+        if days > 0 {
+            if hours > 0 {
+                format!("{} days, {} hours", days, hours)
+            } else {
+                format!("{} days", days)
+            }
+        } else if hours > 0 {
+            if minutes > 0 {
+                format!("{} hours, {} minutes", hours, minutes)
+            } else {
+                format!("{} hours", hours)
+            }
+        } else {
+            format!("{} minutes", minutes)
         }
     }
 
