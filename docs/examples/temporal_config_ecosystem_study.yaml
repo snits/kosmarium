@@ -1,0 +1,16 @@
+# Ecosystem Dynamics Study Configuration  
+# ========================================
+# Natural biological growth cycles at realistic scientific timescales
+# Recommended for ecological research and publication-quality studies
+
+mode: Realistic              # Scientific ecological timescales (2.5 kg/m²/year)
+custom_scaling_factor: 1.0   # Not used in realistic mode
+scale_biological: true       # Primary focus on biological processes
+scale_geological: false      # Geological processes on different timescales
+scale_atmospheric: true      # Include climate-ecosystem coupling
+
+# Expected behavior with this configuration:
+# - Ecosystem growth: 2.5 kg/m²/year (scientifically accurate)
+# - Vegetation changes: Seasonal cycles at natural pace
+# - Simulation duration: Multi-year studies (hours of real time)
+# - Use case: Research publications, long-term ecosystem monitoring

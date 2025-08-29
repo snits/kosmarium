@@ -1,0 +1,16 @@
+# Drought Impact Study Configuration
+# ==================================
+# Long-term ecosystem stress analysis under reduced precipitation
+# Recommended for multi-year drought impact research
+
+mode: Research
+custom_scaling_factor: 0.2  # 5x slower than realistic mode for extended timescales
+scale_biological: true      # Focus on ecosystem stress response
+scale_geological: false     # Geological processes not relevant for drought studies  
+scale_atmospheric: true     # Include precipitation/evaporation changes
+
+# Expected behavior with this configuration:
+# - Ecosystem growth: ~0.5 kg/m²/year (very slow, suitable for drought stress)
+# - Vegetation changes: Multi-seasonal cycles visible
+# - Simulation duration: Extended studies recommended (hours of real time)
+# - Use case: Research publications on drought resilience and ecosystem recovery
