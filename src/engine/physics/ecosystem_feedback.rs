@@ -464,12 +464,9 @@ impl EcosystemFeedbackSystem {
                 effects.water_retention_enhancement[x][y] = retention_enhancement;
 
                 // Update vegetation growth/decline based on conditions
-                // CRITICAL FIX: Apply temporal scaling to transform 10.0 kg/m²/day Demo rate to 2.5 kg/m²/year Realistic rate
-                let dt_hours = dt * 24.0; // Convert dt from fraction of day to hours
-                let scaled_growth_rate = self.temporal_scaling.scale_ecosystem_growth_rate(
-                    self.parameters.growth_rate as f64,
-                    dt_hours as f64,
-                ) as f32;
+                // CRITICAL: Apply unified temporal scaling factor for consistency with all physics systems
+                let temporal_factor = scale.temporal_scale.temporal_factor() as f32;
+                let scaled_growth_rate = self.parameters.growth_rate * temporal_factor;
 
                 let growth_factor = overall_health * scaled_growth_rate;
                 let optimal_biomass = self.get_optimal_biomass(biome);

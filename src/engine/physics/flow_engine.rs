@@ -235,21 +235,24 @@ impl FlowEngine {
         drainage: Option<&DrainageNetwork>,
         scale: &WorldScale,
     ) {
+        // Extract temporal scaling factor for unified physics scaling
+        let temporal_factor = scale.temporal_scale.temporal_factor() as f32;
+
         // Ensure velocity field matches current scale
         self.update_scale_if_needed(scale);
 
         match self.algorithm {
-            FlowAlgorithm::Gradient => self.calculate_gradient_flow(heightmap, water, scale),
+            FlowAlgorithm::Gradient => self.calculate_gradient_flow_scaled(heightmap, water, scale, temporal_factor),
             FlowAlgorithm::Conservation => {
-                self.calculate_conservation_flow(heightmap, water, scale)
+                self.calculate_conservation_flow_scaled(heightmap, water, scale, temporal_factor)
             }
-            FlowAlgorithm::Spatial => self.calculate_spatial_flow(heightmap, water, scale),
+            FlowAlgorithm::Spatial => self.calculate_spatial_flow_scaled(heightmap, water, scale, temporal_factor),
             FlowAlgorithm::Drainage => {
                 if let Some(drainage_net) = drainage {
-                    self.calculate_drainage_flow(heightmap, water, drainage_net, scale)
+                    self.calculate_drainage_flow_scaled(heightmap, water, drainage_net, scale, temporal_factor)
                 } else {
                     // Fallback to gradient method if no drainage network provided
-                    self.calculate_gradient_flow(heightmap, water, scale)
+                    self.calculate_gradient_flow_scaled(heightmap, water, scale, temporal_factor)
                 }
             }
         }
@@ -289,6 +292,29 @@ impl FlowEngine {
         }
     }
 
+    /// Gradient-based flow calculation with temporal scaling for unified physics consistency
+    fn calculate_gradient_flow_scaled(
+        &mut self,
+        heightmap: &HeightMap,
+        water: &WaterLayer,
+        scale: &WorldScale,
+        temporal_factor: f32,
+    ) {
+        let grid_spacing_m = scale.meters_per_pixel() as f32;
+
+        for x in 0..heightmap.width() {
+            for y in 0..heightmap.height() {
+                let mut velocity =
+                    self.compute_gradient_velocity(heightmap, water, x, y, grid_spacing_m);
+                
+                // CRITICAL: Scale velocity with temporal factor
+                velocity = velocity * temporal_factor;
+                
+                self.velocity_field.set_velocity(x, y, velocity);
+            }
+        }
+    }
+
     /// Conservation-based flow calculation (from corrected_water_flow.rs)
     fn calculate_conservation_flow(
         &mut self,
@@ -302,6 +328,29 @@ impl FlowEngine {
             for y in 0..heightmap.height() {
                 let velocity =
                     self.compute_conservation_velocity(heightmap, water, x, y, grid_spacing_m);
+                self.velocity_field.set_velocity(x, y, velocity);
+            }
+        }
+    }
+
+    /// Conservation-based flow calculation with temporal scaling for unified physics consistency
+    fn calculate_conservation_flow_scaled(
+        &mut self,
+        heightmap: &HeightMap,
+        water: &WaterLayer,
+        scale: &WorldScale,
+        temporal_factor: f32,
+    ) {
+        let grid_spacing_m = scale.meters_per_pixel() as f32;
+
+        for x in 0..heightmap.width() {
+            for y in 0..heightmap.height() {
+                let mut velocity = 
+                    self.compute_conservation_velocity(heightmap, water, x, y, grid_spacing_m);
+                
+                // CRITICAL: Scale velocity with temporal factor
+                velocity = velocity * temporal_factor;
+                
                 self.velocity_field.set_velocity(x, y, velocity);
             }
         }
@@ -322,6 +371,32 @@ impl FlowEngine {
                 if self.should_update_cell(water, x, y) {
                     let velocity =
                         self.compute_gradient_velocity(heightmap, water, x, y, grid_spacing_m);
+                    self.velocity_field.set_velocity(x, y, velocity);
+                }
+            }
+        }
+    }
+
+    /// Spatial optimization flow calculation with temporal scaling for unified physics consistency
+    fn calculate_spatial_flow_scaled(
+        &mut self,
+        heightmap: &HeightMap,
+        water: &WaterLayer,
+        scale: &WorldScale,
+        temporal_factor: f32,
+    ) {
+        let grid_spacing_m = scale.meters_per_pixel() as f32;
+
+        // Only process cells that have changed since last update
+        for x in 0..heightmap.width() {
+            for y in 0..heightmap.height() {
+                if self.should_update_cell(water, x, y) {
+                    let mut velocity =
+                        self.compute_gradient_velocity(heightmap, water, x, y, grid_spacing_m);
+                    
+                    // CRITICAL: Scale velocity with temporal factor
+                    velocity = velocity * temporal_factor;
+                    
                     self.velocity_field.set_velocity(x, y, velocity);
                 }
             }
@@ -349,6 +424,37 @@ impl FlowEngine {
                     grid_spacing_m,
                     flow_accumulation,
                 );
+                self.velocity_field.set_velocity(x, y, velocity);
+            }
+        }
+    }
+
+    /// Drainage network flow calculation with temporal scaling for unified physics consistency
+    fn calculate_drainage_flow_scaled(
+        &mut self,
+        heightmap: &HeightMap,
+        water: &WaterLayer,
+        drainage: &DrainageNetwork,
+        scale: &WorldScale,
+        temporal_factor: f32,
+    ) {
+        let grid_spacing_m = scale.meters_per_pixel() as f32;
+
+        for x in 0..heightmap.width() {
+            for y in 0..heightmap.height() {
+                let flow_accumulation = drainage.get_flow_accumulation(x, y);
+                let mut velocity = self.compute_drainage_enhanced_velocity(
+                    heightmap,
+                    water,
+                    x,
+                    y,
+                    grid_spacing_m,
+                    flow_accumulation,
+                );
+                
+                // CRITICAL: Scale velocity with temporal factor
+                velocity = velocity * temporal_factor;
+                
                 self.velocity_field.set_velocity(x, y, velocity);
             }
         }

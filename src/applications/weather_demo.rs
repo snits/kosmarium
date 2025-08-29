@@ -9,7 +9,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use sim_prototype::engine::{
     Simulation, WorkspaceConfig,
     core::{
-        DetailLevel, TemporalMode, TemporalPerformanceMonitor, TemporalScalingConfig,
+        DetailLevel, TemporalMode, TemporalPerformanceMonitor, TemporalScale, TemporalScalingConfig,
         TemporalScalingService, WorldScale,
     },
     physics::{DiamondSquareConfig, DiamondSquareGenerator, TerrainGenerator},
@@ -330,18 +330,22 @@ fn save_workspace_config(
     Ok(())
 }
 
-/// Create temporal scaling configuration from command-line arguments
+/// Create unified temporal scaling configuration from command-line arguments
+/// 
+/// This function provides backward compatibility for the CLI while using
+/// the new unified temporal scaling architecture that fixes physics violations.
 fn create_temporal_config_from_args(
     args: &WeatherDemoArgs,
-) -> Result<TemporalScalingConfig, String> {
-    // Handle temporal configuration file loading first
+) -> Result<TemporalScale, String> {
+    // Handle temporal configuration file loading first (convert from legacy format)
     if let Some(config_path) = &args.temporal_config {
-        return load_temporal_config_from_file(config_path);
+        let legacy_config = load_temporal_config_from_file(config_path)?;
+        return Ok(TemporalScale::from(legacy_config));
     }
 
-    // Handle study phenomenon presets
+    // Handle study phenomenon presets (preserves user-friendly CLI experience)
     if let Some(phenomenon) = &args.study_phenomenon {
-        return TemporalScalingService::from_study_phenomenon(phenomenon);
+        return TemporalScale::from_study_phenomenon(phenomenon);
     }
 
     // Parse temporal mode from string
@@ -367,13 +371,22 @@ fn create_temporal_config_from_args(
         }
     }
 
-    Ok(TemporalScalingConfig {
-        mode,
-        custom_scaling_factor: args.scaling_factor,
-        scale_biological: args.scale_biological,
-        scale_geological: args.scale_geological,
-        scale_atmospheric: args.scale_atmospheric,
-    })
+    // Calculate unified temporal factor from mode
+    let global_temporal_factor = match mode {
+        TemporalMode::Demo => 1.0,
+        TemporalMode::Realistic => 2.5 / 3650.0, // Scientific ecological timescales
+        TemporalMode::Research => args.scaling_factor,
+    };
+
+    // NOTE: The old selective scaling flags (scale_biological, scale_geological, scale_atmospheric)
+    // are ignored to fix physics violations. All systems now use unified temporal scaling.
+    if args.scale_biological || args.scale_geological || args.scale_atmospheric {
+        eprintln!("WARNING: Selective temporal scaling flags are deprecated for physics consistency.");
+        eprintln!("All physics systems now use unified temporal scaling to maintain causality.");
+        eprintln!("Use --study-phenomenon presets for research-focused configurations.");
+    }
+
+    Ok(TemporalScale::new(mode, global_temporal_factor, None))
 }
 
 /// Load temporal configuration from YAML file
@@ -389,7 +402,7 @@ fn load_temporal_config_from_file(path: &str) -> Result<TemporalScalingConfig, S
 }
 
 /// Save temporal configuration to file
-fn save_temporal_config_to_file(path: &str, config: &TemporalScalingConfig) -> Result<(), String> {
+fn save_temporal_config_to_file(path: &str, config: &TemporalScale) -> Result<(), String> {
     let yaml = serde_yaml::to_string(config)
         .map_err(|e| format!("Failed to serialize temporal config: {}", e))?;
 
@@ -451,28 +464,25 @@ fn display_temporal_help() {
     println!("  Use --temporal-stats to monitor performance during simulation.");
 }
 
-/// Validate temporal configuration and show expected behavior
-fn validate_temporal_config(config: &TemporalScalingConfig, _args: &WeatherDemoArgs) {
-    println!("Temporal Configuration Validation");
-    println!("=================================\n");
-
-    let service = TemporalScalingService::new(config.clone());
+/// Validate unified temporal configuration and show expected behavior
+fn validate_temporal_config(config: &TemporalScale, _args: &WeatherDemoArgs) {
+    println!("Unified Temporal Configuration Validation");
+    println!("========================================\n");
 
     println!("Configuration:");
     println!("  Mode: {:?}", config.mode);
-    if config.mode == TemporalMode::Research {
-        println!("  Custom scaling factor: {}", config.custom_scaling_factor);
+    println!("  Global temporal factor: {:.6}", config.global_temporal_factor);
+    if let Some(ref study_phenomenon) = config.study_phenomenon {
+        println!("  Study phenomenon: {}", study_phenomenon);
     }
-    println!("  Scale biological: {}", config.scale_biological);
-    println!("  Scale geological: {}", config.scale_geological);
-    println!("  Scale atmospheric: {}", config.scale_atmospheric);
+    println!("  Physics coupling: All systems use unified temporal scaling");
     println!();
 
     println!("Expected Behavior:");
     let dt_hours = 1.0; // 1 hour timestep
     let base_growth_rate = 10.0; // kg/m²/day
 
-    let scaled_rate = service.scale_ecosystem_growth_rate(base_growth_rate, dt_hours);
+    let scaled_rate = config.scale_rate(base_growth_rate, dt_hours);
     let daily_rate = scaled_rate * 24.0;
     let annual_rate = daily_rate * 365.0;
 
@@ -481,6 +491,7 @@ fn validate_temporal_config(config: &TemporalScalingConfig, _args: &WeatherDemoA
         "  Scaled ecosystem growth: {:.6} kg/m²/day ({:.2} kg/m²/year)",
         daily_rate, annual_rate
     );
+    println!("  All physics systems: Same {:.6}x temporal scaling", config.global_temporal_factor);
 
     match config.mode {
         TemporalMode::Demo => {
@@ -494,7 +505,7 @@ fn validate_temporal_config(config: &TemporalScalingConfig, _args: &WeatherDemoA
             println!("  Scientific accuracy: Publication quality");
         }
         TemporalMode::Research => {
-            let factor = config.custom_scaling_factor;
+            let factor = config.global_temporal_factor;
             if factor < 1.0 {
                 println!("  Effect: {:.1}x slower than realistic mode", 1.0 / factor);
                 println!("  Use case: Extended timescale studies");
@@ -565,23 +576,30 @@ pub fn run_weather_demo() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    // === NEW: Display temporal configuration summary ===
+    // === Display unified temporal configuration summary ===
     match temporal_config.mode {
         TemporalMode::Demo => {
             // Don't display anything for demo mode - maintain existing behavior
         }
         TemporalMode::Realistic => {
-            println!("🧪 Temporal Scaling: Realistic mode (scientific accuracy)");
-            println!("   Ecosystem growth: 2.5 kg/m²/year (3650x slower than demo)");
+            println!("🧪 Unified Temporal Scaling: Realistic mode (scientific accuracy)");
+            println!("   All physics systems: {:.6}x temporal factor", temporal_config.global_temporal_factor);
+            let annual_rate = 10.0 * temporal_config.global_temporal_factor * 365.0;
+            println!("   Expected ecosystem growth: {:.2} kg/m²/year", annual_rate);
         }
         TemporalMode::Research => {
             println!(
-                "🔬 Temporal Scaling: Research mode (custom factor: {}x)",
-                temporal_config.custom_scaling_factor
+                "🔬 Unified Temporal Scaling: Research mode (global factor: {:.6}x)",
+                temporal_config.global_temporal_factor
             );
-            let annual_rate = 10.0 * temporal_config.custom_scaling_factor * 365.0;
-            println!("   Ecosystem growth: {:.2} kg/m²/year", annual_rate);
+            let annual_rate = 10.0 * temporal_config.global_temporal_factor * 365.0;
+            println!("   All physics systems use same temporal rate");
+            println!("   Expected ecosystem growth: {:.2} kg/m²/year", annual_rate);
         }
+    }
+    
+    if let Some(ref study_phenomenon) = temporal_config.study_phenomenon {
+        println!("   Study focus: {} (unified temporal coupling enabled)", study_phenomenon);
     }
 
     // Step 1: Generate seed if not provided, then create generator
@@ -643,7 +661,7 @@ pub fn run_weather_demo() -> Result<(), Box<dyn std::error::Error>> {
     println!("Physical domain scale: {:.1} km", args.scale_km);
 
     // === NEW: Create temporal scaling service and performance monitor ===
-    let _temporal_service = TemporalScalingService::new(temporal_config.clone());
+    // Unified temporal scaling is now handled through WorldScale.temporal_scale
 
     let mut _performance_monitor = if args.temporal_stats {
         Some(TemporalPerformanceMonitor::new())
@@ -652,13 +670,14 @@ pub fn run_weather_demo() -> Result<(), Box<dyn std::error::Error>> {
         None
     };
 
-    // Step 3: Run simulation setup with proper scale
+    // Step 3: Run simulation setup with proper scale and unified temporal scaling
     println!("Creating simulation with {:.1}km scale...", args.scale_km);
     let start_time = std::time::Instant::now();
-    let world_scale = WorldScale::new(
+    let world_scale = WorldScale::new_with_temporal(
         args.scale_km,
         (args.width as u32, args.height as u32),
         DetailLevel::Standard,
+        temporal_config, // Use unified temporal scaling context
     );
     let sim = Simulation::_new_with_scale(heightmap, world_scale);
     println!("Simulation created in {:.2?}", start_time.elapsed());

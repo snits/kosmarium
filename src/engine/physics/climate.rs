@@ -395,6 +395,17 @@ impl ClimateSystem {
         }
     }
 
+    /// Update seasonal cycle with temporal scaling for unified physics consistency
+    pub fn tick_scaled(&mut self, temporal_factor: f32) {
+        // CRITICAL: Scale seasonal progression rate with temporal factor
+        let scaled_seasonal_rate = self.seasonal_rate * temporal_factor;
+        self.current_season += scaled_seasonal_rate;
+        // Keep season in 0.0-1.0 range
+        if self.current_season >= 1.0 {
+            self.current_season -= 1.0;
+        }
+    }
+
     /// Generate temperature layer from heightmap with scale-aware continental climate
     /// This version uses the climate system's pre-scaled parameters
     pub fn generate_temperature_layer(&self, heightmap: &[Vec<f32>]) -> TemperatureLayer {

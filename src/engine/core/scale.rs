@@ -1,8 +1,11 @@
 // ABOUTME: Core scaling architecture for scale-aware world generation systems
 // ABOUTME: Provides WorldScale context and ScaleAware trait for consistent parameter derivation
 
+use crate::engine::core::unified_temporal_scaling::TemporalScale;
+
 /// Represents the scale context for world generation
 /// Separates physical scale (real-world size) from resolution scale (output detail)
+/// and provides unified temporal scaling context for physics consistency
 #[derive(Clone, Debug)]
 pub struct WorldScale {
     /// Physical size the map represents in kilometers
@@ -11,15 +14,34 @@ pub struct WorldScale {
     pub resolution: (u32, u32),
     /// Target detail level for generation quality
     pub _detail_level: DetailLevel,
+    /// Unified temporal scaling context for all physics systems
+    /// This ensures temporal coupling and conservation law compliance
+    pub temporal_scale: TemporalScale,
 }
 
 impl WorldScale {
-    /// Create a new world scale context
+    /// Create a new world scale context with default demo temporal scaling
     pub fn new(physical_size_km: f64, resolution: (u32, u32), detail_level: DetailLevel) -> Self {
         Self {
             physical_size_km,
             resolution,
             _detail_level: detail_level,
+            temporal_scale: TemporalScale::default_demo(),
+        }
+    }
+    
+    /// Create a new world scale context with specified temporal scaling
+    pub fn new_with_temporal(
+        physical_size_km: f64, 
+        resolution: (u32, u32), 
+        detail_level: DetailLevel,
+        temporal_scale: TemporalScale,
+    ) -> Self {
+        Self {
+            physical_size_km,
+            resolution,
+            _detail_level: detail_level,
+            temporal_scale,
         }
     }
 

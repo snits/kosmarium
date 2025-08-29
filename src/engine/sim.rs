@@ -448,6 +448,9 @@ impl WaterFlowSystem {
         drainage_network: &DrainageNetwork,
         world_scale: &WorldScale,
     ) {
+        // Extract temporal scaling factor for unified physics scaling
+        let temporal_factor = world_scale.temporal_scale.temporal_factor() as f32;
+
         // Calculate flow directions based on current state and drainage network
         let grid_spacing_m = world_scale.meters_per_pixel() as f32;
         self.calculate_flow_directions_with_drainage(
@@ -457,17 +460,17 @@ impl WaterFlowSystem {
             grid_spacing_m,
         );
 
-        // Add rainfall
-        self.add_rainfall(water);
+        // Add rainfall (scale rainfall rate with temporal factor)
+        self.add_rainfall_scaled(water, temporal_factor);
 
-        // Move water based on flow directions (now drainage-aware with boundaries)
-        self.move_water_with_boundaries(water);
+        // Move water based on flow directions (scale velocities with temporal factor)
+        self.move_water_with_boundaries_scaled(water, temporal_factor);
 
-        // Apply erosion and deposition
-        self.apply_erosion(heightmap, water);
+        // Apply erosion and deposition (scale erosion rates with temporal factor)
+        self.apply_erosion_scaled(heightmap, water, temporal_factor);
 
-        // Apply temperature-dependent evaporation
-        self.apply_evaporation_with_temperature(water, temperature_layer, climate_system);
+        // Apply temperature-dependent evaporation (scale evaporation rate with temporal factor)
+        self.apply_evaporation_with_temperature_scaled(water, temperature_layer, climate_system, temporal_factor);
     }
 
     /// Simulate one tick of water flow with climate integration (legacy method)
@@ -504,6 +507,17 @@ impl WaterFlowSystem {
 
         for depth in water.depth.iter_mut() {
             *depth += self.effective_rainfall_rate;
+        }
+    }
+
+    /// Add rainfall with temporal scaling for unified physics consistency
+    fn add_rainfall_scaled(&mut self, water: &mut WaterLayer, temporal_factor: f32) {
+        let scaled_rainfall_rate = self.effective_rainfall_rate * temporal_factor;
+        let rainfall_added = scaled_rainfall_rate * (water.width() * water.height()) as f32;
+        self.drainage_metrics.total_rainfall_input += rainfall_added;
+
+        for depth in water.depth.iter_mut() {
+            *depth += scaled_rainfall_rate;
         }
     }
 
@@ -623,6 +637,50 @@ impl WaterFlowSystem {
         }
     }
 
+    /// Apply erosion and deposition with temporal scaling for unified physics consistency
+    fn apply_erosion_scaled(&self, heightmap: &mut HeightMap, water: &mut WaterLayer, temporal_factor: f32) {
+        for y in 0..water.height() {
+            for x in 0..water.width() {
+                let velocity = water.velocity.get(x, y);
+                let flow_speed = (velocity.0 * velocity.0 + velocity.1 * velocity.1).sqrt();
+                let water_depth = water.depth.get(x, y);
+
+                // Scale-aware erosion thresholds based on domain characteristics
+                let erosion_flow_threshold = self.evaporation_threshold * 20.0; // Erosion needs significant flow
+                let erosion_depth_threshold = self.evaporation_threshold * 5.0; // Minimum depth for erosion
+                if flow_speed > erosion_flow_threshold && water_depth > erosion_depth_threshold {
+                    // CRITICAL: Scale erosion capacity with temporal factor
+                    let erosion_capacity = flow_speed * water_depth 
+                        * self.parameters.erosion_strength * temporal_factor;
+
+                    // Erode terrain if we're below capacity
+                    let current_sediment = water.sediment.get(x, y);
+                    if current_sediment < erosion_capacity {
+                        // Scale-aware erosion limit - prevent unrealistic landscape changes
+                        // Also scale maximum erosion per tick with temporal factor
+                        let max_erosion_per_tick = self.evaporation_threshold * 100.0 * temporal_factor;
+                        let erosion_amount =
+                            (erosion_capacity - current_sediment).min(max_erosion_per_tick);
+                        let current_height = heightmap.get(x, y);
+                        heightmap.set(x, y, current_height - erosion_amount);
+                        water.sediment.set(x, y, current_sediment + erosion_amount);
+                    }
+                    // Deposit sediment if we're over capacity
+                    else if current_sediment > erosion_capacity {
+                        // Scale deposition rate with temporal factor
+                        let deposition_amount = (current_sediment - erosion_capacity) 
+                            * self.parameters.deposition_rate * temporal_factor;
+                        let current_height = heightmap.get(x, y);
+                        heightmap.set(x, y, current_height + deposition_amount);
+                        water
+                            .sediment
+                            .set(x, y, current_sediment - deposition_amount);
+                    }
+                }
+            }
+        }
+    }
+
     /// Apply uniform evaporation (base case without temperature effects)
     fn apply_evaporation(&mut self, water: &mut WaterLayer) {
         let mut total_evaporated = 0.0;
@@ -726,6 +784,84 @@ impl WaterFlowSystem {
         }
     }
 
+    /// Apply temperature-dependent evaporation with temporal scaling for unified physics consistency
+    fn apply_evaporation_with_temperature_scaled(
+        &mut self,
+        water: &mut WaterLayer,
+        temperature_layer: &mut TemperatureLayer,
+        climate_system: &ClimateSystem,
+        temporal_factor: f32,
+    ) {
+        let mut total_evaporated = 0.0;
+
+        for y in 0..water.height() {
+            for x in 0..water.width() {
+                // Get current temperature at this location
+                let temperature_c =
+                    temperature_layer.get_current_temperature(x, y, climate_system.current_season);
+
+                // Get temperature-dependent evaporation multiplier
+                let temp_multiplier = climate_system.get_evaporation_multiplier(temperature_c);
+
+                // CRITICAL: Scale evaporation rate with temporal factor
+                let effective_evaporation_rate = self.parameters.evaporation_rate 
+                    * temp_multiplier * temporal_factor;
+
+                // Apply evaporation with thermodynamic energy conservation
+                let current_depth = water.depth.get(x, y);
+                let new_depth = current_depth * (1.0 - effective_evaporation_rate.min(1.0));
+
+                // Calculate water mass evaporated (m³/m² = m depth)
+                let evaporated_water_depth = current_depth - new_depth.max(0.0);
+                total_evaporated += evaporated_water_depth;
+
+                // Apply latent heat cooling: Energy conservation E = m * λ
+                // Latent heat of vaporization: 2.45 MJ/kg
+                // Water density: 1000 kg/m³, so 2.45 MJ/m³ per meter depth
+                if evaporated_water_depth > 0.0 {
+                    // Energy removed per m² surface: evaporated_depth * latent_heat_per_depth
+                    let latent_heat_per_meter = 2_450_000.0; // J/m³ (2.45 MJ/m³)
+                    let energy_removed = evaporated_water_depth * latent_heat_per_meter; // J/m²
+
+                    // Convert to temperature change: Q = m * c * ΔT
+                    // Surface thermal mass approximation: ~1m depth with thermal capacity 4.18 MJ/(m³·K)
+                    let surface_thermal_capacity = 4_180_000.0; // J/(m³·K)
+                    let thermal_mass_per_m2 = 1.0; // Approximate 1m thermal depth
+                    let total_thermal_capacity = surface_thermal_capacity * thermal_mass_per_m2; // J/(m²·K)
+
+                    // Calculate temperature decrease: ΔT = Q / (m * c)
+                    let temperature_decrease = energy_removed / total_thermal_capacity; // K = °C
+
+                    // Apply cooling to surface temperature (energy conservation)
+                    let current_temp = temperature_layer.get_temperature(x, y);
+                    let new_temperature = current_temp - temperature_decrease;
+
+                    // Set the cooled temperature back into the temperature layer
+                    temperature_layer.temperature[y][x] = new_temperature;
+                }
+
+                // Clear tiny amounts based on threshold
+                if new_depth < self.evaporation_threshold {
+                    water.depth.set(x, y, 0.0);
+                } else {
+                    water.depth.set(x, y, new_depth);
+                }
+            }
+        }
+
+        self.drainage_metrics.total_evaporation += total_evaporated;
+
+        // Handle sediment settling when water disappears
+        for y in 0..water.height() {
+            for x in 0..water.width() {
+                if water.depth.get(x, y) < self.evaporation_threshold {
+                    let current_sediment = water.sediment.get(x, y);
+                    water.sediment.set(x, y, current_sediment * 0.5); // Sediment settles when water dries up
+                }
+            }
+        }
+    }
+
     /// Calculate flow directions enhanced by drainage network for gradual water concentration
     fn calculate_flow_directions_with_drainage(
         &mut self,
@@ -780,6 +916,92 @@ impl WaterFlowSystem {
                     // instead of rounding immediately to integer positions
                     let target_x_float = x as f32 + vx;
                     let target_y_float = y as f32 + vy;
+
+                    // Calculate fractional flow distribution to neighboring cells
+                    let x0 = target_x_float.floor() as i32;
+                    let x1 = x0 + 1;
+                    let y0 = target_y_float.floor() as i32;
+                    let y1 = y0 + 1;
+
+                    let fx = target_x_float.fract();
+                    let fy = target_y_float.fract();
+
+                    // Bilinear interpolation weights for flow distribution
+                    let weight_00 = (1.0 - fx) * (1.0 - fy); // Bottom-left
+                    let weight_10 = fx * (1.0 - fy); // Bottom-right
+                    let weight_01 = (1.0 - fx) * fy; // Top-left
+                    let weight_11 = fx * fy; // Top-right
+
+                    // Get dimensions before mutable borrow
+                    let width = water.width() as i32;
+                    let height = water.height() as i32;
+
+                    let buffer = water.get_depth_buffer_mut();
+                    let current_depth = buffer.get(x, y);
+
+                    // Remove water from current cell
+                    buffer.set(x, y, current_depth - flow_amount);
+
+                    // Distribute flow to target cells based on fractional position
+                    let flow_cells = [
+                        (x0, y0, weight_00),
+                        (x1, y0, weight_10),
+                        (x0, y1, weight_01),
+                        (x1, y1, weight_11),
+                    ];
+
+                    for (tx, ty, weight) in flow_cells {
+                        if tx >= 0 && tx < width && ty >= 0 && ty < height {
+                            let target_flow = flow_amount * weight;
+                            if target_flow > 1e-8 {
+                                // Avoid microscopic flows
+                                let target_depth = buffer.get(tx as usize, ty as usize);
+                                buffer.set(tx as usize, ty as usize, target_depth + target_flow);
+                            }
+                        } else {
+                            // Flow out of bounds = boundary outflow (lost water)
+                            // INSTRUMENTED: Track boundary drainage for continental scale analysis
+                            let boundary_outflow = flow_amount * weight;
+                            self.drainage_metrics.total_boundary_outflow += boundary_outflow;
+                            self.drainage_metrics.boundary_outflow_rate += boundary_outflow;
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. Swap buffers to make the result the new primary depth
+        water.swap_depth_buffers();
+    }
+
+    /// Move water with boundaries and temporal scaling for unified physics consistency
+    fn move_water_with_boundaries_scaled(&mut self, water: &mut WaterLayer, temporal_factor: f32) {
+        // Use double-buffering to eliminate clone() allocation:
+        // 1. Copy current depth to buffer as starting point
+        water.copy_depth_to_buffer();
+
+        for y in 0..water.height() {
+            for x in 0..water.width() {
+                let (vx, vy) = water.velocity.get(x, y);
+                
+                // CRITICAL: Scale velocities with temporal factor
+                let scaled_vx = vx * temporal_factor;
+                let scaled_vy = vy * temporal_factor;
+                let velocity_mag = (scaled_vx * scaled_vx + scaled_vy * scaled_vy).sqrt();
+                
+                // CFL-stable velocity limit: max 0.5 cells per timestep for numerical stability
+                let max_velocity = 0.5; // Conservative CFL condition
+                let flow_amount = water.depth.get(x, y) * velocity_mag.min(max_velocity);
+
+                // Scale-aware flow threshold - physical minimum with scale adaptation
+                let meters_per_pixel = self.estimate_grid_spacing_from_water_layer(water);
+                let physical_threshold = 0.001 * meters_per_pixel / 1000.0; // 1mm depth scaled to pixel
+                let flow_threshold = 1e-8_f32.max(physical_threshold); // Ensure non-zero minimum
+                if flow_amount > flow_threshold {
+                    // Enhanced accumulative flow: allow fractional movement accumulation
+                    // using scaled velocities for temporal consistency
+                    let target_x_float = x as f32 + scaled_vx;
+                    let target_y_float = y as f32 + scaled_vy;
 
                     // Calculate fractional flow distribution to neighboring cells
                     let x0 = target_x_float.floor() as i32;
@@ -1090,13 +1312,14 @@ impl Simulation {
             None
         };
 
-        // Advance seasonal cycle
+        // Advance seasonal cycle with temporal scaling for unified physics consistency
+        let temporal_factor = self._world_scale.temporal_scale.temporal_factor() as f32;
         let climate_start = if perf_trace {
             Some(std::time::Instant::now())
         } else {
             None
         };
-        self.climate_system.tick();
+        self.climate_system.tick_scaled(temporal_factor);
         if let Some(start) = climate_start {
             if perf_trace {
                 eprintln!(
