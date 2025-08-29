@@ -39,7 +39,7 @@ pub use flow_engine::{FlowAlgorithm, FlowEngine, FlowParameters, VelocityField};
 // Re-export hydrology-biome coupling
 pub use hydro_biome_coupling::{HydrologyAwareBiomeClassifier, WaterAvailability};
 
-// Re-export maritime-climate coupling  
+// Re-export maritime-climate coupling
 pub use maritime_climate_coupling::{CoastalThermalEffects, MaritimAwareAtmosphereSystem};
 
 // Re-export atmospheric-pressure coupling

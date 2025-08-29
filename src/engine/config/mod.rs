@@ -1,9 +1,9 @@
 // ABOUTME: Scientific workspace configuration system for YAML-based team collaboration
 // ABOUTME: Enables persistent analysis workflows, shareable templates, and version-controlled research setups
 
+use super::core::temporal_scaling::TemporalScalingConfig;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use super::core::temporal_scaling::TemporalScalingConfig;
 
 /// Complete scientific workspace configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
