@@ -9,6 +9,7 @@ repository = "https://github.com/jsnitsel/kosmarium"
 keywords = ["simulation", "physics", "planetary", "climate", "education"]
 categories = ["science", "simulation", "visualization"]
 readme = "README.md"
+license = "MIT"
 default-run = "kosmarium"
 
 [features]
